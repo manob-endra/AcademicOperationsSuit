@@ -1,0 +1,6 @@
+supabase database pass : mK911`FU..Kallu
+
+anon public : eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmYXB6YW5peWxmcXdkdnZ5eGFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5NDMwMzIsImV4cCI6MjA5MTUxOTAzMn0.8k1Evsmta1pBzfl_9q8mG4HbFUAaljOayXsrTxwJvFw
+
+publishable API key : sb_publishable_51NqDV4ifVahoi2neAA2ig_xJec2vsz
+
