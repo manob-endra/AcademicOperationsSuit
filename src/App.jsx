@@ -11,7 +11,6 @@ function App() {
       console.log("DATA:", data);
       console.log("ERROR:", error);
     }
-
     testConnection();
   }, []);
 
