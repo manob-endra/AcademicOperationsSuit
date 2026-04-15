@@ -4,3 +4,4 @@ anon public : eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZ
 
 publishable API key : sb_publishable_51NqDV4ifVahoi2neAA2ig_xJec2vsz
 
+mail trap token : b5c0a359b18256ad607b8054cac00c64
