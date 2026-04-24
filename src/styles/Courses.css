@@ -45,6 +45,23 @@
   background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
 }
 
+.remove-btn {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+}
+
+.remove-btn:hover {
+  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.4);
+}
+
+.removed-courses-btn {
+  background: linear-gradient(135deg, #ffa500 0%, #ff8c00 100%);
+  margin-left: auto;
+}
+
+.removed-courses-btn:hover {
+  box-shadow: 0 4px 12px rgba(255, 165, 0, 0.4);
+}
+
 /* Filter Block */
 .filter-block {
   background: #f8fafb;
@@ -56,6 +73,8 @@
   gap: 16px;
   align-items: center;
   flex-wrap: wrap;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .view-all-btn {
@@ -81,6 +100,41 @@
   background: white;
 }
 
+/* Search Box */
+.search-box-container {
+  flex: 0 1 300px;
+  min-width: 250px;
+}
+
+.search-box {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #d0d8e6;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #1f2d3d;
+  font-family: inherit;
+  transition: all 0.3s ease;
+  background: white;
+  box-sizing: border-box;
+}
+
+.search-box::placeholder {
+  color: #9ca9b8;
+}
+
+.search-box:hover {
+  border-color: #b8cbe0;
+  background: #f9fafd;
+}
+
+.search-box:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  background: white;
+}
+
 /* Filters Group */
 .filters-group {
   display: flex;
@@ -88,6 +142,7 @@
   align-items: flex-end;
   flex-wrap: wrap;
   margin-left: auto;
+  flex: 0 1 auto;
 }
 
 .filter-dropdown {

@@ -28,21 +28,28 @@ function Courses() {
   const [yearFilter, setYearFilter] = useState('All year');
   const [semesterFilter, setSemesterFilter] = useState('All semester');
   const [creditFilter, setCreditFilter] = useState('All credits');
+  const [searchTerm, setSearchTerm] = useState('');
 
-  // Filter courses based on selected filters
+  // Filter courses based on selected filters and search term
   const filteredCourses = useMemo(() => {
     return sampleCourses.filter((course) => {
       const yearMatch = yearFilter === 'All year' || course.year === yearFilter;
       const semesterMatch = semesterFilter === 'All semester' || course.semester === semesterFilter;
       const creditMatch = creditFilter === 'All credits' || course.credit.toString() === creditFilter;
-      return yearMatch && semesterMatch && creditMatch;
+      const searchMatch = searchTerm === '' || 
+        course.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        course.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        course.year.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        course.semester.toLowerCase().includes(searchTerm.toLowerCase());
+      return yearMatch && semesterMatch && creditMatch && searchMatch;
     });
-  }, [yearFilter, semesterFilter, creditFilter]);
+  }, [yearFilter, semesterFilter, creditFilter, searchTerm]);
 
   const handleViewAllCourses = () => {
     setYearFilter('All year');
     setSemesterFilter('All semester');
     setCreditFilter('All credits');
+    setSearchTerm('');
   };
 
   return (
@@ -54,6 +61,8 @@ function Courses() {
       <div className="action-buttons-block">
         <button className="action-btn add-btn">+ Add Course</button>
         <button className="action-btn import-btn">⬆ Import Courses</button>
+        <button className="action-btn removed-courses-btn">📋 Removed Courses</button>
+        <button className="action-btn remove-btn">🗑 Remove</button>
       </div>
 
       {/* Filter and View Block */}
@@ -61,6 +70,17 @@ function Courses() {
         <button className="view-all-btn" onClick={handleViewAllCourses}>
           View All Courses
         </button>
+
+        {/* Search Box */}
+        <div className="search-box-container">
+          <input
+            type="text"
+            placeholder="Search by code, title, year, or semester..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="search-box"
+          />
+        </div>
 
         <div className="filters-group">
           {/* Year Filter */}
