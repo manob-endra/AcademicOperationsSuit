@@ -1,0 +1,15 @@
+/* Course Time Component Styles */
+.course-time-container {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  min-height: 400px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.course-time-container p {
+  color: #666;
+  font-size: 16px;
+}
