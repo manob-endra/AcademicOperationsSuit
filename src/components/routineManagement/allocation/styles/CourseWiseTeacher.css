@@ -1,0 +1,395 @@
+.allocation-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.allocation-panel-title {
+  margin: 0;
+  font-size: 20px;
+  color: #1f2d3d;
+  font-weight: 700;
+}
+
+.allocation-panel-description {
+  margin: 0;
+  color: #3b526c;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.cwt-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.cwt-summary-card {
+  border: 1px solid #dce7f4;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cwt-summary-card h4 {
+  margin: 0;
+  font-size: 40px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.cwt-summary-card p {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.cwt-summary-card.blue {
+  background: #eef4ff;
+  color: #2d63da;
+}
+
+.cwt-summary-card.amber {
+  background: #fff6e8;
+  color: #c67a00;
+}
+
+.cwt-summary-card.green {
+  background: #ecfaf4;
+  color: #119662;
+}
+
+.cwt-summary-card.indigo {
+  background: #eef2ff;
+  color: #3d63dd;
+}
+
+.cwt-filters-wrap {
+  border: 1px solid #dce7f4;
+  border-radius: 10px;
+  background: #f8fbff;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) 180px 180px;
+  gap: 12px;
+}
+
+.cwt-search-input,
+.cwt-filter-select,
+.cwt-modal-search {
+  border: 1px solid #cfd9e7;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  color: #243a53;
+  background: #ffffff;
+}
+
+.cwt-search-input:focus,
+.cwt-filter-select:focus,
+.cwt-modal-search:focus {
+  outline: none;
+  border-color: #3c6fd9;
+  box-shadow: 0 0 0 3px rgba(60, 111, 217, 0.15);
+}
+
+.cwt-table-section {
+  border: 1px solid #dce7f4;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.cwt-table-heading {
+  padding: 14px;
+  border-bottom: 1px solid #e2ebf5;
+}
+
+.cwt-table-heading h4 {
+  margin: 0;
+  font-size: 20px;
+  color: #10243d;
+}
+
+.cwt-table-heading p {
+  margin: 4px 0 0 0;
+  color: #4a647f;
+}
+
+.cwt-table-wrap {
+  overflow-x: auto;
+}
+
+.cwt-table {
+  width: 100%;
+  min-width: 1280px;
+  border-collapse: collapse;
+}
+
+.cwt-table th,
+.cwt-table td {
+  border: 1px solid #e3ebf4;
+  padding: 12px;
+  vertical-align: top;
+  text-align: left;
+  color: #1d334d;
+  font-size: 14px;
+}
+
+.cwt-table th {
+  background: #f3f7fd;
+  font-size: 15px;
+  font-weight: 700;
+  color: #2e4561;
+}
+
+.cwt-table tbody tr:nth-child(even) td {
+  background: #fbfdff;
+}
+
+.cwt-table tbody tr:hover td {
+  background: #eaf3ff;
+}
+
+.cwt-empty-row {
+  text-align: center;
+  color: #607891;
+  padding: 22px;
+}
+
+.cwt-course-cell {
+  min-width: 230px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cwt-course-code {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1;
+  color: #2c5fce;
+  font-weight: 700;
+}
+
+.cwt-course-title {
+  margin: 0;
+  color: #344d67;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.cwt-course-type {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.cwt-course-type.theory {
+  background: #e8f1ff;
+  color: #2d65d9;
+}
+
+.cwt-course-type.lab {
+  background: #e7f8f1;
+  color: #1c9964;
+}
+
+.cwt-edit-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 120px;
+}
+
+.cwt-tag-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cwt-tag {
+  background: #eef4ff;
+  color: #2f4f7a;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cwt-tag.empty {
+  background: #edf1f6;
+  color: #7389a1;
+}
+
+.cwt-mini-btn {
+  border: 1px solid #c7d6e9;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #35506b;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 10px;
+  cursor: pointer;
+  width: fit-content;
+}
+
+.cwt-mini-btn:hover {
+  border-color: #94abd1;
+  background: #f5f9ff;
+}
+
+.cwt-mini-btn.primary {
+  background: #2f67d9;
+  border-color: #2f67d9;
+  color: #ffffff;
+}
+
+.cwt-mini-btn.primary:hover {
+  background: #245ac7;
+  border-color: #245ac7;
+}
+
+.cwt-assignment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cwt-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 29, 45, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1300;
+  padding: 16px;
+}
+
+.cwt-modal {
+  width: 100%;
+  max-width: 560px;
+  border-radius: 10px;
+  border: 1px solid #d5e1ef;
+  background: #ffffff;
+  padding: 16px;
+  box-shadow: 0 18px 32px rgba(16, 29, 45, 0.24);
+}
+
+.cwt-modal-title {
+  margin: 0;
+  color: #13263d;
+  font-size: 19px;
+}
+
+.cwt-modal-text {
+  margin: 6px 0 12px 0;
+  color: #4a637d;
+  font-size: 14px;
+}
+
+.cwt-modal-list {
+  margin-top: 10px;
+  border: 1px solid #d7e3f0;
+  border-radius: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cwt-modal-item {
+  border: 1px solid #d3deec;
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: 70px 1fr;
+  gap: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cwt-modal-item.selected {
+  border-color: #6e91d2;
+  background: #eef4ff;
+}
+
+.cwt-modal-item-code {
+  color: #214a95;
+  font-weight: 700;
+}
+
+.cwt-modal-item-name {
+  color: #2a425e;
+}
+
+.cwt-modal-actions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.cwt-modal-btn {
+  border: none;
+  border-radius: 6px;
+  padding: 9px 13px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cwt-modal-btn.cancel {
+  background: #ecf1f7;
+  color: #2e465f;
+}
+
+.cwt-modal-btn.cancel:hover {
+  background: #dfe8f2;
+}
+
+.cwt-modal-btn.save {
+  background: #2f67d9;
+  color: #ffffff;
+}
+
+.cwt-modal-btn.save:hover {
+  background: #245ac7;
+}
+
+@media (max-width: 1240px) {
+  .cwt-summary-grid {
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .cwt-filters-wrap {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .cwt-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cwt-summary-card h4 {
+    font-size: 34px;
+  }
+
+  .cwt-course-code {
+    font-size: 24px;
+  }
+}
