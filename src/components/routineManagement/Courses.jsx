@@ -3,31 +3,33 @@ import '../../styles/Courses.css';
 
 // Sample course data
 const sampleCourses = [
-  { code: 'CSE101', title: 'Introduction to Programming', year: '1st year', semester: '1st semester', credit: 3 },
-  { code: 'CSE102', title: 'Digital Logic Design', year: '1st year', semester: '1st semester', credit: 3 },
-  { code: 'CSE103', title: 'Discrete Mathematics', year: '1st year', semester: '2nd semester', credit: 3 },
-  { code: 'CSE104', title: 'Data Structures', year: '2nd year', semester: 'A1', credit: 3 },
-  { code: 'CSE201', title: 'Database Management System', year: '2nd year', semester: 'A1', credit: 3 },
-  { code: 'CSE202', title: 'Web Development', year: '2nd year', semester: 'B2', credit: 2 },
-  { code: 'CSE203', title: 'Computer Networks', year: '3rd year', semester: 'A3', credit: 3 },
-  { code: 'CSE204', title: 'Operating Systems', year: '3rd year', semester: 'B4', credit: 3 },
-  { code: 'CSE301', title: 'Compiler Design', year: '3rd year', semester: 'A1', credit: 2 },
-  { code: 'CSE302', title: 'Artificial Intelligence', year: '4th year', semester: 'B2', credit: 3 },
-  { code: 'CSE303', title: 'Software Engineering', year: '4th year', semester: 'A3', credit: 3 },
-  { code: 'CSE401', title: 'Machine Learning', year: '4th year', semester: 'B4', credit: 3 },
-  { code: 'CSE501', title: 'Advanced Database Systems', year: 'MS', semester: 'A1', credit: 3 },
-  { code: 'CSE502', title: 'Distributed Systems', year: 'MS', semester: 'B2', credit: 3.0 },
-  { code: 'CSE503', title: 'Cloud Computing', year: 'MS', semester: 'Unknown', credit: 1.5 },
+  { code: 'CSE101', title: 'Introduction to Programming', type: 'Theory', year: '1st year', semester: '1st semester', credit: 3 },
+  { code: 'CSE102', title: 'Digital Logic Design', type: 'Theory', year: '1st year', semester: '1st semester', credit: 3 },
+  { code: 'CSE103', title: 'Discrete Mathematics', type: 'Theory', year: '1st year', semester: '2nd semester', credit: 3 },
+  { code: 'CSE104', title: 'Data Structures', type: 'Theory', year: '2nd year', semester: 'A1', credit: 3 },
+  { code: 'CSE201', title: 'Database Management System', type: 'Theory', year: '2nd year', semester: 'A1', credit: 3 },
+  { code: 'CSE202', title: 'Web Development', type: 'Lab', year: '2nd year', semester: 'B2', credit: 2 },
+  { code: 'CSE203', title: 'Computer Networks', type: 'Theory', year: '3rd year', semester: 'A3', credit: 3 },
+  { code: 'CSE204', title: 'Operating Systems', type: 'Theory', year: '3rd year', semester: 'B4', credit: 3 },
+  { code: 'CSE301', title: 'Compiler Design', type: 'Lab', year: '3rd year', semester: 'A1', credit: 2 },
+  { code: 'CSE302', title: 'Artificial Intelligence', type: 'Theory', year: '4th year', semester: 'B2', credit: 3 },
+  { code: 'CSE303', title: 'Software Engineering', type: 'Theory', year: '4th year', semester: 'A3', credit: 3 },
+  { code: 'CSE401', title: 'Machine Learning', type: 'Theory', year: '4th year', semester: 'B4', credit: 3 },
+  { code: 'CSE501', title: 'Advanced Database Systems', type: 'Theory', year: 'MS', semester: 'A1', credit: 3 },
+  { code: 'CSE502', title: 'Distributed Systems', type: 'Theory', year: 'MS', semester: 'B2', credit: 3.0 },
+  { code: 'CSE503', title: 'Cloud Computing', type: 'Lab', year: 'MS', semester: 'Unknown', credit: 1.5 },
 ];
 
 const yearOptions = ['All year', '1st year', '2nd year', '3rd year', '4th year', 'MS'];
 const semesterOptions = ['All semester', '1st semester', '2nd semester', 'A1', 'A3', 'B2', 'B4', 'Unknown'];
 const creditOptions = ['All credits', '0.75', '1.5', '2', '3'];
+const typeOptions = ['All types', 'Theory', 'Lab'];
 
 function Courses() {
   const [yearFilter, setYearFilter] = useState('All year');
   const [semesterFilter, setSemesterFilter] = useState('All semester');
   const [creditFilter, setCreditFilter] = useState('All credits');
+  const [typeFilter, setTypeFilter] = useState('All types');
   const [searchTerm, setSearchTerm] = useState('');
 
   // Filter courses based on selected filters and search term
@@ -36,19 +38,21 @@ function Courses() {
       const yearMatch = yearFilter === 'All year' || course.year === yearFilter;
       const semesterMatch = semesterFilter === 'All semester' || course.semester === semesterFilter;
       const creditMatch = creditFilter === 'All credits' || course.credit.toString() === creditFilter;
+      const typeMatch = typeFilter === 'All types' || course.type === typeFilter;
       const searchMatch = searchTerm === '' || 
         course.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
         course.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         course.year.toLowerCase().includes(searchTerm.toLowerCase()) ||
         course.semester.toLowerCase().includes(searchTerm.toLowerCase());
-      return yearMatch && semesterMatch && creditMatch && searchMatch;
+      return yearMatch && semesterMatch && creditMatch && typeMatch && searchMatch;
     });
-  }, [yearFilter, semesterFilter, creditFilter, searchTerm]);
+  }, [yearFilter, semesterFilter, creditFilter, typeFilter, searchTerm]);
 
   const handleViewAllCourses = () => {
     setYearFilter('All year');
     setSemesterFilter('All semester');
     setCreditFilter('All credits');
+    setTypeFilter('All types');
     setSearchTerm('');
   };
 
@@ -118,6 +122,18 @@ function Courses() {
               ))}
             </select>
           </div>
+
+          {/* Type Filter */}
+          <div className="filter-dropdown">
+            <label>Type</label>
+            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+              {typeOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -128,6 +144,7 @@ function Courses() {
             <tr>
               <th>Course Code</th>
               <th>Title</th>
+              <th>Type</th>
               <th>Year</th>
               <th>Semester</th>
               <th>Credit</th>
@@ -140,6 +157,7 @@ function Courses() {
                 <tr key={course.code} className={index % 2 === 0 ? 'row-light' : 'row-dark'}>
                   <td>{course.code}</td>
                   <td>{course.title}</td>
+                  <td>{course.type}</td>
                   <td>{course.year}</td>
                   <td>{course.semester}</td>
                   <td>{course.credit}</td>
@@ -150,7 +168,7 @@ function Courses() {
               ))
             ) : (
               <tr>
-                <td colSpan="6" className="no-results">
+                <td colSpan="7" className="no-results">
                   No courses found matching the selected filters.
                 </td>
               </tr>
