@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import '../../styles/Teacher.css';
 
+
 // Sample teacher data
 const sampleTeachers = [
   {

@@ -1,0 +1,58 @@
+.allocation-container {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.allocation-tabs {
+  display: flex;
+  gap: 12px;
+  margin: 24px 0;
+  flex-wrap: wrap;
+}
+
+.allocation-tab-btn {
+  background: #f0f2f5;
+  color: #1f2d3d;
+  border: 1px solid #d0d8e6;
+  padding: 12px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-family: inherit;
+}
+
+.allocation-tab-btn:hover {
+  background: #e8ecf3;
+  border-color: #b8cbe0;
+}
+
+.allocation-tab-btn.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.35);
+}
+
+.allocation-tab-content {
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 20px;
+  min-height: 320px;
+}
+
+@media (max-width: 768px) {
+  .allocation-tabs {
+    flex-direction: column;
+  }
+
+  .allocation-tab-btn {
+    width: 100%;
+  }
+
+  .allocation-tab-content {
+    padding: 15px;
+    min-height: 280px;
+  }
+}
