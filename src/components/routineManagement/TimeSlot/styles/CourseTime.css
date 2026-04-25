@@ -1,15 +1,241 @@
 /* Course Time Component Styles */
 .course-time-container {
-  background: white;
-  border-radius: 8px;
-  padding: 20px;
-  min-height: 400px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 100%;
 }
 
-.course-time-container p {
-  color: #666;
-  font-size: 16px;
+.ct-sections-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.ct-section-card {
+  background: #f8fafb;
+  border: 1px solid #e0e6ed;
+  border-radius: 10px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ct-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ct-section-header h3 {
+  margin: 0;
+  font-size: 20px;
+  color: #1f2d3d;
+}
+
+.ct-course-count {
+  background: #edf2fb;
+  color: #3f5570;
+  border: 1px solid #d7e2f3;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  padding: 6px 10px;
+}
+
+.ct-block {
+  background: white;
+  border: 1px solid #e0e6ed;
+  border-radius: 8px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ct-block-title {
+  margin: 0;
+  font-size: 14px;
+  color: #3f5570;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.ct-inline-controls {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.ct-grid-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ct-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ct-input-group label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #3f5570;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.ct-input-group input,
+.ct-input-group select {
+  background: white;
+  border: 1px solid #d0d8e6;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: #1f2d3d;
+  font-family: inherit;
+  transition: all 0.25s ease;
+}
+
+.ct-input-group input:hover,
+.ct-input-group select:hover {
+  border-color: #b8cbe0;
+  background: #f9fafd;
+}
+
+.ct-input-group input:focus,
+.ct-input-group select:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
+  background: white;
+}
+
+.ct-btn {
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  white-space: nowrap;
+}
+
+.ct-btn:hover {
+  transform: translateY(-1px);
+}
+
+.ct-btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.ct-btn-primary:hover {
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.35);
+}
+
+.ct-btn-secondary {
+  background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+  align-self: flex-start;
+}
+
+.ct-btn-secondary:hover {
+  box-shadow: 0 4px 12px rgba(44, 62, 80, 0.3);
+}
+
+.ct-message {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.ct-message.success {
+  background: #eaf8ef;
+  border: 1px solid #c4e7d0;
+  color: #20603d;
+}
+
+.ct-message.error {
+  background: #fff0f0;
+  border: 1px solid #f4cccc;
+  color: #a43d3d;
+}
+
+.ct-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid #dfe6ef;
+  border-radius: 8px;
+}
+
+.ct-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 420px;
+}
+
+.ct-table thead {
+  background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+  color: white;
+}
+
+.ct-table th,
+.ct-table td {
+  text-align: left;
+  padding: 11px 12px;
+  font-size: 13px;
+  border-bottom: 1px solid #edf1f5;
+}
+
+.ct-table th {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.ct-table tbody tr:hover {
+  background: #f5f8fc;
+}
+
+.ct-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+@media (max-width: 1200px) {
+  .ct-sections-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ct-grid-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .ct-section-card {
+    padding: 14px;
+  }
+
+  .ct-inline-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ct-grid-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .ct-btn-primary,
+  .ct-btn-secondary {
+    width: 100%;
+    text-align: center;
+  }
 }

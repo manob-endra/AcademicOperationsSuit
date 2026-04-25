@@ -65,7 +65,11 @@ function RemoveClusterModal({
 }
 
 function ClassroomClusters() {
-  const [clusters, setClusters] = useState([]);
+  const [clusters, setClusters] = useState([
+    { id: 101, name: 'Block A', rooms: ['A-101', 'A-102', 'A-103', 'A-104'] },
+    { id: 102, name: 'Block B', rooms: ['B-201', 'B-202', 'B-203'] },
+    { id: 103, name: 'Engineering Annex', rooms: ['E-301', 'E-302', 'E-305', 'E-306'] },
+  ]);
   const [distances, setDistances] = useState({});
   const [showModal, setShowModal] = useState(false);
   const [showRemoveClusterModal, setShowRemoveClusterModal] = useState(false);
