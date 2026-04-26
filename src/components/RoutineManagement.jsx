@@ -23,11 +23,22 @@ function RoutineManagement() {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
   const [activeSection, setActiveSection] = useState('home');
+  const [selectedSemesters, setSelectedSemesters] = useState([]);
+
+  const handleHomeNavigate = (sectionKey) => {
+    setActiveSection(sectionKey);
+  };
 
   const renderSection = () => {
     switch (activeSection) {
       case 'home':
-        return <Home />;
+        return (
+          <Home
+            selectedSemesters={selectedSemesters}
+            setSelectedSemesters={setSelectedSemesters}
+            onNavigateToSection={handleHomeNavigate}
+          />
+        );
       case 'teacher':
         return <Teacher />;
       case 'allocation':
@@ -39,7 +50,13 @@ function RoutineManagement() {
       case 'courses':
         return <Courses />;
       default:
-        return <Home />;
+        return (
+          <Home
+            selectedSemesters={selectedSemesters}
+            setSelectedSemesters={setSelectedSemesters}
+            onNavigateToSection={handleHomeNavigate}
+          />
+        );
     }
   };
 
