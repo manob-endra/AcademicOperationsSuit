@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authService } from '../services/authService';
-import { validateEmail, validateDomain } from '../utils/validators';
+import { authAPI, validateEmail, validateDomain } from '../services/authAPI';
 import '../styles/Auth.css';
 
 function SignUp() {
@@ -42,7 +41,7 @@ function SignUp() {
       }
 
       // Sign up
-      const result = await authService.signUpWithEmail(
+      const result = await authAPI.signUpWithEmail(
         formData.email,
         formData.password,
         formData.fullName

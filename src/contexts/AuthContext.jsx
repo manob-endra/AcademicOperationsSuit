@@ -1,5 +1,4 @@
 import { createContext, useState, useEffect } from 'react';
-import { supabase } from '../supabaseClient';
 
 export const AuthContext = createContext();
 
@@ -14,22 +13,9 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const checkUser = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email_verified', true)
-        .limit(1);
-
-      if (data && data.length > 0) {
-        setUser(data[0]);
-        setUserRole(data[0].role);
-      }
-    } catch (error) {
-      console.error('Error checking user:', error);
-    } finally {
-      setLoading(false);
-    }
+    // In a real app, you might check if user is stored in localStorage or a session
+    // For now, we'll just mark loading as complete
+    setLoading(false);
   };
 
   const logout = async () => {
