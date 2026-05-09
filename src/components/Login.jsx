@@ -1,7 +1,6 @@
 import { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authService } from '../services/authService';
-import { validateEmail } from '../utils/validators';
+import { authAPI, validateEmail } from '../services/authAPI';
 import { AuthContext } from '../contexts/AuthContext';
 import '../styles/Auth.css';
 
@@ -31,7 +30,7 @@ function Login() {
       if (!validateEmail(formData.email)) throw new Error('Invalid email format');
       if (!formData.password) throw new Error('Password is required');
 
-      const result = await authService.signInWithEmail(formData.email, formData.password);
+      const result = await authAPI.signInWithEmail(formData.email, formData.password);
 
       if (!result.success) {
         throw new Error(result.error);

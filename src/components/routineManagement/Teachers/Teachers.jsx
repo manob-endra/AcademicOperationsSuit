@@ -1,6 +1,11 @@
-import { useState, useMemo } from 'react';
-import '../../styles/Teacher.css';
-
+import { useState, useMemo, useCallback } from 'react';
+import './styles/Teachers.css';
+import './styles/Modal.css';
+import AddTeacherModal from './components/AddTeacherModal';
+import ImportTeachersModal from './components/ImportTeachersModal';
+import RemoveTeachersModal from './components/RemoveTeachersModal';
+import RemovedTeachersModal from './components/RemovedTeachersModal';
+import TeacherPreferenceModal from './components/TeacherPreferenceModal';
 
 // Sample teacher data
 const sampleTeachers = [
@@ -75,30 +80,49 @@ const filterOptions = [
   'without preference',
 ];
 
-function Teacher() {
+function Teachers() {
+  // Teachers state
+  const [teachers, setTeachers] = useState(sampleTeachers);
+  const [removedTeachers, setRemovedTeachers] = useState([]);
+
+  // Filter and search state
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All teachers');
 
+  // Modal states
+  const [modals, setModals] = useState({
+    addTeacher: false,
+    importTeachers: false,
+    removeTeachers: false,
+    removedTeachers: false,
+  });
+
+  const [preferenceModal, setPreferenceModal] = useState({
+    isOpen: false,
+    teacher: null,
+    type: null,
+  });
+
   // Calculate summary statistics
-  const totalTeachers = sampleTeachers.length;
-  const teachersWithPreferences = sampleTeachers.filter(
+  const totalTeachers = teachers.length;
+  const teachersWithPreferences = teachers.filter(
     (t) => t.theoryPreferences > 0 || t.labPreferences > 0
   ).length;
-  const totalPreferences = sampleTeachers.reduce(
+  const totalPreferences = teachers.reduce(
     (sum, t) => sum + t.theoryPreferences + t.labPreferences,
     0
   );
   const avgPreferences = (totalPreferences / totalTeachers).toFixed(2);
 
-  const withinLoadLimit = sampleTeachers.filter((t) => t.weeklyLoadHours <= t.loadLimit).length;
-  const overloaded = sampleTeachers.filter((t) => t.weeklyLoadHours > t.loadLimit).length;
-  const nearLimit = sampleTeachers.filter(
+  const withinLoadLimit = teachers.filter((t) => t.weeklyLoadHours <= t.loadLimit).length;
+  const overloaded = teachers.filter((t) => t.weeklyLoadHours > t.loadLimit).length;
+  const nearLimit = teachers.filter(
     (t) => t.weeklyLoadHours > t.loadLimit * 0.8 && t.weeklyLoadHours <= t.loadLimit
   ).length;
 
   // Filter teachers based on search term and selected filter
   const filteredTeachers = useMemo(() => {
-    return sampleTeachers.filter((teacher) => {
+    return teachers.filter((teacher) => {
       const searchMatch =
         searchTerm === '' ||
         teacher.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -121,8 +145,62 @@ function Teacher() {
 
       return searchMatch && filterMatch;
     });
-  }, [searchTerm, selectedFilter]);
+  }, [teachers, searchTerm, selectedFilter]);
 
+  // Modal handlers
+  const handleOpenModal = useCallback((modalName) => {
+    setModals(prev => ({ ...prev, [modalName]: true }));
+  }, []);
+
+  const handleCloseModal = useCallback((modalName) => {
+    setModals(prev => ({ ...prev, [modalName]: false }));
+  }, []);
+
+  // Teacher operations
+  const handleAddTeacher = useCallback((newTeacher) => {
+    setTeachers(prev => [...prev, newTeacher]);
+    handleCloseModal('addTeacher');
+  }, [handleCloseModal]);
+
+  const handleImportTeachers = useCallback((importedTeachers) => {
+    setTeachers(prev => [...prev, ...importedTeachers]);
+    handleCloseModal('importTeachers');
+  }, [handleCloseModal]);
+
+  const handleRemoveTeachers = useCallback((teachersToRemove) => {
+    setTeachers(prev =>
+      prev.filter(t => !teachersToRemove.some(r => r.initials === t.initials))
+    );
+    setRemovedTeachers(prev => [...prev, ...teachersToRemove]);
+    handleCloseModal('removeTeachers');
+  }, [handleCloseModal]);
+
+  const handleRestoreTeachers = useCallback((teachersToRestore) => {
+    setRemovedTeachers(prev =>
+      prev.filter(t => !teachersToRestore.some(r => r.initials === t.initials))
+    );
+    setTeachers(prev => [...prev, ...teachersToRestore]);
+    handleCloseModal('removedTeachers');
+  }, [handleCloseModal]);
+
+  // Preference modal handlers
+  const handleOpenPreferenceModal = useCallback((teacher, type) => {
+    setPreferenceModal({
+      isOpen: true,
+      teacher,
+      type,
+    });
+  }, []);
+
+  const handleClosePreferenceModal = useCallback(() => {
+    setPreferenceModal({
+      isOpen: false,
+      teacher: null,
+      type: null,
+    });
+  }, []);
+
+  // Utility functions
   const getLoadStatus = (load, limit) => {
     return load > limit ? 'Overloaded' : 'OK';
   };
@@ -138,10 +216,18 @@ function Teacher() {
 
       {/* Top Action Buttons */}
       <div className="action-buttons-block">
-        <button className="action-btn add-btn">+ Add Teacher</button>
-        <button className="action-btn import-btn">⬆ Import Teachers</button>
-        <button className="action-btn removed-btn">📋 Removed Teachers</button>
-        <button className="action-btn remove-btn">🗑 Remove</button>
+        <button className="action-btn add-btn" onClick={() => handleOpenModal('addTeacher')}>
+          + Add Teacher
+        </button>
+        <button className="action-btn import-btn" onClick={() => handleOpenModal('importTeachers')}>
+          ⬆ Import Teachers
+        </button>
+        <button className="action-btn removed-btn" onClick={() => handleOpenModal('removedTeachers')}>
+          📋 Removed Teachers
+        </button>
+        <button className="action-btn remove-btn" onClick={() => handleOpenModal('removeTeachers')}>
+          🗑 Remove
+        </button>
       </div>
 
       {/* Summary Cards */}
@@ -249,25 +335,31 @@ function Teacher() {
                   <td>
                     <div className="preferences-cell">
                       <div className="preference-row">
-                        <button className="preference-btn theory-btn">Theory</button>
+                        <button
+                          className="preference-btn theory-btn"
+                          onClick={() => handleOpenPreferenceModal(teacher, 'theory')}
+                        >
+                          Theory
+                        </button>
                         <span className="preference-badge">{teacher.theoryPreferences}</span>
-                        <button className="add-remove-preference-btn" title="Add/Remove Theory Preference">
-                          +/−
-                        </button>
                       </div>
                       <div className="preference-row">
-                        <button className="preference-btn lab-btn">Lab</button>
+                        <button
+                          className="preference-btn lab-btn"
+                          onClick={() => handleOpenPreferenceModal(teacher, 'lab')}
+                        >
+                          Lab
+                        </button>
                         <span className="preference-badge">{teacher.labPreferences}</span>
-                        <button className="add-remove-preference-btn" title="Add/Remove Lab Preference">
-                          +/−
-                        </button>
                       </div>
                       <div className="preference-row">
-                        <button className="preference-btn time-btn">Time</button>
-                        <span className="preference-badge">{teacher.timePreferences}</span>
-                        <button className="add-remove-preference-btn" title="Add/Remove Time Preference">
-                          +/−
+                        <button
+                          className="preference-btn time-btn"
+                          onClick={() => handleOpenPreferenceModal(teacher, 'time')}
+                        >
+                          Time
                         </button>
+                        <span className="preference-badge">{teacher.timePreferences}</span>
                       </div>
                     </div>
                   </td>
@@ -316,7 +408,6 @@ function Teacher() {
                           </div>
                         ))}
                       </div>
-                      <button className="details-btn">Details</button>
                     </div>
                   </td>
                 </tr>
@@ -333,10 +424,45 @@ function Teacher() {
       </div>
 
       <div className="table-info">
-        Showing {filteredTeachers.length} of {sampleTeachers.length} teachers
+        Showing {filteredTeachers.length} of {teachers.length} teachers
       </div>
+
+      {/* Modals */}
+      <AddTeacherModal
+        isOpen={modals.addTeacher}
+        onClose={() => handleCloseModal('addTeacher')}
+        onAddTeacher={handleAddTeacher}
+      />
+
+      <ImportTeachersModal
+        isOpen={modals.importTeachers}
+        onClose={() => handleCloseModal('importTeachers')}
+        onImportTeachers={handleImportTeachers}
+        existingTeachers={teachers}
+      />
+
+      <RemoveTeachersModal
+        isOpen={modals.removeTeachers}
+        onClose={() => handleCloseModal('removeTeachers')}
+        teachers={teachers}
+        onRemoveTeachers={handleRemoveTeachers}
+      />
+
+      <RemovedTeachersModal
+        isOpen={modals.removedTeachers}
+        onClose={() => handleCloseModal('removedTeachers')}
+        removedTeachers={removedTeachers}
+        onRestoreTeachers={handleRestoreTeachers}
+      />
+
+      <TeacherPreferenceModal
+        isOpen={preferenceModal.isOpen}
+        onClose={handleClosePreferenceModal}
+        teacher={preferenceModal.teacher}
+        preferenceType={preferenceModal.type}
+      />
     </div>
   );
 }
 
-export default Teacher;
+export default Teachers;

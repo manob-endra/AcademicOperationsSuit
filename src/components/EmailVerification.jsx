@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { emailService } from '../services/emailService';
+import { authAPI } from '../services/authAPI';
 import '../styles/Auth.css';
 
 function EmailVerification() {
@@ -59,7 +59,7 @@ function EmailVerification() {
       }
 
       setStatus('verifying');
-      const result = await emailService.verifyCode(userId, code);
+      const result = await authAPI.verifyEmail(userEmail, code);
 
       if (result.success) {
         setStatus('success');
@@ -85,7 +85,7 @@ function EmailVerification() {
     setMessage('');
 
     try {
-      const result = await emailService.resendCode(userId, userEmail);
+      const result = await authAPI.resendVerificationCode(userEmail);
       if (result.success) {
         setCode('');
         setTimeLeft(900); // Reset timer

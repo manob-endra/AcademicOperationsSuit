@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
+import { classTimeSettingsAPI } from '../../../services/classTimeSettingsAPI';
 import './styles/ClassTimeDetails.css';
 
 // Sample time slot data
@@ -450,6 +451,9 @@ function ClassTimeDetails() {
   const [classTimeDetails, setClassTimeDetails] = useState(initialClassTimeDetails);
   const [appliedClassTimeDetails, setAppliedClassTimeDetails] = useState(initialClassTimeDetails);
   const [saveStatus, setSaveStatus] = useState('saved');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [settingsId, setSettingsId] = useState(null);
   
   const [openModal, setOpenModal] = useState(null);
   const [openDropdown, setOpenDropdown] = useState(null);
@@ -458,6 +462,53 @@ function ClassTimeDetails() {
   const classesAfterLunchBtnRef = useRef(null);
   const skipTimeBtnRef = useRef(null);
   const timeslotFieldsRef = useRef(null);
+
+  // Load settings from database on mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const result = await classTimeSettingsAPI.getSettings();
+        
+        if (result.success && result.data) {
+          // Transform database data to component format
+          // Use ?? (nullish coalescing) instead of || to handle 0 values correctly
+          const transformedData = {
+            startTime: result.data.startTime ?? initialClassTimeDetails.startTime,
+            duration: result.data.duration ?? initialClassTimeDetails.duration,
+            classesBeforeLunch: result.data.classesBeforeLunch ?? initialClassTimeDetails.classesBeforeLunch,
+            lunchDuration: result.data.lunchDuration ?? initialClassTimeDetails.lunchDuration,
+            classesAfterLunch: result.data.classesAfterLunch ?? initialClassTimeDetails.classesAfterLunch,
+            classDay: result.data.classDay ?? initialClassTimeDetails.classDay,
+            skipTime: result.data.skipTime ?? initialClassTimeDetails.skipTime,
+          };
+          
+          console.log('Loaded settings from database:', transformedData);
+          
+          setClassTimeDetails(transformedData);
+          setAppliedClassTimeDetails(transformedData);
+          setSettingsId(result.data.id);
+          setSaveStatus('saved');
+        } else if (result.offline) {
+          setError('Backend server is not running. Using default settings.');
+          // Continue with default settings
+        } else {
+          // No settings exist yet, use defaults
+          console.log('No settings found, using defaults');
+          setSaveStatus('saved');
+        }
+      } catch (err) {
+        console.error('Error loading class time settings:', err);
+        setError('Failed to load settings. Using default values.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadSettings();
+  }, []);
 
   // Time Picker Modal Handlers
   const handleEditStartTime = () => setOpenModal('startTime');
@@ -507,9 +558,68 @@ function ClassTimeDetails() {
     setOpenDropdown(null);
   };
 
-  const handleSaveAll = () => {
-    setAppliedClassTimeDetails(classTimeDetails);
-    setSaveStatus('saved');
+  const handleSaveAll = async () => {
+    try {
+      setSaveStatus('saving');
+      setError(null);
+      
+      // Always extract and validate skipTime - never skip this
+      let skipTimeValue = 5; // default fallback
+      const skipTimeStr = String(classTimeDetails.skipTime || '5 mins');
+      const skipMatch = skipTimeStr.match(/\d+/);
+      
+      if (skipMatch) {
+        const parsed = parseInt(skipMatch[0]);
+        if (!isNaN(parsed) && parsed >= 0) {
+          skipTimeValue = parsed;
+        }
+      }
+      
+      console.log('Extracting skipTime:', {
+        original: classTimeDetails.skipTime,
+        extracted: skipTimeValue
+      });
+      
+      const settingsData = {
+        startTime: classTimeDetails.startTime,
+        duration: classTimeDetails.duration,
+        classesBeforeLunch: classTimeDetails.classesBeforeLunch,
+        lunchDuration: classTimeDetails.lunchDuration,
+        classesAfterLunch: classTimeDetails.classesAfterLunch,
+        classDay: classTimeDetails.classDay,
+        skipTime: skipTimeValue,
+      };
+      
+      console.log('Sending complete settings to API:', settingsData);
+      
+      let result;
+      if (settingsId) {
+        // Update existing settings
+        console.log('Updating existing settings with ID:', settingsId);
+        result = await classTimeSettingsAPI.updateSettings(settingsId, settingsData);
+      } else {
+        // Create new settings
+        console.log('Creating new settings');
+        result = await classTimeSettingsAPI.saveSettings(settingsData);
+      }
+      
+      console.log('API response:', result);
+      
+      if (result.success) {
+        if (result.data?.id) {
+          setSettingsId(result.data.id);
+        }
+        setAppliedClassTimeDetails(classTimeDetails);
+        setSaveStatus('saved');
+      } else {
+        setError(result.error || 'Failed to save settings');
+        setSaveStatus('pending');
+      }
+    } catch (err) {
+      console.error('Error saving class time settings:', err);
+      setError('Failed to save settings to database');
+      setSaveStatus('pending');
+    }
   };
 
   const { timeSlots, workingDays } = useMemo(() => {
@@ -537,6 +647,12 @@ function ClassTimeDetails() {
 
   return (
     <div className="class-time-details-container">
+      {loading && (
+        <div className="loading-message">Loading class time settings...</div>
+      )}
+      {error && (
+        <div className="error-message">{error}</div>
+      )}
       <div className="timeslot-layout">
         {/* Left Side - Fields */}
         <div className="timeslot-fields" ref={timeslotFieldsRef}>
@@ -627,11 +743,11 @@ function ClassTimeDetails() {
         <div className="timeslot-grid-container">
           <div className="grid-save-section">
             <button 
-              className={`save-all-btn ${saveStatus === 'pending' ? 'pending' : 'saved'}`}
+              className={`save-all-btn ${saveStatus}`}
               onClick={handleSaveAll}
-              disabled={saveStatus === 'saved'}
+              disabled={saveStatus === 'saved' || saveStatus === 'saving'}
             >
-              {saveStatus === 'saved' ? '✓ Saved' : 'Save All'}
+              {saveStatus === 'saved' ? '✓ Saved' : saveStatus === 'saving' ? 'Saving...' : 'Save All'}
             </button>
           </div>
           <div className="grid-wrapper-scroll">

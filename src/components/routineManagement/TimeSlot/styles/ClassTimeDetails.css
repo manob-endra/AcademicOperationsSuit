@@ -372,6 +372,38 @@
   }
 }
 
+/* Loading and Error Messages */
+.loading-message {
+  background: #e3f2fd;
+  color: #1565c0;
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  border-left: 4px solid #1976d2;
+  font-size: 14px;
+}
+
+.error-message {
+  background: #ffebee;
+  color: #c62828;
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  border-left: 4px solid #d32f2f;
+  font-size: 14px;
+}
+
+/* Save Button States */
+.save-all-btn.saving {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.save-all-btn.saving:hover {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  transform: none;
+}
+
 .dropdown-item {
   padding: 12px 16px;
   cursor: pointer;

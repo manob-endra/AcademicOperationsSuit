@@ -2,11 +2,11 @@ import { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../contexts/AuthContext';
 import Home from './routineManagement/Home';
-import Teacher from './routineManagement/Teacher';
+import Teachers from './routineManagement/Teachers/Teachers';
 import Allocation from './routineManagement/Allocation';
 import TimeSlot from './routineManagement/TimeSlot';
 import Routine from './routineManagement/Routine';
-import Courses from './routineManagement/Courses';
+import Courses from './routineManagement/Courses/Courses';
 import '../styles/ModulePages.css';
 import '../styles/RoutineManagement.css';
 
@@ -40,7 +40,7 @@ function RoutineManagement() {
           />
         );
       case 'teacher':
-        return <Teacher />;
+        return <Teachers />;
       case 'allocation':
         return <Allocation />;
       case 'timeslot':
@@ -48,7 +48,7 @@ function RoutineManagement() {
       case 'routine':
         return <Routine />;
       case 'courses':
-        return <Courses />;
+        return <Courses selectedSemesters={selectedSemesters} />;
       default:
         return (
           <Home
