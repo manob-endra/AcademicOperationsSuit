@@ -6,6 +6,11 @@ import courseRoutes from './src/backend/api/courseRoutes.js';
 import authRoutes from './src/backend/api/authRoutes.js';
 import emailRoutes from './src/backend/api/emailRoutes.js';
 import classTimeSettingsRoutes from './src/backend/api/classTimeSettingsRoutes.js';
+import classroomClustersRoutes from './src/backend/api/classroomClustersRoutes.js';
+import courseTimeRoutes from './src/backend/api/courseTimeRoutes.js';
+import teacherTimeRoutes from './src/backend/api/teacherTimeRoutes.js';
+import semesterSelectionRoutes from './src/backend/api/semesterSelectionRoutes.js';
+import roomAllocationRoutes from './src/backend/api/roomAllocationRoutes.js';
 
 dotenv.config();
 
@@ -35,6 +40,21 @@ app.use('/api/email', emailRoutes);
 
 // Class Time Settings API routes
 app.use('/api/class-time-settings', classTimeSettingsRoutes);
+
+// Classroom Clusters API routes
+app.use('/api/classroom-clusters', classroomClustersRoutes);
+
+// Course Time (duration settings) API routes
+app.use('/api/course-time', courseTimeRoutes);
+
+// Teacher Time (availability settings) API routes
+app.use('/api/teachers', teacherTimeRoutes);
+
+// Semester selection API routes
+app.use('/api/semester-selection', semesterSelectionRoutes);
+
+// Room allocation API routes
+app.use('/api/room-allocation', roomAllocationRoutes);
 
 app.listen(PORT, () => {
   console.log(`🚀 Email server running on http://localhost:${PORT}`);

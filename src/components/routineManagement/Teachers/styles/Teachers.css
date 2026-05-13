@@ -3,6 +3,44 @@
   padding: 20px;
 }
 
+.load-limit-select {
+  background: white;
+  border: 1px solid #d0d8e6;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #1f2d3d;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.load-limit-select:hover {
+  border-color: #667eea;
+}
+
+.load-limit-select:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
+}
+
+.teachers-loading {
+  color: #3f5570;
+  font-size: 15px;
+  padding: 40px 0;
+  text-align: center;
+}
+
+.teachers-error {
+  color: #a43d3d;
+  background: #fff0f0;
+  border: 1px solid #f4cccc;
+  border-radius: 8px;
+  padding: 16px 20px;
+  font-size: 14px;
+}
+
 .teacher-container h2 {
   margin: 0 0 8px 0;
   font-size: 24px;

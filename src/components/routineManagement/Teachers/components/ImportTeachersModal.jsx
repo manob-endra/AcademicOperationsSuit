@@ -1,38 +1,46 @@
 import { useState } from 'react';
-import { parseCSVFile, isDuplicateTeacher } from '../utils/teacherUtils';
+import { parseCSVFile, parseXMLFile, isDuplicateTeacher } from '../utils/teacherUtils';
 
-function ImportTeachersModal({ isOpen, onClose, onImportTeachers, existingTeachers }) {
+function ImportTeachersModal({ isOpen, onClose, onImportTeachers, existingTeachers, existingInitials = [] }) {
   const [previewTeachers, setPreviewTeachers] = useState([]);
-  const [fileLoaded, setFileLoaded] = useState(false);
-  const [error, setError] = useState('');
+  const [fileLoaded, setFileLoaded]           = useState(false);
+  const [error, setError]                     = useState('');
 
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.endsWith('.csv') && !file.name.endsWith('.xlsx')) {
-      setError('Please select a CSV or Excel file.');
+    const fileName = file.name.toLowerCase();
+    const isCSV    = fileName.endsWith('.csv');
+    const isXML    = fileName.endsWith('.xml');
+
+    if (!isCSV && !isXML) {
+      setError('Please select a CSV (.csv) or XML (.xml) file.');
       return;
     }
 
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        const fileContent = event.target?.result;
-        const parsedTeachers = parseCSVFile(fileContent);
+        const content = event.target?.result || '';
+        // Pass existingInitials so auto-generated initials are globally unique
+        const parsed  = isCSV
+          ? parseCSVFile(content, existingInitials)
+          : parseXMLFile(content, existingInitials);
 
-        if (parsedTeachers.length === 0) {
-          setError('No valid teachers found in the file.');
+        if (parsed.length === 0) {
+          setError(
+            isCSV
+              ? 'No valid rows found. Make sure the file has a "name" column.'
+              : 'No valid <teacher> nodes found. Each must have a <name> child.'
+          );
           return;
         }
 
-        // Filter out duplicates
-        const newTeachers = parsedTeachers.filter(
-          t => !isDuplicateTeacher(existingTeachers, t)
-        );
+        const newTeachers = parsed.filter((t) => !isDuplicateTeacher(existingTeachers, t));
 
         if (newTeachers.length === 0) {
-          setError('All teachers in the file already exist.');
+          setError('All teachers in the file already exist in the list.');
           return;
         }
 
@@ -64,7 +72,7 @@ function ImportTeachersModal({ isOpen, onClose, onImportTeachers, existingTeache
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content import-teachers-modal" onClick={e => e.stopPropagation()}>
+      <div className="modal-content import-teachers-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Import Teachers</h2>
           <button className="modal-close-btn" onClick={onClose}>×</button>
@@ -74,15 +82,33 @@ function ImportTeachersModal({ isOpen, onClose, onImportTeachers, existingTeache
           {!fileLoaded ? (
             <div className="import-section">
               <p className="import-instructions">
-                Upload a CSV file with the following columns:<br/>
-                <code>initials, name, theoryPreferences, labPreferences, timePreferences, weeklyLoadHours, loadLimit, assignedCourses</code>
+                Upload a <strong>CSV</strong> or <strong>XML</strong> file with teacher names.
+                Initials are auto-generated. All other values use defaults
+                (load&nbsp;0&nbsp;hrs, limit&nbsp;10&nbsp;hrs, preferences&nbsp;0).
               </p>
+
+              <div className="import-format-hint">
+                <div className="hint-block">
+                  <strong>CSV format</strong>
+                  <code>name</code>
+                  <code>Dr. Ahmed Khan</code>
+                  <code>Prof. Sara Rahman</code>
+                </div>
+                <div className="hint-block">
+                  <strong>XML format</strong>
+                  <code>{'<teachers>'}</code>
+                  <code>&nbsp;&nbsp;{'<teacher>'}</code>
+                  <code>&nbsp;&nbsp;&nbsp;&nbsp;{'<name>Dr. Ahmed Khan</name>'}</code>
+                  <code>&nbsp;&nbsp;{'</teacher>'}</code>
+                  <code>{'</teachers>'}</code>
+                </div>
+              </div>
 
               <div className="file-input-wrapper">
                 <input
                   type="file"
                   id="file-input"
-                  accept=".csv,.xlsx"
+                  accept=".csv,.xml"
                   onChange={handleFileUpload}
                   className="file-input"
                 />
@@ -95,31 +121,27 @@ function ImportTeachersModal({ isOpen, onClose, onImportTeachers, existingTeache
             </div>
           ) : (
             <div className="preview-section">
-              <h3>Preview ({previewTeachers.length} teachers to import)</h3>
+              <h3>
+                Preview — {previewTeachers.length} teacher{previewTeachers.length !== 1 ? 's' : ''} to import
+              </h3>
 
               <div className="preview-table-wrapper">
                 <table className="preview-table">
                   <thead>
                     <tr>
-                      <th>Initials</th>
                       <th>Name</th>
-                      <th>Theory Pref</th>
-                      <th>Lab Pref</th>
-                      <th>Time Pref</th>
-                      <th>Load (hrs)</th>
-                      <th>Load Limit</th>
+                      <th>Initials (auto)</th>
+                      <th>Load</th>
+                      <th>Limit</th>
                     </tr>
                   </thead>
                   <tbody>
                     {previewTeachers.map((teacher, idx) => (
                       <tr key={idx}>
-                        <td>{teacher.initials}</td>
                         <td>{teacher.name}</td>
-                        <td>{teacher.theoryPreferences}</td>
-                        <td>{teacher.labPreferences}</td>
-                        <td>{teacher.timePreferences}</td>
-                        <td>{teacher.weeklyLoadHours}</td>
-                        <td>{teacher.loadLimit}</td>
+                        <td><strong>{teacher.initials}</strong></td>
+                        <td>0 hrs</td>
+                        <td>10 hrs</td>
                       </tr>
                     ))}
                   </tbody>
@@ -127,13 +149,7 @@ function ImportTeachersModal({ isOpen, onClose, onImportTeachers, existingTeache
               </div>
 
               <div className="modal-buttons">
-                <button
-                  type="button"
-                  className="btn-cancel"
-                  onClick={() => {
-                    resetModal();
-                  }}
-                >
+                <button type="button" className="btn-cancel" onClick={resetModal}>
                   Choose Different File
                 </button>
                 <button type="button" className="btn-confirm" onClick={handleImport}>

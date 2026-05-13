@@ -1,166 +1,228 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { classroomClustersAPI } from '../../../services/classroomClustersAPI';
+import { roomAllocationAPI } from '../../../services/roomAllocationAPI';
 import './styles/AllocateRoom.css';
 
-function AllocateRoom() {
-  const semesterRows = useMemo(
-    () => [
-      { key: 'year1-sem1', label: '1st Year - 1st Semester' },
-      { key: 'year1-sem2', label: '1st Year - 2nd Semester' },
-      { key: 'year2-sem1', label: '2nd Year - 1st Semester' },
-      { key: 'year2-sem2', label: '2nd Year - 2nd Semester' },
-      { key: 'year3-sem1', label: '3rd Year - 1st Semester' },
-      { key: 'year3-sem2', label: '3rd Year - 2nd Semester' },
-      { key: 'year4-sem1', label: '4th Year - 1st Semester' },
-      { key: 'year4-sem2', label: '4th Year - 2nd Semester' },
-    ],
-    []
+const SEMESTER_LABELS = {
+  'Y1-S1': '1st Year • 1st Semester',
+  'Y1-S2': '1st Year • 2nd Semester',
+  'Y2-S1': '2nd Year • 1st Semester',
+  'Y2-S2': '2nd Year • 2nd Semester',
+  'Y3-S1': '3rd Year • 1st Semester',
+  'Y3-S2': '3rd Year • 2nd Semester',
+  'Y4-S1': '4th Year • 1st Semester',
+  'Y4-S2': '4th Year • 2nd Semester',
+  'MS-S1': 'MS • 1st Semester',
+  'MS-S2': 'MS • 2nd Semester',
+};
+
+function ConfirmModal({ message, onConfirm, onCancel }) {
+  return (
+    <div className="allocate-room-confirm-overlay" onClick={onCancel}>
+      <div className="allocate-room-confirm-modal" onClick={(e) => e.stopPropagation()}>
+        <h4 className="allocate-room-confirm-title">Confirm</h4>
+        <p className="allocate-room-confirm-text">{message}</p>
+        <div className="allocate-room-confirm-actions">
+          <button type="button" className="allocate-room-confirm-btn cancel" onClick={onCancel}>
+            Cancel
+          </button>
+          <button type="button" className="allocate-room-confirm-btn confirm" onClick={onConfirm}>
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
   );
+}
 
-  const [theoryClassrooms, setTheoryClassrooms] = useState(['A-101', 'A-102', 'A-103']);
-  const [labClassrooms, setLabClassrooms] = useState(['LAB-1', 'LAB-2']);
-  const [theoryInput, setTheoryInput] = useState('');
-  const [labInput, setLabInput] = useState('');
-  const [removeConfirmation, setRemoveConfirmation] = useState({
-    isOpen: false,
-    clusterType: '',
-    room: '',
-  });
-  const [preferredTheoryRooms, setPreferredTheoryRooms] = useState(() => {
-    const initial = {};
-    semesterRows.forEach((row) => {
-      initial[row.key] = '';
-    });
-    return initial;
-  });
+function AllocateRoom({ selectedSemesters = [] }) {
+  const [clusters, setClusters] = useState([]);
+  const [theoryRooms, setTheoryRooms] = useState([]);
+  const [labRooms, setLabRooms] = useState([]);
+  const [semesterTheoryRooms, setSemesterTheoryRooms] = useState({});
+  const [dragOverZone, setDragOverZone] = useState(null);
+  const [confirmMsg, setConfirmMsg] = useState(null);
+  const [loading, setLoading] = useState(true);
 
+  const initialLoadDone = useRef(false);
+  const saveTimer = useRef(null);
+  const confirmResolveRef = useRef(null);
+
+  // Always-current refs for use inside drag handlers
+  const theoryRoomsRef = useRef([]);
+  const labRoomsRef = useRef([]);
+  theoryRoomsRef.current = theoryRooms;
+  labRoomsRef.current = labRooms;
+
+  // Load clusters and saved allocation on mount
   useEffect(() => {
-    setPreferredTheoryRooms((current) => {
-      const next = { ...current };
-      let changed = false;
+    Promise.all([
+      classroomClustersAPI.getClusters(),
+      roomAllocationAPI.getAllocation(),
+    ]).then(([clustersResult, allocResult]) => {
+      if (clustersResult.success) {
+        setClusters(clustersResult.data || []);
+      }
+      if (allocResult.success && allocResult.data) {
+        const d = allocResult.data;
+        setTheoryRooms(d.theory_rooms || []);
+        setLabRooms(d.lab_rooms || []);
+        setSemesterTheoryRooms(d.semester_theory_rooms || {});
+      }
+      setLoading(false);
+      initialLoadDone.current = true;
+    });
+  }, []);
 
-      Object.keys(next).forEach((semesterKey) => {
-        const selectedRoom = next[semesterKey];
-        if (selectedRoom && !theoryClassrooms.includes(selectedRoom)) {
-          next[semesterKey] = '';
+  // Auto-save 400ms after any allocation state change
+  useEffect(() => {
+    if (!initialLoadDone.current) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      roomAllocationAPI.saveAllocation(theoryRooms, labRooms, semesterTheoryRooms);
+    }, 400);
+    return () => clearTimeout(saveTimer.current);
+  }, [theoryRooms, labRooms, semesterTheoryRooms]);
+
+  // Clear semester assignments whose room was removed from theory list
+  useEffect(() => {
+    if (!initialLoadDone.current) return;
+    setSemesterTheoryRooms((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      Object.keys(next).forEach((key) => {
+        if (next[key] && !theoryRooms.includes(next[key])) {
+          next[key] = '';
           changed = true;
         }
       });
-
-      return changed ? next : current;
+      return changed ? next : prev;
     });
-  }, [theoryClassrooms]);
+  }, [theoryRooms]);
 
-  const normalizeRoom = (value) => value.trim().toUpperCase();
+  const showConfirm = (message) =>
+    new Promise((resolve) => {
+      confirmResolveRef.current = resolve;
+      setConfirmMsg(message);
+    });
 
-  const addRoomToCluster = (clusterType) => {
-    const isTheory = clusterType === 'theory';
-    const value = normalizeRoom(isTheory ? theoryInput : labInput);
+  const handleConfirmResult = (result) => {
+    setConfirmMsg(null);
+    confirmResolveRef.current?.(result);
+  };
 
-    if (!value) {
-      return;
-    }
+  const handleDrop = async (zone, room) => {
+    setDragOverZone(null);
+    if (!room) return;
 
-    if (isTheory) {
-      if (!theoryClassrooms.includes(value)) {
-        setTheoryClassrooms((prev) => [...prev, value]);
+    const inTheory = theoryRoomsRef.current.includes(room);
+    const inLab = labRoomsRef.current.includes(room);
+
+    if (zone === 'theory') {
+      if (inTheory) return;
+      if (inLab) {
+        const ok = await showConfirm(
+          `"${room}" is already in Lab classrooms. Add it to Theory as well?`
+        );
+        if (!ok) return;
       }
-      setTheoryInput('');
-      return;
-    }
-
-    if (!labClassrooms.includes(value)) {
-      setLabClassrooms((prev) => [...prev, value]);
-    }
-    setLabInput('');
-  };
-
-  const removeRoomFromCluster = (clusterType, room) => {
-    if (clusterType === 'theory') {
-      setTheoryClassrooms((prev) => prev.filter((item) => item !== room));
-      return;
-    }
-
-    setLabClassrooms((prev) => prev.filter((item) => item !== room));
-  };
-
-  const openRemoveConfirmation = (clusterType, room) => {
-    setRemoveConfirmation({
-      isOpen: true,
-      clusterType,
-      room,
-    });
-  };
-
-  const closeRemoveConfirmation = () => {
-    setRemoveConfirmation({
-      isOpen: false,
-      clusterType: '',
-      room: '',
-    });
-  };
-
-  const confirmRoomRemoval = () => {
-    if (removeConfirmation.clusterType && removeConfirmation.room) {
-      removeRoomFromCluster(removeConfirmation.clusterType, removeConfirmation.room);
-    }
-    closeRemoveConfirmation();
-  };
-
-  const updatePreferredRoom = (semesterKey, room) => {
-    setPreferredTheoryRooms((prev) => ({
-      ...prev,
-      [semesterKey]: room,
-    }));
-  };
-
-  const handleClusterInputKeyDown = (event, clusterType) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      addRoomToCluster(clusterType);
+      setTheoryRooms((prev) => [...prev, room]);
+    } else {
+      if (inLab) return;
+      if (inTheory) {
+        const ok = await showConfirm(
+          `"${room}" is already in Theory classrooms. Add it to Lab as well?`
+        );
+        if (!ok) return;
+      }
+      setLabRooms((prev) => [...prev, room]);
     }
   };
+
+  const removeFromTheory = (room) => setTheoryRooms((prev) => prev.filter((r) => r !== room));
+  const removeFromLab = (room) => setLabRooms((prev) => prev.filter((r) => r !== room));
+
+  const updateSemesterRoom = (semId, room) => {
+    setSemesterTheoryRooms((prev) => ({ ...prev, [semId]: room }));
+  };
+
+  if (loading) {
+    return (
+      <div className="allocation-panel">
+        <p className="allocate-room-loading">Loading room allocation...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="allocation-panel">
       <h3 className="allocation-panel-title">Allocate Room</h3>
       <p className="allocation-panel-description">
-        Assign available classrooms to course sections and time slots.
+        Drag rooms from classroom clusters into the Theory or Lab sections below.
       </p>
 
+      {/* Source: classroom clusters */}
+      <div className="allocate-room-source-panel">
+        <h4 className="allocate-room-source-title">Classroom Clusters</h4>
+        {clusters.length === 0 ? (
+          <p className="allocate-room-empty">
+            No clusters defined. Create clusters in the Time Slot page.
+          </p>
+        ) : (
+          <div className="allocate-room-clusters-grid">
+            {clusters.map((cluster) => (
+              <div key={cluster.id} className="allocate-room-cluster-row">
+                <span className="allocate-room-cluster-label">{cluster.name}</span>
+                <div className="allocate-room-cluster-chips">
+                  {(cluster.rooms || []).length === 0 ? (
+                    <span className="allocate-room-empty-inline">No rooms</span>
+                  ) : (
+                    (cluster.rooms || []).map((room) => (
+                      <div
+                        key={room}
+                        className="allocate-room-draggable-chip"
+                        draggable
+                        onDragStart={(e) => e.dataTransfer.setData('text/plain', room)}
+                      >
+                        {room}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Drop zones */}
       <div className="allocate-room-clusters">
         <div className="allocate-room-card">
-          <h4 className="allocate-room-card-title">Classrooms for Theory Class</h4>
-          <div className="allocate-room-add-row">
-            <input
-              type="text"
-              value={theoryInput}
-              onChange={(event) => setTheoryInput(event.target.value)}
-              onKeyDown={(event) => handleClusterInputKeyDown(event, 'theory')}
-              className="allocate-room-input"
-              placeholder="e.g., A-104"
-            />
-            <button
-              type="button"
-              className="allocate-room-action-btn"
-              onClick={() => addRoomToCluster('theory')}
-            >
-              Add
-            </button>
-          </div>
-
-          <div className="allocate-room-list">
-            {theoryClassrooms.length === 0 ? (
-              <p className="allocate-room-empty">No theory classroom added yet.</p>
+          <h4 className="allocate-room-card-title">Classrooms for Theory</h4>
+          <div
+            className={`allocate-room-drop-zone ${dragOverZone === 'theory' ? 'drag-over' : ''}`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOverZone('theory');
+            }}
+            onDragLeave={() => setDragOverZone(null)}
+            onDrop={(e) => {
+              e.preventDefault();
+              handleDrop('theory', e.dataTransfer.getData('text/plain'));
+            }}
+          >
+            {theoryRooms.length === 0 ? (
+              <p className="allocate-room-drop-hint">Drop rooms here</p>
             ) : (
-              theoryClassrooms.map((room) => (
+              theoryRooms.map((room) => (
                 <div key={room} className="allocate-room-chip">
                   <span>{room}</span>
                   <button
                     type="button"
                     className="allocate-room-remove-btn"
-                    onClick={() => openRemoveConfirmation('theory', room)}
+                    onClick={() => removeFromTheory(room)}
                   >
-                    Remove
+                    ✕
                   </button>
                 </div>
               ))
@@ -169,38 +231,31 @@ function AllocateRoom() {
         </div>
 
         <div className="allocate-room-card">
-          <h4 className="allocate-room-card-title">Classrooms for Lab Class</h4>
-          <div className="allocate-room-add-row">
-            <input
-              type="text"
-              value={labInput}
-              onChange={(event) => setLabInput(event.target.value)}
-              onKeyDown={(event) => handleClusterInputKeyDown(event, 'lab')}
-              className="allocate-room-input"
-              placeholder="e.g., LAB-3"
-            />
-            <button
-              type="button"
-              className="allocate-room-action-btn"
-              onClick={() => addRoomToCluster('lab')}
-            >
-              Add
-            </button>
-          </div>
-
-          <div className="allocate-room-list">
-            {labClassrooms.length === 0 ? (
-              <p className="allocate-room-empty">No lab classroom added yet.</p>
+          <h4 className="allocate-room-card-title">Classrooms for Lab</h4>
+          <div
+            className={`allocate-room-drop-zone ${dragOverZone === 'lab' ? 'drag-over' : ''}`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOverZone('lab');
+            }}
+            onDragLeave={() => setDragOverZone(null)}
+            onDrop={(e) => {
+              e.preventDefault();
+              handleDrop('lab', e.dataTransfer.getData('text/plain'));
+            }}
+          >
+            {labRooms.length === 0 ? (
+              <p className="allocate-room-drop-hint">Drop rooms here</p>
             ) : (
-              labClassrooms.map((room) => (
+              labRooms.map((room) => (
                 <div key={room} className="allocate-room-chip">
                   <span>{room}</span>
                   <button
                     type="button"
                     className="allocate-room-remove-btn"
-                    onClick={() => openRemoveConfirmation('lab', room)}
+                    onClick={() => removeFromLab(room)}
                   >
-                    Remove
+                    ✕
                   </button>
                 </div>
               ))
@@ -209,64 +264,51 @@ function AllocateRoom() {
         </div>
       </div>
 
-      <div className="allocate-room-table-wrap">
-        <table className="allocate-room-table">
-          <thead>
-            <tr>
-              <th>Year and Semester</th>
-              <th>Preferred Theory Classroom</th>
-            </tr>
-          </thead>
-          <tbody>
-            {semesterRows.map((row) => (
-              <tr key={row.key}>
-                <td>{row.label}</td>
-                <td>
-                  <select
-                    className="allocate-room-select"
-                    value={preferredTheoryRooms[row.key]}
-                    onChange={(event) => updatePreferredRoom(row.key, event.target.value)}
-                  >
-                    <option value="">Select Theory Classroom</option>
-                    {theoryClassrooms.map((room) => (
-                      <option key={room} value={room}>
-                        {room}
-                      </option>
-                    ))}
-                  </select>
-                </td>
+      {/* Semester assignment table */}
+      {selectedSemesters.length === 0 ? (
+        <p className="allocate-room-empty">
+          No semesters selected. Please select semesters on the Home page.
+        </p>
+      ) : (
+        <div className="allocate-room-table-wrap">
+          <table className="allocate-room-table">
+            <thead>
+              <tr>
+                <th>Year and Semester</th>
+                <th>Preferred Theory Classroom</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {removeConfirmation.isOpen && (
-        <div className="allocate-room-confirm-overlay" onClick={closeRemoveConfirmation}>
-          <div className="allocate-room-confirm-modal" onClick={(event) => event.stopPropagation()}>
-            <h4 className="allocate-room-confirm-title">Confirm Removal</h4>
-            <p className="allocate-room-confirm-text">
-              Are you sure you want to remove room {removeConfirmation.room} from the{' '}
-              {removeConfirmation.clusterType === 'theory' ? 'Theory' : 'Lab'} classroom cluster?
-            </p>
-            <div className="allocate-room-confirm-actions">
-              <button
-                type="button"
-                className="allocate-room-confirm-btn cancel"
-                onClick={closeRemoveConfirmation}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="allocate-room-confirm-btn confirm"
-                onClick={confirmRoomRemoval}
-              >
-                Confirm
-              </button>
-            </div>
-          </div>
+            </thead>
+            <tbody>
+              {selectedSemesters.map((semId) => (
+                <tr key={semId}>
+                  <td>{SEMESTER_LABELS[semId] || semId}</td>
+                  <td>
+                    <select
+                      className="allocate-room-select"
+                      value={semesterTheoryRooms[semId] || ''}
+                      onChange={(e) => updateSemesterRoom(semId, e.target.value)}
+                    >
+                      <option value="">Select Theory Classroom</option>
+                      {theoryRooms.map((room) => (
+                        <option key={room} value={room}>
+                          {room}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
+      )}
+
+      {confirmMsg && (
+        <ConfirmModal
+          message={confirmMsg}
+          onConfirm={() => handleConfirmResult(true)}
+          onCancel={() => handleConfirmResult(false)}
+        />
       )}
     </div>
   );

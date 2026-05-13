@@ -503,6 +503,207 @@
   background-color: #e0e0e0;
 }
 
+/* ── Custom Alert & Confirm modals ─────────────────────────────────────── */
+
+/* Slightly higher z-index so they stack above feature modals */
+.cc-alert-overlay,
+.cc-confirm-overlay {
+  z-index: 1100;
+}
+
+.cc-alert-modal,
+.cc-confirm-modal {
+  max-width: 420px;
+}
+
+.cc-popup-message {
+  margin: 0;
+  font-size: 15px;
+  color: #333;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+/* ── Distance toast ─────────────────────────────────────────────────────── */
+
+.distance-toast {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  background: #2e7d32;
+  color: #fff;
+  padding: 11px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  z-index: 2000;
+  pointer-events: none;
+  animation: ccToastFade 2.5s ease forwards;
+}
+
+.distance-toast-icon {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+@keyframes ccToastFade {
+  0%   { opacity: 0; transform: translateY(16px); }
+  12%  { opacity: 1; transform: translateY(0);    }
+  70%  { opacity: 1; transform: translateY(0);    }
+  100% { opacity: 0; transform: translateY(-8px); }
+}
+
+/* Removed Clusters Button */
+.btn-removed-clusters {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  background-color: #1565c0;
+  color: white;
+}
+
+.btn-removed-clusters:hover {
+  background-color: #0d47a1;
+  box-shadow: 0 2px 8px rgba(21, 101, 192, 0.3);
+}
+
+/* Loading and Error States */
+.clusters-loading,
+.clusters-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  gap: 16px;
+  color: #555;
+  font-size: 15px;
+}
+
+.clusters-error {
+  color: #b71c1c;
+}
+
+.btn-retry {
+  padding: 8px 20px;
+  background-color: #1565c0;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-retry:hover {
+  background-color: #0d47a1;
+}
+
+/* Removed Clusters Modal */
+.removed-clusters-modal {
+  max-width: 620px;
+}
+
+.removed-clusters-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.removed-cluster-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  background-color: #fafafa;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+}
+
+.removed-cluster-item:hover {
+  background-color: #f5f5f5;
+}
+
+.removed-cluster-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.removed-cluster-name {
+  margin: 0 0 8px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
+}
+
+.removed-cluster-rooms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.removed-room-badge {
+  display: inline-block;
+  background-color: #e8eaf6;
+  color: #3949ab;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.no-rooms-text {
+  font-size: 12px;
+  color: #999;
+  font-style: italic;
+}
+
+.no-removed-clusters {
+  text-align: center;
+  color: #999;
+  padding: 30px;
+  font-style: italic;
+}
+
+.loading-text {
+  text-align: center;
+  color: #555;
+  padding: 30px;
+  font-style: italic;
+}
+
+.btn-restore {
+  padding: 7px 16px;
+  background-color: #2e7d32;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background-color 0.2s;
+}
+
+.btn-restore:hover {
+  background-color: #1b5e20;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .clusters-grid {
@@ -514,7 +715,17 @@
   }
 
   .btn-add-cluster,
-  .btn-remove-cluster {
+  .btn-remove-cluster,
+  .btn-removed-clusters {
+    width: 100%;
+  }
+
+  .removed-cluster-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .btn-restore {
     width: 100%;
   }
 

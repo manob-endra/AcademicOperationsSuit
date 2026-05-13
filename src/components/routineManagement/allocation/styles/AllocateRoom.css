@@ -18,6 +18,82 @@
   line-height: 1.6;
 }
 
+/* ── Cluster source panel ── */
+.allocate-room-source-panel {
+  background: linear-gradient(135deg, #f0f4ff 0%, #eef1f8 100%);
+  border: 1px solid #d5dfee;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.allocate-room-source-title {
+  margin: 0 0 12px 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1f2d3d;
+}
+
+.allocate-room-clusters-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.allocate-room-cluster-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.allocate-room-cluster-label {
+  display: inline-block;
+  background: #667eea;
+  color: #fff;
+  border-radius: 5px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  min-width: 80px;
+  text-align: center;
+  margin-top: 2px;
+}
+
+.allocate-room-cluster-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.allocate-room-draggable-chip {
+  background: #ffffff;
+  border: 1.5px solid #b3c2d9;
+  border-radius: 5px;
+  padding: 5px 10px;
+  font-size: 13px;
+  color: #1f2d3d;
+  cursor: grab;
+  user-select: none;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.allocate-room-draggable-chip:hover {
+  border-color: #667eea;
+  box-shadow: 0 2px 6px rgba(102, 126, 234, 0.25);
+}
+
+.allocate-room-draggable-chip:active {
+  cursor: grabbing;
+}
+
+.allocate-room-empty-inline {
+  font-size: 12px;
+  color: #8a9ab5;
+  font-style: italic;
+}
+
+/* ── Two-column zone grid ── */
 .allocate-room-clusters {
   display: grid;
   grid-template-columns: repeat(2, minmax(280px, 1fr));
@@ -38,66 +114,39 @@
   font-weight: 700;
 }
 
-.allocate-room-add-row {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-
-.allocate-room-input {
-  flex: 1;
-  min-width: 0;
-  border: 1px solid #ccd7e5;
+/* ── Drop zone ── */
+.allocate-room-drop-zone {
+  min-height: 90px;
+  border: 2px dashed #c8d5e8;
   border-radius: 6px;
-  padding: 10px 12px;
-  font-size: 14px;
-  color: #1f2d3d;
-  font-family: inherit;
-}
-
-.allocate-room-input:focus {
-  outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
-}
-
-.allocate-room-action-btn {
-  border: none;
-  border-radius: 6px;
-  padding: 10px 14px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  color: #ffffff;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  transition: all 0.2s ease;
-}
-
-.allocate-room-action-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 3px 8px rgba(102, 126, 234, 0.35);
-}
-
-.allocate-room-list {
+  padding: 10px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
-.allocate-room-empty {
-  margin: 0;
-  color: #6a7d94;
+.allocate-room-drop-zone.drag-over {
+  border-color: #667eea;
+  background: rgba(102, 126, 234, 0.06);
+}
+
+.allocate-room-drop-hint {
+  margin: auto;
+  color: #8a9ab5;
   font-size: 13px;
+  font-style: italic;
+  text-align: center;
 }
 
+/* ── Chips inside drop zones ── */
 .allocate-room-chip {
   background: #ffffff;
   border: 1px solid #dbe4ef;
   border-radius: 6px;
-  padding: 10px 12px;
+  padding: 8px 12px;
   display: flex;
   align-items: center;
-  justify-content: center;
   justify-content: space-between;
   gap: 10px;
   color: #1f2d3d;
@@ -107,19 +156,21 @@
 .allocate-room-remove-btn {
   border: none;
   border-radius: 5px;
-  padding: 6px 10px;
+  padding: 4px 8px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   color: #ffffff;
   background: #d9534f;
   transition: background-color 0.2s ease;
+  line-height: 1;
 }
 
 .allocate-room-remove-btn:hover {
   background: #c63f3a;
 }
 
+/* ── Semester table ── */
 .allocate-room-table-wrap {
   overflow-x: auto;
   border: 1px solid #dfe8f2;
@@ -174,6 +225,20 @@
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
 }
 
+/* ── Misc states ── */
+.allocate-room-empty {
+  margin: 0;
+  color: #6a7d94;
+  font-size: 13px;
+}
+
+.allocate-room-loading {
+  margin: 0;
+  color: #6a7d94;
+  font-size: 14px;
+}
+
+/* ── Confirm modal ── */
 .allocate-room-confirm-overlay {
   position: fixed;
   inset: 0;
@@ -236,14 +301,15 @@
 }
 
 .allocate-room-confirm-btn.confirm {
-  background: #d9534f;
+  background: #667eea;
   color: #ffffff;
 }
 
 .allocate-room-confirm-btn.confirm:hover {
-  background: #c63f3a;
+  background: #5a6fd6;
 }
 
+/* ── Responsive ── */
 @media (max-width: 900px) {
   .allocate-room-clusters {
     grid-template-columns: 1fr;
@@ -251,12 +317,9 @@
 }
 
 @media (max-width: 600px) {
-  .allocate-room-add-row {
+  .allocate-room-cluster-row {
     flex-direction: column;
-  }
-
-  .allocate-room-action-btn {
-    width: 100%;
+    align-items: flex-start;
   }
 
   .allocate-room-chip {
@@ -265,7 +328,7 @@
   }
 
   .allocate-room-remove-btn {
-    width: 100%;
+    align-self: flex-end;
   }
 
   .allocate-room-select {

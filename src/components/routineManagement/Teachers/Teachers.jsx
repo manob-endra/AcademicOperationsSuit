@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { teacherAPI } from '../../../services/teacherAPI';
 import './styles/Teachers.css';
 import './styles/Modal.css';
 import AddTeacherModal from './components/AddTeacherModal';
@@ -7,69 +8,18 @@ import RemoveTeachersModal from './components/RemoveTeachersModal';
 import RemovedTeachersModal from './components/RemovedTeachersModal';
 import TeacherPreferenceModal from './components/TeacherPreferenceModal';
 
-// Sample teacher data
-const sampleTeachers = [
-  {
-    initials: 'AK',
-    name: 'Dr. Ahmed Khan',
-    theoryPreferences: 3,
-    labPreferences: 2,
-    timePreferences: 1,
-    weeklyLoadHours: 16,
-    loadLimit: 20,
-    assignedCourses: ['CSE101 - Introduction to Programming', 'CSE102 - Digital Logic Design'],
-  },
-  {
-    initials: 'SR',
-    name: 'Prof. Sara Rahman',
-    theoryPreferences: 4,
-    labPreferences: 1,
-    timePreferences: 2,
-    weeklyLoadHours: 22,
-    loadLimit: 20,
-    assignedCourses: ['CSE201 - Database Management System'],
-  },
-  {
-    initials: 'MM',
-    name: 'Dr. Moshiur Mahmud',
-    theoryPreferences: 2,
-    labPreferences: 3,
-    timePreferences: 1,
-    weeklyLoadHours: 18,
-    loadLimit: 20,
-    assignedCourses: ['CSE104 - Data Structures', 'CSE202 - Web Development'],
-  },
-  {
-    initials: 'FS',
-    name: 'Prof. Fatima Singh',
-    theoryPreferences: 5,
-    labPreferences: 0,
-    timePreferences: 3,
-    weeklyLoadHours: 14,
-    loadLimit: 20,
-    assignedCourses: ['CSE203 - Computer Networks', 'CSE301 - Compiler Design'],
-  },
-  {
-    initials: 'RH',
-    name: 'Dr. Rashid Hassan',
-    theoryPreferences: 1,
-    labPreferences: 4,
-    timePreferences: 2,
-    weeklyLoadHours: 19,
-    loadLimit: 20,
-    assignedCourses: ['CSE302 - Artificial Intelligence', 'CSE303 - Software Engineering'],
-  },
-  {
-    initials: 'NK',
-    name: 'Prof. Nadia Khan',
-    theoryPreferences: 3,
-    labPreferences: 3,
-    timePreferences: 1,
-    weeklyLoadHours: 21,
-    loadLimit: 20,
-    assignedCourses: ['CSE401 - Machine Learning'],
-  },
-];
+// Map a raw DB teacher row to the shape this component expects
+const mapTeacher = (row) => ({
+  id: row.id,
+  initials: row.initials || '',
+  name: row.name || '',
+  theoryPreferences: 0,   // handled later
+  labPreferences: 0,      // handled later
+  timePreferences: 0,     // handled later
+  weeklyLoadHours: row.weekly_load_hours ?? 0,
+  loadLimit: row.load_limit ?? 20,
+  assignedCourses: [],    // handled later
+});
 
 const filterOptions = [
   'All teachers',
@@ -82,11 +32,13 @@ const filterOptions = [
 
 function Teachers() {
   // Teachers state
-  const [teachers, setTeachers] = useState(sampleTeachers);
+  const [teachers, setTeachers]           = useState([]);
   const [removedTeachers, setRemovedTeachers] = useState([]);
+  const [loading, setLoading]             = useState(true);
+  const [error, setError]                 = useState(null);
 
   // Filter and search state
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm]       = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All teachers');
 
   // Modal states
@@ -102,6 +54,28 @@ function Teachers() {
     teacher: null,
     type: null,
   });
+
+  // Load teachers from DB on mount
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      const [activeResult, removedResult] = await Promise.all([
+        teacherAPI.getTeachers(),
+        teacherAPI.getRemovedTeachers(),
+      ]);
+      if (activeResult.success) {
+        setTeachers((activeResult.data || []).map(mapTeacher));
+      } else {
+        setError(activeResult.error);
+      }
+      if (removedResult.success) {
+        setRemovedTeachers((removedResult.data || []).map(mapTeacher));
+      }
+      setLoading(false);
+    };
+    load();
+  }, []);
 
   // Calculate summary statistics
   const totalTeachers = teachers.length;
@@ -119,6 +93,12 @@ function Teachers() {
   const nearLimit = teachers.filter(
     (t) => t.weeklyLoadHours > t.loadLimit * 0.8 && t.weeklyLoadHours <= t.loadLimit
   ).length;
+
+  // All initials in use (active + removed) — passed to modals for uniqueness checks
+  const existingInitials = useMemo(
+    () => [...teachers, ...removedTeachers].map((t) => t.initials).filter(Boolean),
+    [teachers, removedTeachers]
+  );
 
   // Filter teachers based on search term and selected filter
   const filteredTeachers = useMemo(() => {
@@ -157,17 +137,36 @@ function Teachers() {
   }, []);
 
   // Teacher operations
-  const handleAddTeacher = useCallback((newTeacher) => {
-    setTeachers(prev => [...prev, newTeacher]);
-    handleCloseModal('addTeacher');
+  const handleAddTeacher = useCallback(async (newTeacher) => {
+    const result = await teacherAPI.createTeacher({
+      name:              newTeacher.name,
+      initials:          newTeacher.initials,
+      load_limit:        10,
+      weekly_load_hours: 0,
+    });
+    if (result.success) {
+      setTeachers(prev => [...prev, mapTeacher(result.data)]);
+      handleCloseModal('addTeacher');
+    }
   }, [handleCloseModal]);
 
-  const handleImportTeachers = useCallback((importedTeachers) => {
-    setTeachers(prev => [...prev, ...importedTeachers]);
+  const handleImportTeachers = useCallback(async (importedTeachers) => {
+    const result = await teacherAPI.importTeachers(
+      importedTeachers.map(t => ({
+        name:              t.name,
+        initials:          t.initials,
+        load_limit:        10,
+        weekly_load_hours: 0,
+      }))
+    );
+    if (result.success) {
+      setTeachers(prev => [...prev, ...(result.data || []).map(mapTeacher)]);
+    }
     handleCloseModal('importTeachers');
   }, [handleCloseModal]);
 
-  const handleRemoveTeachers = useCallback((teachersToRemove) => {
+  const handleRemoveTeachers = useCallback(async (teachersToRemove) => {
+    await Promise.all(teachersToRemove.map(t => teacherAPI.deleteTeacher(t.id)));
     setTeachers(prev =>
       prev.filter(t => !teachersToRemove.some(r => r.initials === t.initials))
     );
@@ -175,13 +174,22 @@ function Teachers() {
     handleCloseModal('removeTeachers');
   }, [handleCloseModal]);
 
-  const handleRestoreTeachers = useCallback((teachersToRestore) => {
+  const handleRestoreTeachers = useCallback(async (teachersToRestore) => {
+    await Promise.all(teachersToRestore.map(t => teacherAPI.restoreTeacher(t.id)));
     setRemovedTeachers(prev =>
       prev.filter(t => !teachersToRestore.some(r => r.initials === t.initials))
     );
     setTeachers(prev => [...prev, ...teachersToRestore]);
     handleCloseModal('removedTeachers');
   }, [handleCloseModal]);
+
+  const handleLoadLimitChange = useCallback(async (teacherId, newLimit) => {
+    // Optimistic update
+    setTeachers(prev =>
+      prev.map(t => t.id === teacherId ? { ...t, loadLimit: newLimit } : t)
+    );
+    await teacherAPI.updateLoadLimit(teacherId, newLimit);
+  }, []);
 
   // Preference modal handlers
   const handleOpenPreferenceModal = useCallback((teacher, type) => {
@@ -208,6 +216,24 @@ function Teachers() {
   const getLoadPercentage = (load, limit) => {
     return Math.min((load / limit) * 100, 100);
   };
+
+  if (loading) {
+    return (
+      <div className="routine-section-content teacher-container">
+        <h2>Teacher Management</h2>
+        <p className="teachers-loading">Loading teachers from database…</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="routine-section-content teacher-container">
+        <h2>Teacher Management</h2>
+        <p className="teachers-error">{error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="routine-section-content teacher-container">
@@ -322,7 +348,7 @@ function Teachers() {
           <tbody>
             {filteredTeachers.length > 0 ? (
               filteredTeachers.map((teacher, index) => (
-                <tr key={teacher.initials} className={index % 2 === 0 ? 'row-light' : 'row-dark'}>
+                <tr key={teacher.id || teacher.initials} className={index % 2 === 0 ? 'row-light' : 'row-dark'}>
                   {/* Initials */}
                   <td>
                     <div className="initials-badge">{teacher.initials}</div>
@@ -383,7 +409,17 @@ function Teachers() {
                   </td>
 
                   {/* Load Limit */}
-                  <td>{teacher.loadLimit} hrs</td>
+                  <td>
+                    <select
+                      className="load-limit-select"
+                      value={teacher.loadLimit}
+                      onChange={(e) => handleLoadLimitChange(teacher.id, Number(e.target.value))}
+                    >
+                      {Array.from({ length: 26 }, (_, i) => (
+                        <option key={i} value={i}>{i} hrs</option>
+                      ))}
+                    </select>
+                  </td>
 
                   {/* Status */}
                   <td>
@@ -432,6 +468,7 @@ function Teachers() {
         isOpen={modals.addTeacher}
         onClose={() => handleCloseModal('addTeacher')}
         onAddTeacher={handleAddTeacher}
+        existingInitials={existingInitials}
       />
 
       <ImportTeachersModal
@@ -439,6 +476,7 @@ function Teachers() {
         onClose={() => handleCloseModal('importTeachers')}
         onImportTeachers={handleImportTeachers}
         existingTeachers={teachers}
+        existingInitials={existingInitials}
       />
 
       <RemoveTeachersModal

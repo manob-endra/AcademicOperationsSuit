@@ -1,6 +1,7 @@
-import { useState, useContext } from 'react';
+import { useState, useContext, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../contexts/AuthContext';
+import { semesterSelectionAPI } from '../services/semesterSelectionAPI';
 import Home from './routineManagement/Home';
 import Teachers from './routineManagement/Teachers/Teachers';
 import Allocation from './routineManagement/Allocation';
@@ -22,8 +23,30 @@ const sections = [
 function RoutineManagement() {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
-  const [activeSection, setActiveSection] = useState('home');
+  const [activeSection, setActiveSection]       = useState('home');
   const [selectedSemesters, setSelectedSemesters] = useState([]);
+  const initialLoadDone = useRef(false);
+  const saveTimer       = useRef(null);
+
+  // Load saved selection from DB on first mount
+  useEffect(() => {
+    semesterSelectionAPI.getSelectedSemesters().then((result) => {
+      if (result.success && Array.isArray(result.data) && result.data.length > 0) {
+        setSelectedSemesters(result.data);
+      }
+      initialLoadDone.current = true;
+    });
+  }, []);
+
+  // Auto-save to DB whenever selection changes (skip the initial load)
+  useEffect(() => {
+    if (!initialLoadDone.current) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      semesterSelectionAPI.saveSelectedSemesters(selectedSemesters);
+    }, 400);
+    return () => clearTimeout(saveTimer.current);
+  }, [selectedSemesters]);
 
   const handleHomeNavigate = (sectionKey) => {
     setActiveSection(sectionKey);
@@ -42,7 +65,7 @@ function RoutineManagement() {
       case 'teacher':
         return <Teachers />;
       case 'allocation':
-        return <Allocation />;
+        return <Allocation selectedSemesters={selectedSemesters} />;
       case 'timeslot':
         return <TimeSlot />;
       case 'routine':
