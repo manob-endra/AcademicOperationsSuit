@@ -209,6 +209,94 @@
   border-bottom: none;
 }
 
+/* ── Loading / error / empty states ──────────────────────────────────── */
+.ct-status-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 60px 24px;
+  background: #f8fafb;
+  border: 1px solid #e0e6ed;
+  border-radius: 10px;
+  color: #3f5570;
+  font-size: 15px;
+  text-align: center;
+}
+
+.ct-status-error { color: #a43d3d; background: #fff0f0; border-color: #f4cccc; }
+
+.ct-hint { color: #7a90a8; font-size: 13px; margin: 0; }
+
+/* Empty section */
+.ct-empty {
+  text-align: center;
+  color: #8a9bb0;
+  font-size: 13px;
+  font-style: italic;
+  padding: 20px 12px;
+  background: #f8fafb;
+  border-radius: 6px;
+  border: 1px dashed #d0dae6;
+  margin: 0;
+}
+
+/* ── Table enhancements ───────────────────────────────────────────────── */
+
+/* Row that already has a duration assigned */
+.ct-row-assigned {
+  background: #f6fbf7;
+}
+.ct-row-assigned:hover {
+  background: #edf7ef !important;
+}
+
+/* Course code chip */
+.ct-course-code {
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 700;
+  font-size: 12px;
+  background: #edf2fb;
+  color: #3f5570;
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+/* Year / Semester meta column */
+.ct-meta {
+  color: #7a90a8;
+  font-size: 12px;
+}
+
+/* Duration badge (when set) */
+.ct-duration-badge {
+  display: inline-flex;
+  align-items: center;
+  background: #e6f4ea;
+  color: #2e7d32;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  border: 1px solid #c8e6c9;
+}
+
+/* "Not set" placeholder */
+.ct-unset {
+  color: #b0bec5;
+  font-style: italic;
+  font-size: 12px;
+}
+
+/* Saving state — dim the buttons slightly */
+.ct-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
 @media (max-width: 1200px) {
   .ct-sections-grid {
     grid-template-columns: 1fr;

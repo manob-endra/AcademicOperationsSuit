@@ -6,6 +6,188 @@
   gap: 18px;
 }
 
+/* ── Page header ── */
+.tt-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tt-header-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ── Shared button base ── */
+.tt-btn {
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  white-space: nowrap;
+}
+
+.tt-btn:hover { transform: translateY(-1px); }
+.tt-btn:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
+
+.tt-btn-primary  { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+.tt-btn-primary:hover  { box-shadow: 0 4px 12px rgba(102,126,234,0.35); }
+
+.tt-btn-secondary { background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%); }
+.tt-btn-secondary:hover { box-shadow: 0 4px 12px rgba(44,62,80,0.3); }
+
+.tt-btn-danger { background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); }
+.tt-btn-danger:hover { box-shadow: 0 4px 12px rgba(231,76,60,0.35); }
+
+.tt-btn-import { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: #1a3a2a; }
+.tt-btn-import:hover { box-shadow: 0 4px 12px rgba(17,153,142,0.35); }
+
+/* ── Feedback message ── */
+.tt-feedback {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 10px 14px;
+}
+.tt-feedback.success { background: #eaf8ef; border: 1px solid #c4e7d0; color: #20603d; }
+.tt-feedback.error   { background: #fff0f0; border: 1px solid #f4cccc; color: #a43d3d; }
+
+/* ── Status / loading / error boxes ── */
+.tt-status-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 60px 24px;
+  background: #f8fafb;
+  border: 1px solid #e0e6ed;
+  border-radius: 10px;
+  color: #3f5570;
+  font-size: 15px;
+  text-align: center;
+}
+.tt-status-error { color: #a43d3d; background: #fff0f0; border-color: #f4cccc; }
+
+/* ── Modals ── */
+.tt-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.tt-alert-overlay { z-index: 1100; }
+
+.tt-modal {
+  background: white;
+  border-radius: 10px;
+  padding: 24px;
+  max-width: 400px;
+  width: 100%;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.tt-add-modal { max-width: 520px; }
+
+.tt-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tt-modal-header h3 { margin: 0; font-size: 18px; color: #1f2d3d; }
+
+.tt-modal-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #7a90a8;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.tt-modal-close:hover { background: #f0f4f8; color: #1f2d3d; }
+
+.tt-modal-message {
+  margin: 0;
+  font-size: 14px;
+  color: #1f2d3d;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.tt-modal-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ── Add Teacher form ── */
+.tt-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tt-form-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.tt-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tt-form-grow { flex: 1 1 160px; }
+
+.tt-form-group label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #3f5570;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.tt-required { color: #e74c3c; margin-left: 2px; }
+
+.tt-form-group input {
+  background: white;
+  border: 1px solid #d0d8e6;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: #1f2d3d;
+  font-family: inherit;
+  transition: all 0.25s ease;
+}
+.tt-form-group input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102,126,234,0.12);
+}
+
 .teachers-time-search-block {
   background: #f8fafb;
   border: 1px solid #e0e6ed;
@@ -68,17 +250,60 @@
 
 .teacher-card-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
 }
 
-.teacher-card-header h3 {
+.teacher-card-title {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.teacher-card-title h3 {
   margin: 0;
   color: #1f2d3d;
   font-size: 15px;
   font-weight: 700;
   line-height: 1.3;
+}
+
+.teacher-initials {
+  font-size: 11px;
+  font-weight: 700;
+  color: #667eea;
+  background: #eef0fd;
+  border: 1px solid #d4d8f7;
+  border-radius: 4px;
+  padding: 1px 6px;
+  letter-spacing: 0.5px;
+  align-self: flex-start;
+}
+
+.teacher-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.teacher-delete-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: #b0bec5;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.teacher-delete-btn:hover {
+  background: #fff0f0;
+  border-color: #f4cccc;
+  color: #e74c3c;
 }
 
 .teacher-availability {
@@ -213,6 +438,15 @@
 .teacher-edit-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.35);
+}
+
+.teacher-edit-btn--ok {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  color: #1a3a2a;
+}
+
+.teacher-edit-btn--ok:hover {
+  box-shadow: 0 4px 12px rgba(17,153,142,0.35);
 }
 
 .teacher-no-results {

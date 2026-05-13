@@ -1,166 +1,81 @@
-import { useState } from 'react';
-import { validateTeacherFields } from '../utils/teacherUtils';
+import { useState, useMemo } from 'react';
+import { generateUniqueInitials } from '../utils/teacherUtils';
 
-function AddTeacherModal({ isOpen, onClose, onAddTeacher }) {
-  const [formData, setFormData] = useState({
-    initials: '',
-    name: '',
-    theoryPreferences: 0,
-    labPreferences: 0,
-    timePreferences: 0,
-    weeklyLoadHours: 0,
-    loadLimit: 20,
-    assignedCourses: [],
-  });
+function AddTeacherModal({ isOpen, onClose, onAddTeacher, existingInitials = [] }) {
+  const [name, setName]   = useState('');
+  const [error, setError] = useState('');
 
-  const [errors, setErrors] = useState({});
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: name.includes('Preferences') || name === 'weeklyLoadHours' || name === 'loadLimit'
-        ? parseInt(value) || 0
-        : value,
-    }));
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
-    }
-  };
+  // Live preview of what initials will be assigned
+  const previewInitials = useMemo(
+    () => (name.trim() ? generateUniqueInitials(name, existingInitials) : ''),
+    [name, existingInitials]
+  );
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
-    if (!validateTeacherFields(formData)) {
-      setErrors({ submit: 'Please fill in all required fields correctly.' });
+    if (!name.trim()) {
+      setError('Teacher name is required.');
       return;
     }
 
-    if (!formData.initials.trim()) {
-      setErrors({ initials: 'Initials are required.' });
-      return;
-    }
+    const initials = generateUniqueInitials(name, existingInitials);
 
-    onAddTeacher(formData);
-    resetForm();
+    onAddTeacher({
+      name:              name.trim(),
+      initials,
+      theoryPreferences: 0,
+      labPreferences:    0,
+      timePreferences:   0,
+      weeklyLoadHours:   0,
+      loadLimit:         10,
+      assignedCourses:   [],
+    });
+
+    setName('');
+    setError('');
   };
 
-  const resetForm = () => {
-    setFormData({
-      initials: '',
-      name: '',
-      theoryPreferences: 0,
-      labPreferences: 0,
-      timePreferences: 0,
-      weeklyLoadHours: 0,
-      loadLimit: 20,
-      assignedCourses: [],
-    });
-    setErrors({});
+  const handleClose = () => {
+    setName('');
+    setError('');
+    onClose();
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content add-teacher-modal" onClick={e => e.stopPropagation()}>
+    <div className="modal-overlay" onClick={handleClose}>
+      <div className="modal-content add-teacher-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Add New Teacher</h2>
-          <button className="modal-close-btn" onClick={onClose}>×</button>
+          <button className="modal-close-btn" onClick={handleClose}>×</button>
         </div>
 
         <form onSubmit={handleSubmit} className="modal-form">
           <div className="form-group">
-            <label>Initials *</label>
+            <label>Name <span style={{ color: '#e74c3c' }}>*</span></label>
             <input
               type="text"
-              name="initials"
-              value={formData.initials}
-              onChange={handleChange}
-              placeholder="e.g., AK"
-              className={errors.initials ? 'input-error' : ''}
-            />
-            {errors.initials && <span className="error-text">{errors.initials}</span>}
-          </div>
-
-          <div className="form-group">
-            <label>Name *</label>
-            <input
-              type="text"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
+              value={name}
+              onChange={(e) => { setName(e.target.value); setError(''); }}
               placeholder="e.g., Dr. Ahmed Khan"
-              className={errors.name ? 'input-error' : ''}
+              autoFocus
             />
-            {errors.name && <span className="error-text">{errors.name}</span>}
+            {error && <span className="error-text">{error}</span>}
           </div>
 
-          <div className="form-row">
-            <div className="form-group">
-              <label>Theory Preferences</label>
-              <input
-                type="number"
-                name="theoryPreferences"
-                value={formData.theoryPreferences}
-                onChange={handleChange}
-                min="0"
-              />
-            </div>
+          {previewInitials && (
+            <p className="initials-preview">
+              Initials will be: <strong>{previewInitials}</strong>
+            </p>
+          )}
 
-            <div className="form-group">
-              <label>Lab Preferences</label>
-              <input
-                type="number"
-                name="labPreferences"
-                value={formData.labPreferences}
-                onChange={handleChange}
-                min="0"
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Time Preferences</label>
-              <input
-                type="number"
-                name="timePreferences"
-                value={formData.timePreferences}
-                onChange={handleChange}
-                min="0"
-              />
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label>Weekly Load Hours</label>
-              <input
-                type="number"
-                name="weeklyLoadHours"
-                value={formData.weeklyLoadHours}
-                onChange={handleChange}
-                min="0"
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Load Limit (hours) *</label>
-              <input
-                type="number"
-                name="loadLimit"
-                value={formData.loadLimit}
-                onChange={handleChange}
-                min="1"
-                className={errors.loadLimit ? 'input-error' : ''}
-              />
-              {errors.loadLimit && <span className="error-text">{errors.loadLimit}</span>}
-            </div>
-          </div>
-
-          {errors.submit && <div className="error-message">{errors.submit}</div>}
+          <p className="form-note">
+            Defaults: load&nbsp;0&nbsp;hrs · limit&nbsp;10&nbsp;hrs · preferences&nbsp;0
+          </p>
 
           <div className="modal-buttons">
-            <button type="button" className="btn-cancel" onClick={() => { resetForm(); onClose(); }}>
+            <button type="button" className="btn-cancel" onClick={handleClose}>
               Cancel
             </button>
             <button type="submit" className="btn-confirm">
