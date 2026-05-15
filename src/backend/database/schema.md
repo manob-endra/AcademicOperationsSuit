@@ -382,3 +382,56 @@ ON CONFLICT (id) DO NOTHING;
 CREATE TRIGGER trg_room_allocation_updated_at
   BEFORE UPDATE ON room_allocation
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+
+-- ============================================================
+-- 19. COURSE_TEACHER_CHOICES TABLE
+-- Stores teacher preferences and assignments per course.
+-- One row per course (upserted). Choice fields reference teachers.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS course_teacher_choices (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  course_id UUID REFERENCES courses(id) ON DELETE CASCADE,
+  history JSONB NOT NULL DEFAULT '[]'::jsonb,
+  first_choice UUID REFERENCES teachers(id) ON DELETE SET NULL,
+  second_choice UUID REFERENCES teachers(id) ON DELETE SET NULL,
+  third_choice UUID REFERENCES teachers(id) ON DELETE SET NULL,
+  other_choices JSONB NOT NULL DEFAULT '[]'::jsonb,
+  teacher_assignments JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT course_teacher_choices_course_unique UNIQUE (course_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_course_teacher_choices_course_id ON course_teacher_choices(course_id);
+
+CREATE TRIGGER trg_course_teacher_choices_updated_at
+  BEFORE UPDATE ON course_teacher_choices
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+
+-- ============================================================
+-- 20. TEACHER_COURSE_PREFERENCES TABLE
+-- Stores each teacher's theory/lab course preferences.
+-- One row per teacher (upserted). Single choices are nullable UUIDs;
+-- multi-choices are stored as JSONB arrays of course UUIDs.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS teacher_course_preferences (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  teacher_id UUID REFERENCES teachers(id) ON DELETE CASCADE,
+  first_preference UUID REFERENCES courses(id) ON DELETE SET NULL,
+  second_preference UUID REFERENCES courses(id) ON DELETE SET NULL,
+  third_preference UUID REFERENCES courses(id) ON DELETE SET NULL,
+  other_preferences JSONB NOT NULL DEFAULT '[]'::jsonb,
+  lab_preferences JSONB NOT NULL DEFAULT '[]'::jsonb,
+  assigned_courses JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT teacher_course_preferences_teacher_unique UNIQUE (teacher_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_teacher_course_preferences_teacher_id ON teacher_course_preferences(teacher_id);
+
+CREATE TRIGGER trg_teacher_course_preferences_updated_at
+  BEFORE UPDATE ON teacher_course_preferences
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

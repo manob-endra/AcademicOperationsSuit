@@ -1,5 +1,8 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { teacherAPI } from '../../../services/teacherAPI';
+import { teacherPrefAPI } from '../../../services/teacherPrefAPI';
+import { courseAPI } from '../../../services/courseAPI';
+import TeacherPreferences from '../allocation/TeacherPreferences';
 import './styles/Teachers.css';
 import './styles/Modal.css';
 import AddTeacherModal from './components/AddTeacherModal';
@@ -31,6 +34,8 @@ const filterOptions = [
 ];
 
 function Teachers() {
+  const [activeTab, setActiveTab] = useState('details');
+
   // Teachers state
   const [teachers, setTeachers]           = useState([]);
   const [removedTeachers, setRemovedTeachers] = useState([]);
@@ -55,38 +60,65 @@ function Teachers() {
     type: null,
   });
 
-  // Load teachers from DB on mount
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-      const [activeResult, removedResult] = await Promise.all([
-        teacherAPI.getTeachers(),
-        teacherAPI.getRemovedTeachers(),
-      ]);
-      if (activeResult.success) {
-        setTeachers((activeResult.data || []).map(mapTeacher));
-      } else {
-        setError(activeResult.error);
-      }
-      if (removedResult.success) {
-        setRemovedTeachers((removedResult.data || []).map(mapTeacher));
-      }
-      setLoading(false);
-    };
-    load();
-  }, []);
+  const [prefsMap, setPrefsMap]   = useState({}); // teacherId → teacher_course_preferences row
+  const [courseMap, setCourseMap] = useState({}); // courseId  → course row
+
+  // Load all data — called on mount and when switching back to Details tab
+  const loadData = async (showSpinner = true) => {
+    if (showSpinner) { setLoading(true); setError(null); }
+    const [activeResult, removedResult, prefResult, courseResult] = await Promise.all([
+      teacherAPI.getTeachers(),
+      teacherAPI.getRemovedTeachers(),
+      teacherPrefAPI.getAllPreferences(),
+      courseAPI.getAllCourses(),
+    ]);
+    if (activeResult.success) {
+      setTeachers((activeResult.data || []).map(mapTeacher));
+    } else if (showSpinner) {
+      setError(activeResult.error);
+    }
+    if (removedResult.success) {
+      setRemovedTeachers((removedResult.data || []).map(mapTeacher));
+    }
+    if (prefResult.success) {
+      const map = {};
+      (prefResult.data || []).forEach(row => { map[row.teacher_id] = row; });
+      setPrefsMap(map);
+    }
+    if (courseResult.success) {
+      const map = {};
+      (courseResult.courses || []).forEach(c => { map[c.id] = c; });
+      setCourseMap(map);
+    }
+    if (showSpinner) setLoading(false);
+  };
+
+  useEffect(() => { loadData(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When switching back to Details, silently refresh so load hours reflect any assignment changes
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    if (tab === 'details') loadData(false);
+  };
+
+  // Real preference counts derived from loaded prefsMap
+  const getTheoryPrefCount = (teacherId) => {
+    const p = prefsMap[teacherId] || {};
+    return [p.first_preference, p.second_preference, p.third_preference].filter(Boolean).length
+      + (p.other_preferences?.length || 0);
+  };
+  const getLabPrefCount = (teacherId) => prefsMap[teacherId]?.lab_preferences?.length || 0;
 
   // Calculate summary statistics
   const totalTeachers = teachers.length;
   const teachersWithPreferences = teachers.filter(
-    (t) => t.theoryPreferences > 0 || t.labPreferences > 0
+    (t) => getTheoryPrefCount(t.id) > 0 || getLabPrefCount(t.id) > 0
   ).length;
   const totalPreferences = teachers.reduce(
-    (sum, t) => sum + t.theoryPreferences + t.labPreferences,
+    (sum, t) => sum + getTheoryPrefCount(t.id) + getLabPrefCount(t.id),
     0
   );
-  const avgPreferences = (totalPreferences / totalTeachers).toFixed(2);
+  const avgPreferences = (totalPreferences / (totalTeachers || 1)).toFixed(2);
 
   const withinLoadLimit = teachers.filter((t) => t.weeklyLoadHours <= t.loadLimit).length;
   const overloaded = teachers.filter((t) => t.weeklyLoadHours > t.loadLimit).length;
@@ -118,9 +150,9 @@ function Teachers() {
           teacher.weeklyLoadHours >= teacher.loadLimit * 0.6 &&
           teacher.weeklyLoadHours <= teacher.loadLimit;
       } else if (selectedFilter === 'with preference') {
-        filterMatch = teacher.theoryPreferences > 0 || teacher.labPreferences > 0;
+        filterMatch = getTheoryPrefCount(teacher.id) > 0 || getLabPrefCount(teacher.id) > 0;
       } else if (selectedFilter === 'without preference') {
-        filterMatch = teacher.theoryPreferences === 0 && teacher.labPreferences === 0;
+        filterMatch = getTheoryPrefCount(teacher.id) === 0 && getLabPrefCount(teacher.id) === 0;
       }
 
       return searchMatch && filterMatch;
@@ -217,288 +249,313 @@ function Teachers() {
     return Math.min((load / limit) * 100, 100);
   };
 
-  if (loading) {
-    return (
-      <div className="routine-section-content teacher-container">
-        <h2>Teacher Management</h2>
-        <p className="teachers-loading">Loading teachers from database…</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="routine-section-content teacher-container">
-        <h2>Teacher Management</h2>
-        <p className="teachers-error">{error}</p>
-      </div>
-    );
-  }
-
   return (
     <div className="routine-section-content teacher-container">
       <h2>Teacher Management</h2>
       <p>Manage teacher profiles, availability, and teaching preferences.</p>
 
-      {/* Top Action Buttons */}
-      <div className="action-buttons-block">
-        <button className="action-btn add-btn" onClick={() => handleOpenModal('addTeacher')}>
-          + Add Teacher
+      {/* Top tabs */}
+      <div className="teacher-page-tabs">
+        <button
+          className={`teacher-page-tab-btn ${activeTab === 'details' ? 'active' : ''}`}
+          onClick={() => handleTabChange('details')}
+        >
+          Details
         </button>
-        <button className="action-btn import-btn" onClick={() => handleOpenModal('importTeachers')}>
-          ⬆ Import Teachers
-        </button>
-        <button className="action-btn removed-btn" onClick={() => handleOpenModal('removedTeachers')}>
-          📋 Removed Teachers
-        </button>
-        <button className="action-btn remove-btn" onClick={() => handleOpenModal('removeTeachers')}>
-          🗑 Remove
+        <button
+          className={`teacher-page-tab-btn ${activeTab === 'teacherPreference' ? 'active' : ''}`}
+          onClick={() => handleTabChange('teacherPreference')}
+        >
+          Teacher's Preference
         </button>
       </div>
 
-      {/* Summary Cards */}
-      <div className="summary-cards-container">
-        {/* Preferences Summary Card */}
-        <div className="summary-card preferences-card">
-          <h3 className="card-title">Preferences Summary</h3>
-          <div className="summary-item">
-            <span className="summary-label">Total Teachers</span>
-            <span className="summary-value">{totalTeachers}</span>
-          </div>
-          <div className="summary-item">
-            <span className="summary-label">Teachers with Preferences</span>
-            <span className="summary-value">{teachersWithPreferences}</span>
-          </div>
-          <div className="summary-item">
-            <span className="summary-label">Total Preferences</span>
-            <span className="summary-value">{totalPreferences}</span>
-          </div>
-          <div className="summary-item">
-            <span className="summary-label">Avg Preferences/Teacher</span>
-            <span className="summary-value">{avgPreferences}</span>
-          </div>
-        </div>
+      {/* Details tab */}
+      {activeTab === 'details' && (
+        <>
+          {loading ? (
+            <p className="teachers-loading">Loading teachers from database…</p>
+          ) : error ? (
+            <p className="teachers-error">{error}</p>
+          ) : (
+            <>
+              {/* Top Action Buttons */}
+              <div className="action-buttons-block">
+                <button className="action-btn add-btn" onClick={() => handleOpenModal('addTeacher')}>
+                  + Add Teacher
+                </button>
+                <button className="action-btn import-btn" onClick={() => handleOpenModal('importTeachers')}>
+                  ⬆ Import Teachers
+                </button>
+                <button className="action-btn removed-btn" onClick={() => handleOpenModal('removedTeachers')}>
+                  📋 Removed Teachers
+                </button>
+                <button className="action-btn remove-btn" onClick={() => handleOpenModal('removeTeachers')}>
+                  🗑 Remove
+                </button>
+              </div>
 
-        {/* Load Analysis Card */}
-        <div className="summary-card load-card">
-          <h3 className="card-title">Load Analysis</h3>
-          <div className="summary-item">
-            <span className="summary-label">Total Teachers</span>
-            <span className="summary-value">{totalTeachers}</span>
-          </div>
-          <div className="summary-item">
-            <span className="summary-label">Within Load Limit</span>
-            <span className="summary-value">{withinLoadLimit}</span>
-          </div>
-          <div className="summary-item">
-            <span className="summary-label">Overloaded</span>
-            <span className="summary-value overloaded">{overloaded}</span>
-          </div>
-          <div className="summary-item">
-            <span className="summary-label">Near Limit</span>
-            <span className="summary-value near-limit">{nearLimit}</span>
-          </div>
-        </div>
-      </div>
+              {/* Summary Cards */}
+              <div className="summary-cards-container">
+                {/* Preferences Summary Card */}
+                <div className="summary-card preferences-card">
+                  <h3 className="card-title">Preferences Summary</h3>
+                  <div className="summary-item">
+                    <span className="summary-label">Total Teachers</span>
+                    <span className="summary-value">{totalTeachers}</span>
+                  </div>
+                  <div className="summary-item">
+                    <span className="summary-label">Teachers with Preferences</span>
+                    <span className="summary-value">{teachersWithPreferences}</span>
+                  </div>
+                  <div className="summary-item">
+                    <span className="summary-label">Total Preferences</span>
+                    <span className="summary-value">{totalPreferences}</span>
+                  </div>
+                  <div className="summary-item">
+                    <span className="summary-label">Avg Preferences/Teacher</span>
+                    <span className="summary-value">{avgPreferences}</span>
+                  </div>
+                </div>
 
-      {/* Filter Block */}
-      <div className="filter-block">
-        <button className="view-all-btn" onClick={() => setSelectedFilter('All teachers')}>
-          View All Teachers
-        </button>
+                {/* Load Analysis Card */}
+                <div className="summary-card load-card">
+                  <h3 className="card-title">Load Analysis</h3>
+                  <div className="summary-item">
+                    <span className="summary-label">Total Teachers</span>
+                    <span className="summary-value">{totalTeachers}</span>
+                  </div>
+                  <div className="summary-item">
+                    <span className="summary-label">Within Load Limit</span>
+                    <span className="summary-value">{withinLoadLimit}</span>
+                  </div>
+                  <div className="summary-item">
+                    <span className="summary-label">Overloaded</span>
+                    <span className="summary-value overloaded">{overloaded}</span>
+                  </div>
+                  <div className="summary-item">
+                    <span className="summary-label">Near Limit</span>
+                    <span className="summary-value near-limit">{nearLimit}</span>
+                  </div>
+                </div>
+              </div>
 
-        {/* Search Box */}
-        <div className="search-box-container">
-          <input
-            type="text"
-            placeholder="Search by name or initials..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="search-box"
-          />
-        </div>
+              {/* Filter Block */}
+              <div className="filter-block">
+                <button className="view-all-btn" onClick={() => setSelectedFilter('All teachers')}>
+                  View All Teachers
+                </button>
 
-        {/* Filter Dropdown */}
-        <div className="filter-dropdown">
-          <label>Filter</label>
-          <select value={selectedFilter} onChange={(e) => setSelectedFilter(e.target.value)}>
-            {filterOptions.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+                {/* Search Box */}
+                <div className="search-box-container">
+                  <input
+                    type="text"
+                    placeholder="Search by name or initials..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="search-box"
+                  />
+                </div>
 
-      {/* Teachers Table */}
-      <div className="teachers-table-wrapper">
-        <table className="teachers-table">
-          <thead>
-            <tr>
-              <th>Initials</th>
-              <th>Name</th>
-              <th>Preferences</th>
-              <th>Load</th>
-              <th>Load Limit</th>
-              <th>Status</th>
-              <th>Assigned Courses</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredTeachers.length > 0 ? (
-              filteredTeachers.map((teacher, index) => (
-                <tr key={teacher.id || teacher.initials} className={index % 2 === 0 ? 'row-light' : 'row-dark'}>
-                  {/* Initials */}
-                  <td>
-                    <div className="initials-badge">{teacher.initials}</div>
-                  </td>
+                {/* Filter Dropdown */}
+                <div className="filter-dropdown">
+                  <label>Filter</label>
+                  <select value={selectedFilter} onChange={(e) => setSelectedFilter(e.target.value)}>
+                    {filterOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
 
-                  {/* Name */}
-                  <td>{teacher.name}</td>
+              {/* Teachers Table */}
+              <div className="teachers-table-wrapper">
+                <table className="teachers-table">
+                  <thead>
+                    <tr>
+                      <th>Initials</th>
+                      <th>Name</th>
+                      <th>Preferences</th>
+                      <th>Load</th>
+                      <th>Load Limit</th>
+                      <th>Status</th>
+                      <th>Assigned Courses</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredTeachers.length > 0 ? (
+                      filteredTeachers.map((teacher, index) => (
+                        <tr key={teacher.id || teacher.initials} className={index % 2 === 0 ? 'row-light' : 'row-dark'}>
+                          {/* Initials */}
+                          <td>
+                            <div className="initials-badge">{teacher.initials}</div>
+                          </td>
 
-                  {/* Preferences */}
-                  <td>
-                    <div className="preferences-cell">
-                      <div className="preference-row">
-                        <button
-                          className="preference-btn theory-btn"
-                          onClick={() => handleOpenPreferenceModal(teacher, 'theory')}
-                        >
-                          Theory
-                        </button>
-                        <span className="preference-badge">{teacher.theoryPreferences}</span>
-                      </div>
-                      <div className="preference-row">
-                        <button
-                          className="preference-btn lab-btn"
-                          onClick={() => handleOpenPreferenceModal(teacher, 'lab')}
-                        >
-                          Lab
-                        </button>
-                        <span className="preference-badge">{teacher.labPreferences}</span>
-                      </div>
-                      <div className="preference-row">
-                        <button
-                          className="preference-btn time-btn"
-                          onClick={() => handleOpenPreferenceModal(teacher, 'time')}
-                        >
-                          Time
-                        </button>
-                        <span className="preference-badge">{teacher.timePreferences}</span>
-                      </div>
-                    </div>
-                  </td>
+                          {/* Name */}
+                          <td>{teacher.name}</td>
 
-                  {/* Load */}
-                  <td>
-                    <div className="load-cell">
-                      <div className="load-hours">{teacher.weeklyLoadHours} hrs/week</div>
-                      <div className="load-bar-container">
-                        <div
-                          className="load-bar"
-                          style={{
-                            width: `${getLoadPercentage(
-                              teacher.weeklyLoadHours,
-                              teacher.loadLimit
-                            )}%`,
-                          }}
-                        ></div>
-                      </div>
-                    </div>
-                  </td>
+                          {/* Preferences */}
+                          <td>
+                            <div className="preferences-cell">
+                              <div className="preference-row">
+                                <button
+                                  className="preference-btn theory-btn"
+                                  onClick={() => handleOpenPreferenceModal(teacher, 'theory')}
+                                >
+                                  Theory
+                                </button>
+                                <span className="preference-badge">{getTheoryPrefCount(teacher.id)}</span>
+                              </div>
+                              <div className="preference-row">
+                                <button
+                                  className="preference-btn lab-btn"
+                                  onClick={() => handleOpenPreferenceModal(teacher, 'lab')}
+                                >
+                                  Lab
+                                </button>
+                                <span className="preference-badge">{getLabPrefCount(teacher.id)}</span>
+                              </div>
+                              <div className="preference-row">
+                                <button
+                                  className="preference-btn time-btn"
+                                  onClick={() => handleOpenPreferenceModal(teacher, 'time')}
+                                >
+                                  Time
+                                </button>
+                                <span className="preference-badge">{teacher.timePreferences}</span>
+                              </div>
+                            </div>
+                          </td>
 
-                  {/* Load Limit */}
-                  <td>
-                    <select
-                      className="load-limit-select"
-                      value={teacher.loadLimit}
-                      onChange={(e) => handleLoadLimitChange(teacher.id, Number(e.target.value))}
-                    >
-                      {Array.from({ length: 26 }, (_, i) => (
-                        <option key={i} value={i}>{i} hrs</option>
-                      ))}
-                    </select>
-                  </td>
+                          {/* Load */}
+                          <td>
+                            <div className="load-cell">
+                              <div className="load-hours">{teacher.weeklyLoadHours} hrs/week</div>
+                              <div className="load-bar-container">
+                                <div
+                                  className="load-bar"
+                                  style={{
+                                    width: `${getLoadPercentage(
+                                      teacher.weeklyLoadHours,
+                                      teacher.loadLimit
+                                    )}%`,
+                                  }}
+                                ></div>
+                              </div>
+                            </div>
+                          </td>
 
-                  {/* Status */}
-                  <td>
-                    <span
-                      className={`status-tag ${
-                        getLoadStatus(teacher.weeklyLoadHours, teacher.loadLimit) === 'OK'
-                          ? 'status-ok'
-                          : 'status-overloaded'
-                      }`}
-                    >
-                      {getLoadStatus(teacher.weeklyLoadHours, teacher.loadLimit)}
-                    </span>
-                  </td>
+                          {/* Load Limit */}
+                          <td>
+                            <select
+                              className="load-limit-select"
+                              value={teacher.loadLimit}
+                              onChange={(e) => handleLoadLimitChange(teacher.id, Number(e.target.value))}
+                            >
+                              {Array.from({ length: 26 }, (_, i) => (
+                                <option key={i} value={i}>{i} hrs</option>
+                              ))}
+                            </select>
+                          </td>
 
-                  {/* Assigned Courses */}
-                  <td>
-                    <div className="courses-cell">
-                      <div className="courses-list">
-                        {teacher.assignedCourses.map((course) => (
-                          <div key={course} className="course-item">
-                            {course}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="7" className="no-results">
-                  No teachers found matching the selected filters.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+                          {/* Status */}
+                          <td>
+                            <span
+                              className={`status-tag ${
+                                getLoadStatus(teacher.weeklyLoadHours, teacher.loadLimit) === 'OK'
+                                  ? 'status-ok'
+                                  : 'status-overloaded'
+                              }`}
+                            >
+                              {getLoadStatus(teacher.weeklyLoadHours, teacher.loadLimit)}
+                            </span>
+                          </td>
 
-      <div className="table-info">
-        Showing {filteredTeachers.length} of {teachers.length} teachers
-      </div>
+                          {/* Assigned Courses */}
+                          <td>
+                            <div className="courses-cell">
+                              <div className="courses-list">
+                                {(() => {
+                                  const ids = prefsMap[teacher.id]?.assigned_courses || [];
+                                  if (ids.length === 0) {
+                                    return <span className="no-course-assigned">No course assigned</span>;
+                                  }
+                                  return ids.map(id => {
+                                    const c = courseMap[id];
+                                    return (
+                                      <div key={id} className="course-item" title={c ? `${c.code} — ${c.title}` : id}>
+                                        {c ? c.code : id.slice(0, 8)}
+                                      </div>
+                                    );
+                                  });
+                                })()}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="7" className="no-results">
+                          No teachers found matching the selected filters.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
 
-      {/* Modals */}
-      <AddTeacherModal
-        isOpen={modals.addTeacher}
-        onClose={() => handleCloseModal('addTeacher')}
-        onAddTeacher={handleAddTeacher}
-        existingInitials={existingInitials}
-      />
+              <div className="table-info">
+                Showing {filteredTeachers.length} of {teachers.length} teachers
+              </div>
 
-      <ImportTeachersModal
-        isOpen={modals.importTeachers}
-        onClose={() => handleCloseModal('importTeachers')}
-        onImportTeachers={handleImportTeachers}
-        existingTeachers={teachers}
-        existingInitials={existingInitials}
-      />
+              {/* Modals */}
+              <AddTeacherModal
+                isOpen={modals.addTeacher}
+                onClose={() => handleCloseModal('addTeacher')}
+                onAddTeacher={handleAddTeacher}
+                existingInitials={existingInitials}
+              />
 
-      <RemoveTeachersModal
-        isOpen={modals.removeTeachers}
-        onClose={() => handleCloseModal('removeTeachers')}
-        teachers={teachers}
-        onRemoveTeachers={handleRemoveTeachers}
-      />
+              <ImportTeachersModal
+                isOpen={modals.importTeachers}
+                onClose={() => handleCloseModal('importTeachers')}
+                onImportTeachers={handleImportTeachers}
+                existingTeachers={teachers}
+                existingInitials={existingInitials}
+              />
 
-      <RemovedTeachersModal
-        isOpen={modals.removedTeachers}
-        onClose={() => handleCloseModal('removedTeachers')}
-        removedTeachers={removedTeachers}
-        onRestoreTeachers={handleRestoreTeachers}
-      />
+              <RemoveTeachersModal
+                isOpen={modals.removeTeachers}
+                onClose={() => handleCloseModal('removeTeachers')}
+                teachers={teachers}
+                onRemoveTeachers={handleRemoveTeachers}
+              />
 
-      <TeacherPreferenceModal
-        isOpen={preferenceModal.isOpen}
-        onClose={handleClosePreferenceModal}
-        teacher={preferenceModal.teacher}
-        preferenceType={preferenceModal.type}
-      />
+              <RemovedTeachersModal
+                isOpen={modals.removedTeachers}
+                onClose={() => handleCloseModal('removedTeachers')}
+                removedTeachers={removedTeachers}
+                onRestoreTeachers={handleRestoreTeachers}
+              />
+
+              <TeacherPreferenceModal
+                isOpen={preferenceModal.isOpen}
+                onClose={handleClosePreferenceModal}
+                teacher={preferenceModal.teacher}
+                preferenceType={preferenceModal.type}
+                prefsMap={prefsMap}
+                courseMap={courseMap}
+              />
+            </>
+          )}
+        </>
+      )}
+
+      {/* Teacher's Preference tab */}
+      {activeTab === 'teacherPreference' && <TeacherPreferences />}
     </div>
   );
 }

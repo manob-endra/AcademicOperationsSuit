@@ -11,11 +11,13 @@ import courseTimeRoutes from './src/backend/api/courseTimeRoutes.js';
 import teacherTimeRoutes from './src/backend/api/teacherTimeRoutes.js';
 import semesterSelectionRoutes from './src/backend/api/semesterSelectionRoutes.js';
 import roomAllocationRoutes from './src/backend/api/roomAllocationRoutes.js';
+import courseTeacherRoutes from './src/backend/api/courseTeacherRoutes.js';
+import teacherPrefRoutes from './src/backend/api/teacherPrefRoutes.js';
 
 dotenv.config();
 
 const app = express();
-const PORT = 3001;
+const PORT = 6969;
 
 // Initialize SendGrid
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
@@ -55,6 +57,12 @@ app.use('/api/semester-selection', semesterSelectionRoutes);
 
 // Room allocation API routes
 app.use('/api/room-allocation', roomAllocationRoutes);
+
+// Course teacher choices API routes
+app.use('/api/course-teacher-choices', courseTeacherRoutes);
+
+// Teacher course preferences API routes
+app.use('/api/teacher-preferences', teacherPrefRoutes);
 
 app.listen(PORT, () => {
   console.log(`🚀 Email server running on http://localhost:${PORT}`);
