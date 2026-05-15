@@ -17,7 +17,7 @@ import teacherPrefRoutes from './src/backend/api/teacherPrefRoutes.js';
 dotenv.config();
 
 const app = express();
-const PORT = 6969;
+const PORT = process.env.BACKEND_PORT || 3001;
 
 // Initialize SendGrid
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
@@ -26,8 +26,11 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 app.use(cors());
 app.use(express.json());
 
-// Health check endpoint
+// Health check endpoints
 app.get('/health', (req, res) => {
+  res.json({ status: 'Server is running' });
+});
+app.get('/api/health', (req, res) => {
   res.json({ status: 'Server is running' });
 });
 

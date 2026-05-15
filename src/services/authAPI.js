@@ -3,7 +3,7 @@
  * Makes HTTP calls to backend authentication endpoints
  */
 
-const API_BASE_URL = 'http://localhost:3001/api/auth';
+const API_BASE_URL = `${import.meta.env.VITE_API_URL}/auth`;
 
 // Helper function to validate email locally (without backend)
 export const validateEmail = (email) => {

@@ -3,7 +3,7 @@
  * Makes HTTP calls to backend email endpoints
  */
 
-const API_BASE_URL = 'http://localhost:3001/api/email';
+const API_BASE_URL = `${import.meta.env.VITE_API_URL}/email`;
 
 export const emailAPI = {
   /**

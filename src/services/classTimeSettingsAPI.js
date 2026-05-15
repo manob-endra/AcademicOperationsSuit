@@ -3,8 +3,8 @@
  * Handles all HTTP requests to the class time settings backend API
  */
 
-const API_BASE_URL = 'http://localhost:3001/api/class-time-settings';
-const HEALTH_CHECK_URL = 'http://localhost:3001/health';
+const API_BASE_URL = `${import.meta.env.VITE_API_URL}/class-time-settings`;
+const HEALTH_CHECK_URL = `${import.meta.env.VITE_API_URL}/health`;
 
 // Check if backend is available
 let backendAvailable = true;

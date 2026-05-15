@@ -3,8 +3,8 @@
  * Handles all HTTP requests to the classroom clusters backend API
  */
 
-const API_BASE_URL = 'http://localhost:3001/api/classroom-clusters';
-const HEALTH_CHECK_URL = 'http://localhost:3001/health';
+const API_BASE_URL = `${import.meta.env.VITE_API_URL}/classroom-clusters`;
+const HEALTH_CHECK_URL = `${import.meta.env.VITE_API_URL}/health`;
 
 let backendAvailable = true;
 

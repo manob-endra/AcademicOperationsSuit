@@ -1,5 +1,5 @@
-const API_BASE_URL = 'http://localhost:3001/api/room-allocation';
-const HEALTH_CHECK_URL = 'http://localhost:3001/health';
+const API_BASE_URL = `${import.meta.env.VITE_API_URL}/room-allocation`;
+const HEALTH_CHECK_URL = `${import.meta.env.VITE_API_URL}/health`;
 
 let backendAvailable = true;
 
