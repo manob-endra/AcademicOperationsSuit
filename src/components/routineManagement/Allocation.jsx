@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import AllocateRoom from './allocation/AllocateRoom';
 import CourseWiseTeacher from './allocation/CourseWiseTeacher';
-import TeacherPreferences from './allocation/TeacherPreferences';
 import './allocation/styles/AllocationTabs.css';
 
 function Allocation({ selectedSemesters = [] }) {
@@ -10,7 +9,6 @@ function Allocation({ selectedSemesters = [] }) {
   const sections = [
     { id: 'allocateRoom', label: 'Allocate Room' },
     { id: 'courseWiseTeacher', label: 'Course Wise Teacher' },
-    { id: 'teacherPreferences', label: 'Teacher Preferences' },
   ];
 
   const renderSection = () => {
@@ -18,9 +16,7 @@ function Allocation({ selectedSemesters = [] }) {
       case 'allocateRoom':
         return <AllocateRoom selectedSemesters={selectedSemesters} />;
       case 'courseWiseTeacher':
-        return <CourseWiseTeacher />;
-      case 'teacherPreferences':
-        return <TeacherPreferences />;
+        return <CourseWiseTeacher selectedSemesters={selectedSemesters} />;
       default:
         return <AllocateRoom selectedSemesters={selectedSemesters} />;
     }

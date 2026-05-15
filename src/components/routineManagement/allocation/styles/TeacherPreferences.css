@@ -105,21 +105,21 @@
   font-size: 14px;
 }
 
-.teacher-pref-table tbody tr:nth-child(odd) td {
+.teacher-pref-table tbody tr.row-even td {
   background-color: #ffffff;
 }
 
-.teacher-pref-table tbody tr:nth-child(even) td {
-  background-color: #f8fbff;
-}
-
-.teacher-pref-table tbody td:nth-child(even) {
-  background-image: linear-gradient(rgba(19, 38, 61, 0.02), rgba(19, 38, 61, 0.02));
+.teacher-pref-table tbody tr.row-odd td {
+  background-color: #f2f7f2;
 }
 
 .teacher-pref-table tbody tr:hover td {
-  background-color: #e8f2ff;
-  background-image: none;
+  background-color: #e3f0e8;
+}
+
+.teacher-pref-table tbody tr.active-row td {
+  background-color: #fff8dc !important;
+  box-shadow: inset 3px 0 0 #f0b429;
 }
 
 .teacher-pref-table th {
@@ -167,17 +167,63 @@
 
 .teacher-pref-tag {
   display: inline-block;
-  background: #f1f5fa;
-  color: #2e465f;
   border-radius: 6px;
   padding: 6px 8px;
   font-size: 12px;
+  font-weight: 600;
   line-height: 1.35;
+  background: #f1f5fa;
+  color: #2e465f;
+}
+
+.teacher-pref-tag.pref {
+  background: #d6f0e0;
+  color: #1a6b3c;
+  border: 1px solid #b3e0c4;
+}
+
+.teacher-pref-tag.assigned {
+  background: #22c55e;
+  color: #ffffff;
+  border: 1px solid #16a34a;
 }
 
 .teacher-pref-tag.empty {
   background: #eef2f7;
   color: #8194ab;
+  font-weight: 400;
+}
+
+/* CSS tooltip on course-code tags */
+.teacher-pref-tag[data-tooltip] {
+  position: relative;
+  cursor: default;
+}
+
+.teacher-pref-tag[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 7px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1f2d3d;
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 400;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 200;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.teacher-pref-tag[data-tooltip]:hover::after {
+  opacity: 1;
 }
 
 .teacher-pref-edit-btn {
@@ -279,6 +325,29 @@
   color: #647a92;
   font-size: 14px;
   padding: 10px;
+}
+
+.teacher-pref-list-header {
+  margin: 4px 0 6px 0;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.teacher-pref-list-header.preferred {
+  background: #d6f0e0;
+  color: #1a6b3c;
+  border-left: 3px solid #3db870;
+}
+
+.teacher-pref-list-header.other {
+  background: #f0f4f9;
+  color: #4a6580;
+  border-left: 3px solid #8eaac8;
+  margin-top: 14px;
 }
 
 .teacher-pref-course-item {

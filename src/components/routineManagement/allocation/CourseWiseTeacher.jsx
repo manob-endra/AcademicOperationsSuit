@@ -1,326 +1,286 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
+import { teacherAPI } from '../../../services/teacherAPI';
+import { courseAPI } from '../../../services/courseAPI';
+import { courseTeacherAPI } from '../../../services/courseTeacherAPI';
 import './styles/CourseWiseTeacher.css';
 
-const TEACHERS = [
-  { id: 'MHK', shortCode: 'MHK', name: 'Dr. Md. Hafiz Karim' },
-  { id: 'HMHB', shortCode: 'HMHB', name: 'Dr. Hafiz Md. Hasan Babu' },
-  { id: 'AR', shortCode: 'AR', name: 'Md. Abdur Razzaque' },
-  { id: 'SP', shortCode: 'SP', name: 'Dr. Suraiya Parvin' },
-  { id: 'SA', shortCode: 'SA', name: 'Dr. Sadia Anwar' },
-  { id: 'MRK', shortCode: 'MRK', name: 'Dr. Md. Rezaul Karim' },
-  { id: 'NK', shortCode: 'NK', name: 'Prof. Nadia Khan' },
-  { id: 'SF', shortCode: 'SF', name: 'Dr. Sharmin Farhana' },
-];
-
-const INITIAL_COURSES = [
-  {
-    code: 'CSE-536 (3)',
-    title: 'Applied Game Theory and Mechanism (MS)',
-    type: 'theory',
-    history: ['MHK'],
-    firstChoice: '',
-    secondChoice: '',
-    thirdChoice: 'MHK',
-    otherChoices: [],
-    teacherAssignments: [],
-  },
-  {
-    code: 'CSE-532 (3)',
-    title: 'Decision Diagram for VLSI Design (MS)',
-    type: 'theory',
-    history: ['HMHB'],
-    firstChoice: 'HMHB',
-    secondChoice: '',
-    thirdChoice: '',
-    otherChoices: [],
-    teacherAssignments: [],
-  },
-  {
-    code: 'CSE-531 (3)',
-    title: 'Reversible Logic Synthesis (MS)',
-    type: 'theory',
-    history: [],
-    firstChoice: '',
-    secondChoice: '',
-    thirdChoice: 'HMHB',
-    otherChoices: [],
-    teacherAssignments: [],
-  },
-  {
-    code: 'CSE-530 (3)',
-    title: 'Cloud Computing',
-    type: 'theory',
-    history: ['AR'],
-    firstChoice: '',
-    secondChoice: 'AR',
-    thirdChoice: '',
-    otherChoices: [],
-    teacherAssignments: ['AR'],
-  },
-  {
-    code: 'CSE-528 (3)',
-    title: 'Network Performance Analysis (MS)',
-    type: 'theory',
-    history: [],
-    firstChoice: '',
-    secondChoice: '',
-    thirdChoice: 'AR',
-    otherChoices: [],
-    teacherAssignments: [],
-  },
-  {
-    code: 'CSE-4102 (1.5)',
-    title: 'Machine Learning Lab',
-    type: 'lab',
-    history: ['SP'],
-    firstChoice: 'SP',
-    secondChoice: 'SA',
-    thirdChoice: '',
-    otherChoices: ['MRK'],
-    teacherAssignments: ['SP', 'SA'],
-  },
-  {
-    code: 'CSE-4302 (1.5)',
-    title: 'Cyber Security Lab',
-    type: 'lab',
-    history: ['SA'],
-    firstChoice: 'SA',
-    secondChoice: '',
-    thirdChoice: '',
-    otherChoices: [],
-    teacherAssignments: ['SA'],
-  },
-  {
-    code: 'CSE-3116 (1.5)',
-    title: 'Microcontroller Lab',
-    type: 'lab',
-    history: ['MRK'],
-    firstChoice: 'MRK',
-    secondChoice: '',
-    thirdChoice: '',
-    otherChoices: [],
-    teacherAssignments: [],
-  },
-];
-
-const FIELD_CONFIG = {
-  history: { label: 'History', multi: true },
-  firstChoice: { label: '1st Choice', multi: false },
-  secondChoice: { label: '2nd Choice', multi: false },
-  thirdChoice: { label: '3rd Choice', multi: false },
-  otherChoices: { label: 'Other', multi: true },
-  teacherAssignments: { label: 'Teacher Assignments', multi: true },
+// Maps Home-page semester IDs to the year/semester strings stored in the courses table
+const SEMESTER_MAP = {
+  'Y1-S1': { year: '1st Year', semester: '1st Semester' },
+  'Y1-S2': { year: '1st Year', semester: '2nd Semester' },
+  'Y2-S1': { year: '2nd Year', semester: '1st Semester' },
+  'Y2-S2': { year: '2nd Year', semester: '2nd Semester' },
+  'Y3-S1': { year: '3rd Year', semester: '1st Semester' },
+  'Y3-S2': { year: '3rd Year', semester: '2nd Semester' },
+  'Y4-S1': { year: '4th Year', semester: '1st Semester' },
+  'Y4-S2': { year: '4th Year', semester: '2nd Semester' },
+  'MS-S1': { year: 'Master', semester: '1st Semester' },
+  'MS-S2': { year: 'Master', semester: '2nd Semester' },
 };
 
-const STATUS_FILTERS = ['All Status', 'Assigned', 'Unassigned'];
+const FIELD_CONFIG = {
+  history:            { label: 'History',       multi: true  },
+  firstChoice:        { label: '1st Choice',    multi: false },
+  secondChoice:       { label: '2nd Choice',    multi: false },
+  thirdChoice:        { label: '3rd Choice',    multi: false },
+  otherChoices:       { label: 'Other',         multi: true  },
+  teacherAssignments: { label: 'Assign Teacher', multi: true  },
+};
+
+const STATUS_FILTERS    = ['All Status', 'Assigned', 'Unassigned'];
 const COURSE_TYPE_FILTERS = ['All Courses', 'Lab Only', 'Theory only'];
 
 const normalize = (value) => value.trim().toLowerCase();
 
-function CourseWiseTeacher() {
-  const [courses, setCourses] = useState(INITIAL_COURSES);
-  const [searchText, setSearchText] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All Status');
-  const [typeFilter, setTypeFilter] = useState('All Courses');
-  const [editorState, setEditorState] = useState({
-    open: false,
-    courseCode: '',
-    field: '',
-    mode: 'replace',
-    selectedIds: [],
-    search: '',
+function CourseWiseTeacher({ selectedSemesters = [] }) {
+  const [allCourses, setAllCourses] = useState([]);
+  const [teachers,   setTeachers]   = useState([]);
+  const [choicesMap, setChoicesMap] = useState({}); // courseId → DB row
+  const [loading,    setLoading]    = useState(true);
+
+  const [searchText,    setSearchText]    = useState('');
+  const [statusFilter,  setStatusFilter]  = useState('All Status');
+  const [typeFilter,    setTypeFilter]    = useState('All Courses');
+  const [editorState,   setEditorState]   = useState({
+    open: false, courseId: '', field: '', mode: 'replace', selectedIds: [], search: '',
   });
+
+  // Load teachers and all active courses once
+  useEffect(() => {
+    Promise.all([
+      teacherAPI.getTeachers(),
+      courseAPI.getAllCourses(),
+    ]).then(([tResult, cResult]) => {
+      if (tResult.success) setTeachers(tResult.data || []);
+      if (cResult.success) setAllCourses(cResult.courses || []);
+      setLoading(false);
+    });
+  }, []);
+
+  // Stable string key: sorted IDs of courses in selected semesters
+  const filteredCourseIdsKey = useMemo(() => {
+    const selectedPairs = selectedSemesters.map(id => SEMESTER_MAP[id]).filter(Boolean);
+    if (selectedPairs.length === 0) return '';
+    return allCourses
+      .filter(c =>
+        c.is_active !== false &&
+        selectedPairs.some(p => c.year === p.year && c.semester === p.semester)
+      )
+      .map(c => c.id)
+      .sort()
+      .join(',');
+  }, [allCourses, selectedSemesters]);
+
+  // Load choices whenever the filtered course set changes
+  useEffect(() => {
+    if (!filteredCourseIdsKey) { setChoicesMap({}); return; }
+    const ids = filteredCourseIdsKey.split(',');
+    courseTeacherAPI.getChoices(ids).then(result => {
+      if (result.success) {
+        const map = {};
+        (result.data || []).forEach(row => { map[row.course_id] = row; });
+        setChoicesMap(map);
+      }
+    });
+  }, [filteredCourseIdsKey]);
 
   const teacherMap = useMemo(() => {
     const map = {};
-    TEACHERS.forEach((teacher) => {
-      map[teacher.id] = teacher;
-    });
+    teachers.forEach(t => { map[t.id] = t; });
     return map;
-  }, []);
+  }, [teachers]);
+
+  // Merge courses with their choices into display rows
+  const courses = useMemo(() => {
+    const selectedPairs = selectedSemesters.map(id => SEMESTER_MAP[id]).filter(Boolean);
+    if (selectedPairs.length === 0) return [];
+    return allCourses
+      .filter(c =>
+        c.is_active !== false &&
+        selectedPairs.some(p => c.year === p.year && c.semester === p.semester)
+      )
+      .map(c => {
+        const ch = choicesMap[c.id] || {};
+        return {
+          id:                 c.id,
+          code:               c.code,
+          title:              c.title,
+          type:               c.course_type || 'theory',
+          history:            ch.history            || [],
+          firstChoice:        ch.first_choice       || '',
+          secondChoice:       ch.second_choice      || '',
+          thirdChoice:        ch.third_choice       || '',
+          otherChoices:       ch.other_choices      || [],
+          teacherAssignments: ch.teacher_assignments || [],
+        };
+      });
+  }, [allCourses, selectedSemesters, choicesMap]);
 
   const summary = useMemo(() => {
-    const theoryCourses = courses.filter((course) => course.type === 'theory');
-    const labCourses = courses.filter((course) => course.type === 'lab');
-
+    const theory = courses.filter(c => c.type === 'theory' || c.type === 'mixed');
+    const lab    = courses.filter(c => c.type === 'lab'    || c.type === 'mixed');
     return {
-      totalTheoryCourses: theoryCourses.length,
-      pendingTheory: theoryCourses.filter((course) => course.teacherAssignments.length === 0).length,
-      totalLabCourses: labCourses.length,
-      pendingLab: labCourses.filter((course) => course.teacherAssignments.length === 0).length,
+      totalTheory:   theory.length,
+      pendingTheory: theory.filter(c => c.teacherAssignments.length === 0).length,
+      totalLab:      lab.length,
+      pendingLab:    lab.filter(c => c.teacherAssignments.length === 0).length,
     };
   }, [courses]);
 
   const filteredCourses = useMemo(() => {
     const query = normalize(searchText);
-
-    return courses.filter((course) => {
-      const assignedTeacherNames = course.teacherAssignments
-        .map((teacherId) => {
-          const teacher = teacherMap[teacherId];
-          return teacher ? `${teacher.shortCode} ${teacher.name}` : teacherId;
-        })
+    return courses.filter(course => {
+      const assignedNames = course.teacherAssignments
+        .map(id => { const t = teacherMap[id]; return t ? `${t.initials} ${t.name}` : id; })
         .join(' ')
         .toLowerCase();
 
       const searchMatch =
         !query ||
         `${course.code} ${course.title}`.toLowerCase().includes(query) ||
-        assignedTeacherNames.includes(query);
+        assignedNames.includes(query);
 
       const statusMatch =
         statusFilter === 'All Status' ||
-        (statusFilter === 'Assigned' && course.teacherAssignments.length > 0) ||
+        (statusFilter === 'Assigned'   && course.teacherAssignments.length > 0) ||
         (statusFilter === 'Unassigned' && course.teacherAssignments.length === 0);
 
       const typeMatch =
         typeFilter === 'All Courses' ||
-        (typeFilter === 'Lab Only' && course.type === 'lab') ||
+        (typeFilter === 'Lab Only'    && course.type === 'lab') ||
         (typeFilter === 'Theory only' && course.type === 'theory');
 
       return searchMatch && statusMatch && typeMatch;
     });
   }, [courses, searchText, statusFilter, typeFilter, teacherMap]);
 
-  const openEditor = (courseCode, field, mode = 'replace') => {
-    const row = courses.find((course) => course.code === courseCode);
+  const openEditor = (courseId, field, mode = 'replace') => {
+    const course = courses.find(c => c.id === courseId);
     const config = FIELD_CONFIG[field];
+    if (!course || !config) return;
 
-    if (!row || !config) {
-      return;
-    }
-
-    const value = row[field];
+    const value = course[field];
     const selectedIds = mode === 'replace'
       ? (Array.isArray(value) ? value : value ? [value] : [])
       : [];
 
-    setEditorState({
-      open: true,
-      courseCode,
-      field,
-      mode,
-      selectedIds,
-      search: '',
-    });
+    setEditorState({ open: true, courseId, field, mode, selectedIds, search: '' });
   };
 
-  const closeEditor = () => {
-    setEditorState({
-      open: false,
-      courseCode: '',
-      field: '',
-      mode: 'replace',
-      selectedIds: [],
-      search: '',
-    });
-  };
+  const closeEditor = () =>
+    setEditorState({ open: false, courseId: '', field: '', mode: 'replace', selectedIds: [], search: '' });
 
-  const toggleTeacherSelection = (teacherId) => {
+  const toggleTeacher = (teacherId) => {
     const config = FIELD_CONFIG[editorState.field];
-    if (!config) {
-      return;
-    }
-
+    if (!config) return;
     const isMulti = config.multi && editorState.mode !== 'add-one';
-
-    setEditorState((current) => {
-      const isAlreadySelected = current.selectedIds.includes(teacherId);
-
+    setEditorState(cur => {
+      const already = cur.selectedIds.includes(teacherId);
       if (isMulti) {
-        return {
-          ...current,
-          selectedIds: isAlreadySelected
-            ? current.selectedIds.filter((id) => id !== teacherId)
-            : [...current.selectedIds, teacherId],
-        };
+        return { ...cur, selectedIds: already ? cur.selectedIds.filter(id => id !== teacherId) : [...cur.selectedIds, teacherId] };
       }
-
-      return {
-        ...current,
-        selectedIds: isAlreadySelected ? [] : [teacherId],
-      };
+      return { ...cur, selectedIds: already ? [] : [teacherId] };
     });
   };
 
   const saveEditor = () => {
-    const { courseCode, field, mode, selectedIds } = editorState;
+    const { courseId, field, mode, selectedIds } = editorState;
     const config = FIELD_CONFIG[field];
+    if (!config || !courseId) { closeEditor(); return; }
 
-    if (!config || !courseCode) {
-      closeEditor();
-      return;
+    const course = courses.find(c => c.id === courseId);
+    if (!course) { closeEditor(); return; }
+
+    const currentValue = course[field];
+    let updatedField;
+    if (mode === 'add-one' && config.multi) {
+      const prev = Array.isArray(currentValue) ? currentValue : currentValue ? [currentValue] : [];
+      updatedField = Array.from(new Set([...prev, ...selectedIds]));
+    } else {
+      updatedField = config.multi ? selectedIds : (selectedIds[0] || '');
     }
 
-    setCourses((current) =>
-      current.map((course) => {
-        if (course.code !== courseCode) {
-          return course;
-        }
+    const updated = { ...course, [field]: updatedField };
+    const toSave = {
+      history:            updated.history,
+      firstChoice:        updated.firstChoice  || null,
+      secondChoice:       updated.secondChoice || null,
+      thirdChoice:        updated.thirdChoice  || null,
+      otherChoices:       updated.otherChoices,
+      teacherAssignments: updated.teacherAssignments,
+    };
 
-        const currentValue = course[field];
-
-        if (mode === 'add-one' && config.multi) {
-          const previous = Array.isArray(currentValue) ? currentValue : currentValue ? [currentValue] : [];
-          const merged = Array.from(new Set([...previous, ...selectedIds]));
-          return {
-            ...course,
-            [field]: merged,
-          };
-        }
-
-        return {
-          ...course,
-          [field]: config.multi ? selectedIds : selectedIds[0] || '',
-        };
-      })
-    );
+    // Optimistic update
+    setChoicesMap(prev => ({
+      ...prev,
+      [courseId]: {
+        ...prev[courseId],
+        course_id:           courseId,
+        history:             toSave.history,
+        first_choice:        toSave.firstChoice,
+        second_choice:       toSave.secondChoice,
+        third_choice:        toSave.thirdChoice,
+        other_choices:       toSave.otherChoices,
+        teacher_assignments: toSave.teacherAssignments,
+      },
+    }));
 
     closeEditor();
+    courseTeacherAPI.saveChoices(courseId, toSave);
   };
 
-  const editorAvailableTeachers = useMemo(() => {
+  // Always-current ref so the keydown listener always calls the latest saveEditor
+  const saveEditorRef = useRef(null);
+  saveEditorRef.current = saveEditor;
+
+  // Enter = Save, Escape = Cancel when the teacher editor modal is open
+  useEffect(() => {
+    if (!editorState.open) return;
+    const onKeyDown = (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); saveEditorRef.current?.(); }
+      else if (e.key === 'Escape') { closeEditor(); }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editorState.open]);
+
+  const editorTeachers = useMemo(() => {
     const query = normalize(editorState.search);
-
-    return TEACHERS.filter((teacher) => {
-      if (!query) {
-        return true;
-      }
-
-      return `${teacher.shortCode} ${teacher.name}`.toLowerCase().includes(query);
-    });
-  }, [editorState.search]);
+    if (!query) return teachers;
+    return teachers.filter(t =>
+      `${t.initials} ${t.name}`.toLowerCase().includes(query)
+    );
+  }, [teachers, editorState.search]);
 
   const editorTitle = useMemo(() => {
     const config = FIELD_CONFIG[editorState.field];
-    if (!config) {
-      return 'Select teacher';
-    }
-
-    if (editorState.mode === 'add-one') {
-      return `Add another teacher to ${config.label}`;
-    }
-
-    return `Update ${config.label}`;
+    if (!config) return 'Select teacher';
+    return editorState.mode === 'add-one'
+      ? `Add another teacher to ${config.label}`
+      : `Update ${config.label}`;
   }, [editorState.field, editorState.mode]);
 
-  const renderTeacherTagList = (value, emptyLabel = 'Not selected') => {
+  const renderTags = (value, emptyLabel = 'Not selected', variant = '') => {
     const ids = Array.isArray(value) ? value : value ? [value] : [];
-
-    if (ids.length === 0) {
-      return <span className="cwt-tag empty">{emptyLabel}</span>;
-    }
-
-    return ids.map((teacherId) => {
-      const teacher = teacherMap[teacherId];
-      const label = teacher ? teacher.shortCode : teacherId;
+    if (ids.length === 0) return <span className="cwt-tag empty">{emptyLabel}</span>;
+    return ids.map(id => {
+      const t = teacherMap[id];
       return (
-        <span key={`${teacherId}-${label}`} className="cwt-tag">
-          {label}
+        <span key={id} className={`cwt-tag${variant ? ` ${variant}` : ''}`} data-tooltip={t ? t.name : id}>
+          {t ? t.initials : id.slice(0, 6)}
         </span>
       );
     });
   };
+
+  if (loading) {
+    return (
+      <div className="allocation-panel">
+        <p style={{ color: '#6a7d94', fontSize: 14 }}>Loading course data...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="allocation-panel">
@@ -331,7 +291,7 @@ function CourseWiseTeacher() {
 
       <section className="cwt-summary-grid">
         <article className="cwt-summary-card blue">
-          <h4>{summary.totalTheoryCourses}</h4>
+          <h4>{summary.totalTheory}</h4>
           <p>Total Theory Course</p>
         </article>
         <article className="cwt-summary-card amber">
@@ -339,7 +299,7 @@ function CourseWiseTeacher() {
           <p>Pending Theory</p>
         </article>
         <article className="cwt-summary-card green">
-          <h4>{summary.totalLabCourses}</h4>
+          <h4>{summary.totalLab}</h4>
           <p>Total Lab Course</p>
         </article>
         <article className="cwt-summary-card indigo">
@@ -348,172 +308,150 @@ function CourseWiseTeacher() {
         </article>
       </section>
 
-      <section className="cwt-filters-wrap">
-        <input
-          type="text"
-          className="cwt-search-input"
-          value={searchText}
-          onChange={(event) => setSearchText(event.target.value)}
-          placeholder="Search courses by code, title, or teacher name"
-        />
-        <select
-          className="cwt-filter-select"
-          value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value)}
-        >
-          {STATUS_FILTERS.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-        <select
-          className="cwt-filter-select"
-          value={typeFilter}
-          onChange={(event) => setTypeFilter(event.target.value)}
-        >
-          {COURSE_TYPE_FILTERS.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      </section>
+      {selectedSemesters.length === 0 ? (
+        <p className="cwt-empty-notice">
+          No semesters selected. Please select semesters on the Home page.
+        </p>
+      ) : (
+        <>
+          <section className="cwt-filters-wrap">
+            <input
+              type="text"
+              className="cwt-search-input"
+              value={searchText}
+              onChange={e => setSearchText(e.target.value)}
+              placeholder="Search courses by code, title, or teacher name"
+            />
+            <select
+              className="cwt-filter-select"
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+            >
+              {STATUS_FILTERS.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+            <select
+              className="cwt-filter-select"
+              value={typeFilter}
+              onChange={e => setTypeFilter(e.target.value)}
+            >
+              {COURSE_TYPE_FILTERS.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </section>
 
-      <section className="cwt-table-section">
-        <div className="cwt-table-heading">
-          <h4>Course Allocation Table</h4>
-          <p>
-            Showing {filteredCourses.length} of {courses.length} courses.
-          </p>
-        </div>
+          <section className="cwt-table-section">
+            <div className="cwt-table-heading">
+              <h4>Course Allocation Table</h4>
+              <p>Showing {filteredCourses.length} of {courses.length} courses.</p>
+            </div>
 
-        <div className="cwt-table-wrap">
-          <table className="cwt-table">
-            <thead>
-              <tr>
-                <th>Course</th>
-                <th>History</th>
-                <th>1st Choice</th>
-                <th>2nd Choice</th>
-                <th>3rd Choice</th>
-                <th>Other</th>
-                <th>Teacher Assignments</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredCourses.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="cwt-empty-row">
-                    No course found for current search/filter.
-                  </td>
-                </tr>
-              ) : (
-                filteredCourses.map((course) => (
-                  <tr key={course.code}>
-                    <td>
-                      <div className="cwt-course-cell">
-                        <p className="cwt-course-code">{course.code}</p>
-                        <p className="cwt-course-title">{course.title}</p>
-                        <span className={`cwt-course-type ${course.type}`}>{course.type}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="cwt-edit-cell">
-                        <div className="cwt-tag-wrap">{renderTeacherTagList(course.history, 'No history')}</div>
-                        <button
-                          type="button"
-                          className="cwt-mini-btn"
-                          onClick={() => openEditor(course.code, 'history')}
-                        >
-                          Change
-                        </button>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="cwt-edit-cell">
-                        <div className="cwt-tag-wrap">{renderTeacherTagList(course.firstChoice)}</div>
-                        <button
-                          type="button"
-                          className="cwt-mini-btn"
-                          onClick={() => openEditor(course.code, 'firstChoice')}
-                        >
-                          {course.firstChoice ? 'Change' : 'Select'}
-                        </button>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="cwt-edit-cell">
-                        <div className="cwt-tag-wrap">{renderTeacherTagList(course.secondChoice)}</div>
-                        <button
-                          type="button"
-                          className="cwt-mini-btn"
-                          onClick={() => openEditor(course.code, 'secondChoice')}
-                        >
-                          {course.secondChoice ? 'Change' : 'Select'}
-                        </button>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="cwt-edit-cell">
-                        <div className="cwt-tag-wrap">{renderTeacherTagList(course.thirdChoice)}</div>
-                        <button
-                          type="button"
-                          className="cwt-mini-btn"
-                          onClick={() => openEditor(course.code, 'thirdChoice')}
-                        >
-                          {course.thirdChoice ? 'Change' : 'Select'}
-                        </button>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="cwt-edit-cell">
-                        <div className="cwt-tag-wrap">{renderTeacherTagList(course.otherChoices, 'None')}</div>
-                        <button
-                          type="button"
-                          className="cwt-mini-btn"
-                          onClick={() => openEditor(course.code, 'otherChoices')}
-                        >
-                          Change
-                        </button>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="cwt-edit-cell">
-                        <div className="cwt-tag-wrap">
-                          {renderTeacherTagList(course.teacherAssignments, 'Unassigned')}
-                        </div>
-                        <div className="cwt-assignment-actions">
-                          <button
-                            type="button"
-                            className="cwt-mini-btn primary"
-                            onClick={() => openEditor(course.code, 'teacherAssignments')}
-                          >
-                            {course.teacherAssignments.length > 0 ? 'Change' : 'Add Teacher'}
-                          </button>
-                          {course.teacherAssignments.length > 0 && (
-                            <button
-                              type="button"
-                              className="cwt-mini-btn"
-                              onClick={() => openEditor(course.code, 'teacherAssignments', 'add-one')}
-                            >
-                              Add Another
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </td>
+            <div className="cwt-table-wrap">
+              <table className="cwt-table">
+                <thead>
+                  <tr>
+                    <th>Course</th>
+                    <th>History</th>
+                    <th>1st Choice</th>
+                    <th>2nd Choice</th>
+                    <th>3rd Choice</th>
+                    <th>Other</th>
+                    <th>Assign Teacher</th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+                </thead>
+                <tbody>
+                  {filteredCourses.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="cwt-empty-row">
+                        No course found for current search/filter.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredCourses.map(course => (
+                      <tr key={course.id}>
+                        <td>
+                          <div className="cwt-course-cell">
+                            <p className="cwt-course-code">{course.code}</p>
+                            <p className="cwt-course-title">{course.title}</p>
+                            <span className={`cwt-course-type ${course.type}`}>{course.type}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="cwt-edit-cell">
+                            <div className="cwt-tag-wrap">{renderTags(course.history, 'No history')}</div>
+                            <button type="button" className="cwt-mini-btn" onClick={() => openEditor(course.id, 'history')}>
+                              Change
+                            </button>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="cwt-edit-cell">
+                            <div className="cwt-tag-wrap">{renderTags(course.firstChoice)}</div>
+                            <button type="button" className="cwt-mini-btn" onClick={() => openEditor(course.id, 'firstChoice')}>
+                              {course.firstChoice ? 'Change' : 'Select'}
+                            </button>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="cwt-edit-cell">
+                            <div className="cwt-tag-wrap">{renderTags(course.secondChoice)}</div>
+                            <button type="button" className="cwt-mini-btn" onClick={() => openEditor(course.id, 'secondChoice')}>
+                              {course.secondChoice ? 'Change' : 'Select'}
+                            </button>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="cwt-edit-cell">
+                            <div className="cwt-tag-wrap">{renderTags(course.thirdChoice)}</div>
+                            <button type="button" className="cwt-mini-btn" onClick={() => openEditor(course.id, 'thirdChoice')}>
+                              {course.thirdChoice ? 'Change' : 'Select'}
+                            </button>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="cwt-edit-cell">
+                            <div className="cwt-tag-wrap">{renderTags(course.otherChoices, 'None')}</div>
+                            <button type="button" className="cwt-mini-btn" onClick={() => openEditor(course.id, 'otherChoices')}>
+                              Change
+                            </button>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="cwt-edit-cell">
+                            <div className="cwt-tag-wrap">
+                              {renderTags(course.teacherAssignments, 'Unassigned', 'assigned')}
+                            </div>
+                            <div className="cwt-assignment-actions">
+                              <button
+                                type="button"
+                                className="cwt-mini-btn primary"
+                                onClick={() => openEditor(course.id, 'teacherAssignments')}
+                              >
+                                Assign Teacher
+                              </button>
+                              {course.teacherAssignments.length > 0 && (
+                                <button
+                                  type="button"
+                                  className="cwt-mini-btn"
+                                  onClick={() => openEditor(course.id, 'teacherAssignments', 'add-one')}
+                                >
+                                  Add Another
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </>
+      )}
 
       {editorState.open && (
         <div className="cwt-modal-overlay" onClick={closeEditor}>
-          <div className="cwt-modal" onClick={(event) => event.stopPropagation()}>
+          <div className="cwt-modal" onClick={e => e.stopPropagation()}>
             <h4 className="cwt-modal-title">{editorTitle}</h4>
             <p className="cwt-modal-text">Choose from the teacher list below.</p>
 
@@ -521,40 +459,34 @@ function CourseWiseTeacher() {
               type="text"
               className="cwt-modal-search"
               value={editorState.search}
-              onChange={(event) =>
-                setEditorState((current) => ({
-                  ...current,
-                  search: event.target.value,
-                }))
-              }
-              placeholder="Search by teacher name or code"
+              onChange={e => setEditorState(cur => ({ ...cur, search: e.target.value }))}
+              placeholder="Search by teacher name or initials"
             />
 
             <div className="cwt-modal-list">
-              {editorAvailableTeachers.map((teacher) => {
-                const selected = editorState.selectedIds.includes(teacher.id);
-
-                return (
-                  <button
-                    key={teacher.id}
-                    type="button"
-                    className={`cwt-modal-item ${selected ? 'selected' : ''}`}
-                    onClick={() => toggleTeacherSelection(teacher.id)}
-                  >
-                    <span className="cwt-modal-item-code">{teacher.shortCode}</span>
-                    <span className="cwt-modal-item-name">{teacher.name}</span>
-                  </button>
-                );
-              })}
+              {editorTeachers.length === 0 ? (
+                <p style={{ margin: '8px', color: '#607891', fontSize: 13 }}>No teachers found.</p>
+              ) : (
+                editorTeachers.map(t => {
+                  const selected = editorState.selectedIds.includes(t.id);
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      className={`cwt-modal-item ${selected ? 'selected' : ''}`}
+                      onClick={() => toggleTeacher(t.id)}
+                    >
+                      <span className="cwt-modal-item-code">{t.initials}</span>
+                      <span className="cwt-modal-item-name">{t.name}</span>
+                    </button>
+                  );
+                })
+              )}
             </div>
 
             <div className="cwt-modal-actions">
-              <button type="button" className="cwt-modal-btn cancel" onClick={closeEditor}>
-                Cancel
-              </button>
-              <button type="button" className="cwt-modal-btn save" onClick={saveEditor}>
-                Save
-              </button>
+              <button type="button" className="cwt-modal-btn cancel" onClick={closeEditor}>Cancel</button>
+              <button type="button" className="cwt-modal-btn save" onClick={saveEditor}>Save</button>
             </div>
           </div>
         </div>

@@ -3,6 +3,41 @@
   padding: 20px;
 }
 
+/* Page-level tabs (Details / Teacher's Preference) */
+.teacher-page-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 24px;
+  border-bottom: 2px solid #e2eaf4;
+  padding-bottom: 0;
+}
+
+.teacher-page-tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  padding: 10px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #5a7494;
+  cursor: pointer;
+  border-radius: 6px 6px 0 0;
+  transition: color 0.18s, border-color 0.18s, background 0.18s;
+  font-family: inherit;
+}
+
+.teacher-page-tab-btn:hover {
+  color: #1f2d3d;
+  background: #f0f5fb;
+}
+
+.teacher-page-tab-btn.active {
+  color: #2d6cdf;
+  border-bottom-color: #2d6cdf;
+  background: #f4f8ff;
+}
+
 .load-limit-select {
   background: white;
   border: 1px solid #d0d8e6;
@@ -526,15 +561,15 @@
 }
 
 .status-tag.status-ok {
-  background-color: #d4edda;
-  color: #155724;
-  border: 1px solid #c3e6cb;
+  background-color: #22c55e;
+  color: #ffffff;
+  border: none;
 }
 
 .status-tag.status-overloaded {
-  background-color: #f8d7da;
-  color: #721c24;
-  border: 1px solid #f5c6cb;
+  background-color: #ef4444;
+  color: #ffffff;
+  border: none;
 }
 
 /* Courses Cell */
@@ -557,6 +592,12 @@
   font-size: 12px;
   color: #333;
   border-left: 3px solid #4a90e2;
+}
+
+.no-course-assigned {
+  font-size: 12px;
+  color: #b0bec5;
+  font-style: italic;
 }
 
 /* No Results */

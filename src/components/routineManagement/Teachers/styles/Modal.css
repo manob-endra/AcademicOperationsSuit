@@ -507,8 +507,31 @@
   min-width: 24px;
 }
 
+.pref-label-tag {
+  display: inline-block;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  min-width: 90px;
+  text-align: center;
+}
+
+.pref-course-code {
+  font-weight: 700;
+  color: #1f2d3d;
+  min-width: 80px;
+}
+
+.pref-course-title {
+  color: #3b526c;
+  flex: 1;
+}
+
 .pref-placeholder {
-  color: #666;
+  color: #888;
+  font-style: italic;
 }
 
 .empty-preferences {
@@ -516,6 +539,12 @@
   padding: 30px 0;
   color: #999;
   font-size: 14px;
+}
+
+.empty-hint {
+  font-size: 13px;
+  color: #bbb;
+  margin: 6px 0 0 0;
 }
 
 .empty-state {

@@ -111,6 +111,18 @@ function AllocateRoom({ selectedSemesters = [] }) {
     confirmResolveRef.current?.(result);
   };
 
+  // Enter = Confirm, Escape = Cancel when the confirm modal is open
+  useEffect(() => {
+    if (!confirmMsg) return;
+    const onKeyDown = (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); handleConfirmResult(true); }
+      else if (e.key === 'Escape') { handleConfirmResult(false); }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [confirmMsg]);
+
   const handleDrop = async (zone, room) => {
     setDragOverZone(null);
     if (!room) return;
