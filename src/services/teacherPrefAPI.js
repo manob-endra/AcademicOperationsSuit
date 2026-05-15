@@ -1,5 +1,5 @@
-const API_BASE_URL = 'http://localhost:3001/api/teacher-preferences';
-const HEALTH_CHECK_URL = 'http://localhost:3001/health';
+const API_BASE_URL = `${import.meta.env.VITE_API_URL}/teacher-preferences`;
+const HEALTH_CHECK_URL = `${import.meta.env.VITE_API_URL}/health`;
 
 let backendAvailable = true;
 

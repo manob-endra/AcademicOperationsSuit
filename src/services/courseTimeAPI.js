@@ -2,8 +2,8 @@
  * Frontend API Service for Course Time (duration settings per course)
  */
 
-const API_BASE_URL = 'http://localhost:3001/api/course-time';
-const HEALTH_CHECK_URL = 'http://localhost:3001/health';
+const API_BASE_URL = `${import.meta.env.VITE_API_URL}/course-time`;
+const HEALTH_CHECK_URL = `${import.meta.env.VITE_API_URL}/health`;
 
 let backendAvailable = true;
 
