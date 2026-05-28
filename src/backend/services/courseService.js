@@ -233,6 +233,45 @@ export const courseService = {
   },
 
   /**
+   * Get all exceptional courses (is_exceptional = true, is_active = true)
+   */
+  async getExceptionalCourses() {
+    try {
+      const { data, error } = await supabase
+        .from('courses')
+        .select('*')
+        .eq('is_exceptional', true)
+        .eq('is_active', true)
+        .order('code', { ascending: true });
+      if (error) throw error;
+      return { success: true, courses: data };
+    } catch (error) {
+      console.error('Get exceptional courses error:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Batch set is_exceptional on a list of courses
+   * @param {string[]} courseIds
+   * @param {boolean} isExceptional
+   */
+  async setExceptionalCourses(courseIds, isExceptional) {
+    try {
+      const { data, error } = await supabase
+        .from('courses')
+        .update({ is_exceptional: isExceptional })
+        .in('id', courseIds)
+        .select();
+      if (error) throw error;
+      return { success: true, courses: data };
+    } catch (error) {
+      console.error('Set exceptional courses error:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
    * Search courses by code or title
    * @param {string} searchTerm - Search term
    * @returns {Promise<{success: boolean, courses?: array, error?: string}>}

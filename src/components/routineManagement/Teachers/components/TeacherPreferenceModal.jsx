@@ -1,4 +1,6 @@
-function TeacherPreferenceModal({ isOpen, onClose, teacher, preferenceType, prefsMap, courseMap }) {
+import TeacherAvailabilityGrid from './TeacherAvailabilityGrid';
+
+function TeacherPreferenceModal({ isOpen, onClose, teacher, preferenceType, prefsMap, courseMap, onAvailabilitySaved }) {
   if (!isOpen || !teacher) return null;
 
   const prefs = (prefsMap || {})[teacher.id] || {};
@@ -19,11 +21,12 @@ function TeacherPreferenceModal({ isOpen, onClose, teacher, preferenceType, pref
   };
 
   const items = getPrefItems();
+  const isTime = preferenceType === 'time';
 
   const getTitle = () => {
     if (preferenceType === 'theory') return 'Theory Course Preferences';
     if (preferenceType === 'lab')    return 'Lab Course Preferences';
-    if (preferenceType === 'time')   return 'Time Slot Preferences';
+    if (preferenceType === 'time')   return 'Time Slot Availability';
     return 'Preferences';
   };
 
@@ -35,7 +38,10 @@ function TeacherPreferenceModal({ isOpen, onClose, teacher, preferenceType, pref
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content preference-modal" onClick={e => e.stopPropagation()}>
+      <div
+        className={`modal-content preference-modal${isTime ? ' preference-modal--time' : ''}`}
+        onClick={e => e.stopPropagation()}
+      >
         <div className="modal-header" style={{ backgroundColor: theme.header }}>
           <div>
             <h2>{getTitle()}</h2>
@@ -45,54 +51,56 @@ function TeacherPreferenceModal({ isOpen, onClose, teacher, preferenceType, pref
         </div>
 
         <div className="modal-body">
-          <div className="preference-count-section">
-            <div className="preference-count-display">
-              <span className="count-label">Total Preferences:</span>
-              <span className="count-badge" style={{ backgroundColor: theme.badge }}>
-                {items.length}
-              </span>
-            </div>
-          </div>
-
-          {preferenceType === 'time' ? (
-            <div className="empty-preferences">
-              <p>Time preferences are managed in the Time Slot section.</p>
-            </div>
-          ) : items.length > 0 ? (
-            <div className="preference-items-section">
-              <p className="section-title">Preferred Courses:</p>
-              <div className="preference-items-list">
-                {items.map(({ label, id }, idx) => {
-                  const course = (courseMap || {})[id];
-                  return (
-                    <div
-                      key={idx}
-                      className="preference-item"
-                      style={{ borderLeft: `4px solid ${theme.border}` }}
-                    >
-                      <span className="pref-label-tag" style={{ background: theme.badge }}>
-                        {label}
-                      </span>
-                      {course ? (
-                        <>
-                          <span className="pref-course-code">{course.code}</span>
-                          <span className="pref-course-title">{course.title}</span>
-                        </>
-                      ) : (
-                        <span className="pref-placeholder">Course not found</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+          {isTime ? (
+            <TeacherAvailabilityGrid teacherId={teacher.id} onSaved={onAvailabilitySaved} />
           ) : (
-            <div className="empty-preferences">
-              <p>No {preferenceType} preferences set yet.</p>
-              <p className="empty-hint">
-                Go to Teacher's Preference tab to add preferences.
-              </p>
-            </div>
+            <>
+              <div className="preference-count-section">
+                <div className="preference-count-display">
+                  <span className="count-label">Total Preferences:</span>
+                  <span className="count-badge" style={{ backgroundColor: theme.badge }}>
+                    {items.length}
+                  </span>
+                </div>
+              </div>
+
+              {items.length > 0 ? (
+                <div className="preference-items-section">
+                  <p className="section-title">Preferred Courses:</p>
+                  <div className="preference-items-list">
+                    {items.map(({ label, id }, idx) => {
+                      const course = (courseMap || {})[id];
+                      return (
+                        <div
+                          key={idx}
+                          className="preference-item"
+                          style={{ borderLeft: `4px solid ${theme.border}` }}
+                        >
+                          <span className="pref-label-tag" style={{ background: theme.badge }}>
+                            {label}
+                          </span>
+                          {course ? (
+                            <>
+                              <span className="pref-course-code">{course.code}</span>
+                              <span className="pref-course-title">{course.title}</span>
+                            </>
+                          ) : (
+                            <span className="pref-placeholder">Course not found</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="empty-preferences">
+                  <p>No {preferenceType} preferences set yet.</p>
+                  <p className="empty-hint">
+                    Go to Teacher's Preference tab to add preferences.
+                  </p>
+                </div>
+              )}
+            </>
           )}
 
           <div className="modal-buttons">

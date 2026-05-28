@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect, useRef } from 'react';
 import { teacherAPI } from '../../../services/teacherAPI';
 import { courseAPI } from '../../../services/courseAPI';
 import { teacherPrefAPI } from '../../../services/teacherPrefAPI';
+import { courseTeacherAPI } from '../../../services/courseTeacherAPI';
 import './styles/TeacherPreferences.css';
 
 // Which DB course_type values belong to each preference category
@@ -34,6 +35,7 @@ function TeacherPreferences() {
   const [teachers,       setTeachers]       = useState([]);
   const [allCourses,     setAllCourses]     = useState([]);
   const [preferencesMap, setPreferencesMap] = useState({}); // teacherId → DB row
+  const [courseAssignMap, setCourseAssignMap] = useState({}); // teacherId → courseId[] from course_teacher_choices
   const [loading,        setLoading]        = useState(true);
 
   const [activeRowId, setActiveRowId] = useState(null);
@@ -49,13 +51,24 @@ function TeacherPreferences() {
       teacherAPI.getTeachers(),
       courseAPI.getAllCourses(),
       teacherPrefAPI.getAllPreferences(),
-    ]).then(([tRes, cRes, pRes]) => {
+      courseTeacherAPI.getAllAssignments(),
+    ]).then(([tRes, cRes, pRes, aRes]) => {
       if (tRes.success) setTeachers(tRes.data || []);
       if (cRes.success) setAllCourses(cRes.courses || []);
       if (pRes.success) {
         const map = {};
         (pRes.data || []).forEach(row => { map[row.teacher_id] = row; });
         setPreferencesMap(map);
+      }
+      if (aRes.success) {
+        const reverseMap = {};
+        (aRes.data || []).forEach(({ course_id, teacher_assignments }) => {
+          (teacher_assignments || []).forEach(tid => {
+            if (!reverseMap[tid]) reverseMap[tid] = [];
+            reverseMap[tid].push(course_id);
+          });
+        });
+        setCourseAssignMap(reverseMap);
       }
       setLoading(false);
     });
@@ -71,6 +84,8 @@ function TeacherPreferences() {
   const teacherRows = useMemo(() =>
     teachers.map(t => {
       const p = preferencesMap[t.id] || {};
+      const fromChoices = courseAssignMap[t.id] || [];
+      const fromPrefs   = p.assigned_courses    || [];
       return {
         id:               t.id,
         shortCode:        t.initials || '',
@@ -80,10 +95,10 @@ function TeacherPreferences() {
         thirdPreference:  p.third_preference  || '',
         otherPreferences: p.other_preferences || [],
         labPreferences:   p.lab_preferences   || [],
-        assignedCourses:  p.assigned_courses  || [],
+        assignedCourses:  [...new Set([...fromChoices, ...fromPrefs])],
       };
     }),
-  [teachers, preferencesMap]);
+  [teachers, preferencesMap, courseAssignMap]);
 
   const getPreferenceCount = (row) =>
     [row.firstPreference, row.secondPreference, row.thirdPreference].filter(Boolean).length +
@@ -164,7 +179,7 @@ function TeacherPreferences() {
     const updatedValue = config.multi ? selectedCodes : (selectedCodes[0] || '');
     const dbKey = FIELD_TO_DB[field];
 
-    // Optimistic update
+    // Optimistic update to preferencesMap
     setPreferencesMap(prev => ({
       ...prev,
       [teacherId]: {
@@ -174,15 +189,21 @@ function TeacherPreferences() {
       },
     }));
 
-    // Build full preferences object using current map + this change
+    // When saving assignedCourses, also optimistically update courseAssignMap
+    if (field === 'assignedCourses') {
+      setCourseAssignMap(prev => ({ ...prev, [teacherId]: updatedValue }));
+    }
+
+    // Build full preferences object using current merged value as base + this change
     const existing = preferencesMap[teacherId] || {};
+    const mergedAssigned = [...new Set([...(courseAssignMap[teacherId] || []), ...(existing.assigned_courses || [])])];
     const toSave = {
       firstPreference:  existing.first_preference  || '',
       secondPreference: existing.second_preference || '',
       thirdPreference:  existing.third_preference  || '',
       otherPreferences: existing.other_preferences || [],
       labPreferences:   existing.lab_preferences   || [],
-      assignedCourses:  existing.assigned_courses  || [],
+      assignedCourses:  mergedAssigned,
       [field]: updatedValue,
     };
 

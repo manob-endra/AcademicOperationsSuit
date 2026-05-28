@@ -621,6 +621,63 @@ export const courseAPI = {
   },
 
   /**
+   * Get all exceptional courses (is_exceptional = true)
+   */
+  async getExceptionalCourses() {
+    try {
+      if (!backendAvailable) backendAvailable = await checkBackendConnection();
+      if (!backendAvailable) return { success: false, error: 'Backend server is not running.', offline: true };
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const response = await fetch(`${API_BASE_URL}?status=exceptional`, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) { const r = await response.json(); throw new Error(r.error || 'Failed to fetch exceptional courses'); }
+      const result = await response.json();
+      return { success: true, courses: result.data || [] };
+    } catch (error) {
+      if (error.name === 'AbortError' || error.message.includes('Failed to fetch')) {
+        backendAvailable = false;
+        return { success: false, error: 'Cannot connect to backend server.', offline: true };
+      }
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Batch mark/unmark courses as exceptional
+   * @param {string[]} courseIds
+   * @param {boolean} isExceptional
+   */
+  async setExceptional(courseIds, isExceptional) {
+    try {
+      if (!backendAvailable) backendAvailable = await checkBackendConnection();
+      if (!backendAvailable) return { success: false, error: 'Backend server is not running.', offline: true };
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const response = await fetch(`${API_BASE_URL}/set-exceptional`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ courseIds, isExceptional }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) { const r = await response.json(); throw new Error(r.error || 'Failed to update courses'); }
+      const result = await response.json();
+      return { success: true, courses: result.data || [] };
+    } catch (error) {
+      if (error.name === 'AbortError' || error.message.includes('Failed to fetch')) {
+        backendAvailable = false;
+        return { success: false, error: 'Cannot connect to backend server.', offline: true };
+      }
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
    * Restore multiple courses (set is_active to true for multiple)
    */
   async restoreCourses(courseIds) {

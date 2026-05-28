@@ -4,13 +4,61 @@ export const teacherTimeService = {
 
   async getActiveTeachers() {
     try {
-      const { data, error } = await supabase
+      const { data: teacherRows, error: teacherError } = await supabase
         .from('teachers')
         .select('id, name, initials, department, email, load_limit, weekly_load_hours')
         .eq('is_active', true)
         .order('created_at', { ascending: true });
-      if (error) throw error;
-      return { success: true, data: data || [] };
+      if (teacherError) throw teacherError;
+
+      if (!teacherRows || teacherRows.length === 0) return { success: true, data: [] };
+
+      // Fetch assigned_courses for every active teacher
+      const { data: prefRows, error: prefError } = await supabase
+        .from('teacher_course_preferences')
+        .select('teacher_id, assigned_courses')
+        .in('teacher_id', teacherRows.map(t => t.id));
+      if (prefError) throw prefError;
+
+      // Build prefMap and collect every referenced course ID
+      const prefMap = {};
+      const allCourseIds = new Set();
+      (prefRows || []).forEach(p => {
+        prefMap[p.teacher_id] = p.assigned_courses || [];
+        (p.assigned_courses || []).forEach(id => allCourseIds.add(id));
+      });
+
+      // Fetch credit_hours + course_type for every assigned course
+      const courseMap = {};
+      if (allCourseIds.size > 0) {
+        const { data: courseRows, error: courseError } = await supabase
+          .from('courses')
+          .select('id, credit_hours, course_type')
+          .in('id', [...allCourseIds]);
+        if (courseError) throw courseError;
+        (courseRows || []).forEach(c => { courseMap[c.id] = c; });
+      }
+
+      // Compute weekly load: theory → credit hrs, lab → credit hrs × 4
+      const teachersWithLoad = teacherRows.map(t => {
+        const assignedIds = prefMap[t.id] || [];
+        const weeklyLoad = assignedIds.reduce((sum, id) => {
+          const c = courseMap[id];
+          if (!c) return sum;
+          const hrs = c.credit_hours || 0;
+          return sum + (c.course_type === 'lab' ? hrs * 4 : hrs);
+        }, 0);
+        return { ...t, weekly_load_hours: weeklyLoad };
+      });
+
+      // Persist computed loads back to the teachers table
+      await Promise.allSettled(
+        teachersWithLoad.map(t =>
+          supabase.from('teachers').update({ weekly_load_hours: t.weekly_load_hours }).eq('id', t.id)
+        )
+      );
+
+      return { success: true, data: teachersWithLoad };
     } catch (err) {
       console.error('teacherTimeService.getActiveTeachers:', err);
       return { success: false, error: err.message };

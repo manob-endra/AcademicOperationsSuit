@@ -45,6 +45,12 @@
   padding: 6px 10px;
 }
 
+.ct-assigned-counts {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .ct-block {
   background: white;
   border: 1px solid #e0e6ed;
@@ -70,10 +76,18 @@
   flex-wrap: wrap;
 }
 
+.ct-inline-controls--wide .ct-input-group {
+  flex: 1 1 120px;
+}
+
 .ct-grid-controls {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
+}
+
+.ct-grid-controls--4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .ct-input-group {
@@ -290,6 +304,43 @@
   font-size: 12px;
 }
 
+/* Weekly classes inline input */
+.ct-weekly-input {
+  width: 68px;
+  padding: 5px 8px;
+  border: 1px solid #d0d8e6;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #1f2d3d;
+  background: white;
+  text-align: center;
+  transition: all 0.2s;
+}
+
+.ct-weekly-input:hover {
+  border-color: #b8cbe0;
+}
+
+.ct-weekly-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
+}
+
+.ct-weekly-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* hint below the custom section */
+.ct-hint-small {
+  font-size: 11px;
+  color: #9aabbf;
+  margin: 0;
+  font-style: italic;
+}
+
 /* Saving state — dim the buttons slightly */
 .ct-btn:disabled {
   opacity: 0.65;
@@ -303,6 +354,10 @@
   }
 
   .ct-grid-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ct-grid-controls--4 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

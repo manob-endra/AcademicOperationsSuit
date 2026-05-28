@@ -24,13 +24,13 @@ export const courseTimeService = {
 
   /**
    * Get all rows from course_durations.
-   * Returns { course_id, duration_periods } for every course that has one set.
+   * Returns { course_id, duration_periods, weekly_classes } for every course that has one set.
    */
   async getDurations() {
     try {
       const { data, error } = await supabase
         .from('course_durations')
-        .select('course_id, duration_periods');
+        .select('course_id, duration_periods, weekly_classes');
 
       if (error) throw error;
       return { success: true, durations: data || [] };
@@ -41,17 +41,21 @@ export const courseTimeService = {
   },
 
   /**
-   * Upsert the duration for a single course.
-   * If a row for course_id already exists it is updated; otherwise inserted.
+   * Upsert the duration (and optionally weekly_classes) for a single course.
    */
-  async upsertDuration(courseId, durationPeriods) {
+  async upsertDuration(courseId, durationPeriods, weeklyClasses = null) {
     try {
+      const row = {
+        course_id:        courseId,
+        duration_periods: Number(durationPeriods),
+      };
+      if (weeklyClasses !== null && weeklyClasses !== undefined) {
+        row.weekly_classes = Number(weeklyClasses);
+      }
+
       const { data, error } = await supabase
         .from('course_durations')
-        .upsert(
-          { course_id: courseId, duration_periods: Number(durationPeriods) },
-          { onConflict: 'course_id' }
-        )
+        .upsert(row, { onConflict: 'course_id' })
         .select()
         .single();
 
@@ -64,15 +68,43 @@ export const courseTimeService = {
   },
 
   /**
+   * Upsert only the weekly_classes for a single course (duration_periods not changed).
+   */
+  async upsertWeeklyClasses(courseId, weeklyClasses) {
+    try {
+      const { data, error } = await supabase
+        .from('course_durations')
+        .upsert(
+          { course_id: courseId, weekly_classes: Number(weeklyClasses) },
+          { onConflict: 'course_id' }
+        )
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { success: true, duration: data };
+    } catch (error) {
+      console.error('courseTimeService.upsertWeeklyClasses error:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
    * Upsert durations for many courses at once.
-   * @param {Array<{courseId: string, durationPeriods: number}>} durations
+   * @param {Array<{courseId: string, durationPeriods: number, weeklyClasses?: number}>} durations
    */
   async upsertBulkDurations(durations) {
     try {
-      const rows = durations.map((d) => ({
-        course_id: d.courseId,
-        duration_periods: Number(d.durationPeriods),
-      }));
+      const rows = durations.map((d) => {
+        const row = {
+          course_id:        d.courseId,
+          duration_periods: Number(d.durationPeriods),
+        };
+        if (d.weeklyClasses !== undefined && d.weeklyClasses !== null) {
+          row.weekly_classes = Number(d.weeklyClasses);
+        }
+        return row;
+      });
 
       const { data, error } = await supabase
         .from('course_durations')

@@ -48,6 +48,13 @@ const makeRequest = async (url, options = {}) => {
 };
 
 export const courseTeacherAPI = {
+  // Fetch all teacher assignments across every course (for Teachers page reverse-map)
+  async getAllAssignments() {
+    const result = await makeRequest(`${API_BASE_URL}/all`);
+    if (result.success) return { success: true, data: result.data };
+    return result;
+  },
+
   async getChoices(courseIds) {
     const result = await makeRequest(
       `${API_BASE_URL}?courseIds=${courseIds.join(',')}`

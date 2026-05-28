@@ -74,6 +74,16 @@
   box-shadow: 0 2px 8px rgba(244, 67, 54, 0.3);
 }
 
+.edit-course-btn {
+  background-color: #7b4fcf;
+  color: white;
+}
+
+.edit-course-btn:hover {
+  background-color: #6a3db8;
+  box-shadow: 0 2px 8px rgba(123, 79, 207, 0.3);
+}
+
 /* Filter Block */
 .filter-block {
   background-color: #f9f9f9;
@@ -315,6 +325,130 @@
   color: #4a90e2;
   font-weight: 500;
   margin-left: 5px;
+}
+
+/* ── Exceptional Courses ──────────────────────────────────── */
+
+/* Third toggle button gets an amber accent when active */
+.exceptional-toggle-btn.active {
+  background-color: #e67e22;
+  border-color: #e67e22;
+  color: white;
+}
+.exceptional-toggle-btn:not(.active):hover {
+  border-color: #e67e22;
+  color: #e67e22;
+}
+
+/* Checkbox column */
+.col-checkbox {
+  width: 36px;
+  text-align: center;
+  padding: 8px 4px !important;
+}
+.col-checkbox input[type="checkbox"] {
+  cursor: pointer;
+  width: 15px;
+  height: 15px;
+}
+
+/* Row states */
+.row-selected {
+  background-color: #fff8e1 !important;
+  outline: 1px solid #f0c040;
+}
+.exceptional-row td {
+  opacity: 0.85;
+}
+
+/* Exceptional badge pill */
+.exceptional-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  background-color: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffc107;
+  vertical-align: middle;
+  margin-right: 3px;
+  white-space: nowrap;
+}
+
+/* Action bar above the table in Selected Semester view */
+.exceptional-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  background: #f9f4e8;
+  border: 1px solid #f0c040;
+  border-radius: 4px;
+  flex-wrap: wrap;
+}
+.exceptional-action-hint {
+  font-size: 13px;
+  color: #7a6200;
+  flex: 1;
+}
+.exceptional-action-btns {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mark-exceptional-btn {
+  background-color: #e67e22;
+  color: white;
+}
+.mark-exceptional-btn:hover:not(:disabled) {
+  background-color: #d35400;
+  box-shadow: 0 2px 8px rgba(230, 126, 34, 0.3);
+}
+.mark-exceptional-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.unmark-exceptional-btn {
+  background-color: #6c757d;
+  color: white;
+}
+.unmark-exceptional-btn:hover:not(:disabled) {
+  background-color: #545b62;
+  box-shadow: 0 2px 8px rgba(108, 117, 125, 0.3);
+}
+.unmark-exceptional-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Exceptional view header banner */
+.exceptional-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  background: #fff8e1;
+  border: 1px solid #ffc107;
+  border-radius: 4px;
+  flex-wrap: wrap;
+}
+.exceptional-header-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #7a6200;
+}
+.exceptional-header-icon {
+  font-size: 16px;
+  color: #e67e22;
 }
 
 /* Responsive Design */

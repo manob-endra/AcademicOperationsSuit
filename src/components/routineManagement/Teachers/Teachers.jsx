@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { teacherAPI } from '../../../services/teacherAPI';
 import { teacherPrefAPI } from '../../../services/teacherPrefAPI';
 import { courseAPI } from '../../../services/courseAPI';
+import { courseTeacherAPI } from '../../../services/courseTeacherAPI';
 import TeacherPreferences from '../allocation/TeacherPreferences';
 import './styles/Teachers.css';
 import './styles/Modal.css';
@@ -60,17 +61,43 @@ function Teachers() {
     type: null,
   });
 
-  const [prefsMap, setPrefsMap]   = useState({}); // teacherId → teacher_course_preferences row
-  const [courseMap, setCourseMap] = useState({}); // courseId  → course row
+  const [prefsMap, setPrefsMap]           = useState({}); // teacherId → teacher_course_preferences row
+  const [courseMap, setCourseMap]         = useState({}); // courseId  → course row
+  const [availMap, setAvailMap]           = useState({}); // teacherId → number of selected time slots
+  // Authoritative reverse-map built from course_teacher_choices.teacher_assignments
+  const [courseAssignMap, setCourseAssignMap] = useState({}); // teacherId → courseId[]
+
+  // Derive weekly load from assigned courses.
+  // courseAssignMap (from course_teacher_choices) is the authoritative source;
+  // falls back to prefsMap for any courses assigned via Teacher Preferences page.
+  const computeWeeklyLoad = useCallback((teacherId) => {
+    const fromChoices = courseAssignMap[teacherId] || [];
+    const fromPrefs   = prefsMap[teacherId]?.assigned_courses || [];
+    // Union of both sources (some courses may only be in one)
+    const assignedIds = [...new Set([...fromChoices, ...fromPrefs])];
+    return assignedIds.reduce((sum, id) => {
+      const c = courseMap[id];
+      if (!c) return sum;
+      const hrs = c.credit_hours || 0;
+      return sum + (c.course_type === 'lab' ? hrs * 4 : hrs);
+    }, 0);
+  }, [courseAssignMap, prefsMap, courseMap]);
+
+  const teachersWithLoad = useMemo(
+    () => teachers.map(t => ({ ...t, weeklyLoadHours: computeWeeklyLoad(t.id) })),
+    [teachers, computeWeeklyLoad]
+  );
 
   // Load all data — called on mount and when switching back to Details tab
   const loadData = async (showSpinner = true) => {
     if (showSpinner) { setLoading(true); setError(null); }
-    const [activeResult, removedResult, prefResult, courseResult] = await Promise.all([
+    const [activeResult, removedResult, prefResult, courseResult, availResult, assignResult] = await Promise.all([
       teacherAPI.getTeachers(),
       teacherAPI.getRemovedTeachers(),
       teacherPrefAPI.getAllPreferences(),
       courseAPI.getAllCourses(),
+      teacherAPI.getAllAvailability(),
+      courseTeacherAPI.getAllAssignments(),
     ]);
     if (activeResult.success) {
       setTeachers((activeResult.data || []).map(mapTeacher));
@@ -89,6 +116,26 @@ function Teachers() {
       const map = {};
       (courseResult.courses || []).forEach(c => { map[c.id] = c; });
       setCourseMap(map);
+    }
+    if (availResult.success) {
+      const map = {};
+      (availResult.data || []).forEach(({ teacher_id }) => {
+        map[teacher_id] = (map[teacher_id] || 0) + 1;
+      });
+      setAvailMap(map);
+    } else {
+      console.error('Could not load teacher availability for badge counts:', availResult.error);
+    }
+    // Build authoritative teacher→courses map from course_teacher_choices
+    if (assignResult.success) {
+      const map = {};
+      (assignResult.data || []).forEach(row => {
+        (row.teacher_assignments || []).forEach(tid => {
+          if (!map[tid]) map[tid] = [];
+          if (!map[tid].includes(row.course_id)) map[tid].push(row.course_id);
+        });
+      });
+      setCourseAssignMap(map);
     }
     if (showSpinner) setLoading(false);
   };
@@ -109,20 +156,20 @@ function Teachers() {
   };
   const getLabPrefCount = (teacherId) => prefsMap[teacherId]?.lab_preferences?.length || 0;
 
-  // Calculate summary statistics
-  const totalTeachers = teachers.length;
-  const teachersWithPreferences = teachers.filter(
+  // Calculate summary statistics (use computed load)
+  const totalTeachers = teachersWithLoad.length;
+  const teachersWithPreferences = teachersWithLoad.filter(
     (t) => getTheoryPrefCount(t.id) > 0 || getLabPrefCount(t.id) > 0
   ).length;
-  const totalPreferences = teachers.reduce(
+  const totalPreferences = teachersWithLoad.reduce(
     (sum, t) => sum + getTheoryPrefCount(t.id) + getLabPrefCount(t.id),
     0
   );
   const avgPreferences = (totalPreferences / (totalTeachers || 1)).toFixed(2);
 
-  const withinLoadLimit = teachers.filter((t) => t.weeklyLoadHours <= t.loadLimit).length;
-  const overloaded = teachers.filter((t) => t.weeklyLoadHours > t.loadLimit).length;
-  const nearLimit = teachers.filter(
+  const withinLoadLimit = teachersWithLoad.filter((t) => t.weeklyLoadHours <= t.loadLimit).length;
+  const overloaded = teachersWithLoad.filter((t) => t.weeklyLoadHours > t.loadLimit).length;
+  const nearLimit = teachersWithLoad.filter(
     (t) => t.weeklyLoadHours > t.loadLimit * 0.8 && t.weeklyLoadHours <= t.loadLimit
   ).length;
 
@@ -132,9 +179,9 @@ function Teachers() {
     [teachers, removedTeachers]
   );
 
-  // Filter teachers based on search term and selected filter
+  // Filter teachers based on search term and selected filter (use computed load)
   const filteredTeachers = useMemo(() => {
-    return teachers.filter((teacher) => {
+    return teachersWithLoad.filter((teacher) => {
       const searchMatch =
         searchTerm === '' ||
         teacher.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -157,7 +204,7 @@ function Teachers() {
 
       return searchMatch && filterMatch;
     });
-  }, [teachers, searchTerm, selectedFilter]);
+  }, [teachersWithLoad, searchTerm, selectedFilter]);
 
   // Modal handlers
   const handleOpenModal = useCallback((modalName) => {
@@ -215,12 +262,20 @@ function Teachers() {
     handleCloseModal('removedTeachers');
   }, [handleCloseModal]);
 
-  const handleLoadLimitChange = useCallback(async (teacherId, newLimit) => {
-    // Optimistic update
+  const handleLoadLimitChange = useCallback(async (teacherId, newLimit, oldLimit) => {
+    // Optimistic update so the select feels instant
     setTeachers(prev =>
       prev.map(t => t.id === teacherId ? { ...t, loadLimit: newLimit } : t)
     );
-    await teacherAPI.updateLoadLimit(teacherId, newLimit);
+    const result = await teacherAPI.updateLoadLimit(teacherId, newLimit);
+    if (!result.success) {
+      // Revert on failure so the UI matches the DB
+      setTeachers(prev =>
+        prev.map(t => t.id === teacherId ? { ...t, loadLimit: oldLimit } : t)
+      );
+      console.error('Failed to save load limit:', result.error);
+      alert(`Could not save load limit: ${result.error || 'Server error'}`);
+    }
   }, []);
 
   // Preference modal handlers
@@ -424,7 +479,7 @@ function Teachers() {
                                 >
                                   Time
                                 </button>
-                                <span className="preference-badge">{teacher.timePreferences}</span>
+                                <span className="preference-badge">{availMap[teacher.id] || 0}</span>
                               </div>
                             </div>
                           </td>
@@ -435,7 +490,7 @@ function Teachers() {
                               <div className="load-hours">{teacher.weeklyLoadHours} hrs/week</div>
                               <div className="load-bar-container">
                                 <div
-                                  className="load-bar"
+                                  className={`load-bar${teacher.weeklyLoadHours > teacher.loadLimit ? ' overloaded' : ''}`}
                                   style={{
                                     width: `${getLoadPercentage(
                                       teacher.weeklyLoadHours,
@@ -452,7 +507,7 @@ function Teachers() {
                             <select
                               className="load-limit-select"
                               value={teacher.loadLimit}
-                              onChange={(e) => handleLoadLimitChange(teacher.id, Number(e.target.value))}
+                              onChange={(e) => handleLoadLimitChange(teacher.id, Number(e.target.value), teacher.loadLimit)}
                             >
                               {Array.from({ length: 26 }, (_, i) => (
                                 <option key={i} value={i}>{i} hrs</option>
@@ -473,12 +528,14 @@ function Teachers() {
                             </span>
                           </td>
 
-                          {/* Assigned Courses */}
+                          {/* Assigned Courses — sourced from course_teacher_choices (authoritative) */}
                           <td>
                             <div className="courses-cell">
                               <div className="courses-list">
                                 {(() => {
-                                  const ids = prefsMap[teacher.id]?.assigned_courses || [];
+                                  const fromChoices = courseAssignMap[teacher.id] || [];
+                                  const fromPrefs   = prefsMap[teacher.id]?.assigned_courses || [];
+                                  const ids = [...new Set([...fromChoices, ...fromPrefs])];
                                   if (ids.length === 0) {
                                     return <span className="no-course-assigned">No course assigned</span>;
                                   }
@@ -548,6 +605,9 @@ function Teachers() {
                 preferenceType={preferenceModal.type}
                 prefsMap={prefsMap}
                 courseMap={courseMap}
+                onAvailabilitySaved={(teacherId, count) =>
+                  setAvailMap(prev => ({ ...prev, [teacherId]: count }))
+                }
               />
             </>
           )}
