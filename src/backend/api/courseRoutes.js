@@ -17,6 +17,8 @@ router.get('/', async (req, res) => {
       result = await courseService.getRemovedCourses();
     } else if (status === 'active') {
       result = await courseService.getActiveCourses();
+    } else if (status === 'exceptional') {
+      result = await courseService.getExceptionalCourses();
     } else {
       result = await courseService.getAllCourses();
     }
@@ -60,6 +62,25 @@ router.post('/import', async (req, res) => {
   } catch (error) {
     console.error('Error importing courses:', error);
     res.status(500).json({ success: false, error: 'Failed to import courses' });
+  }
+});
+
+/**
+ * PUT /api/courses/set-exceptional
+ * Batch mark/unmark courses as exceptional
+ */
+router.put('/set-exceptional', async (req, res) => {
+  try {
+    const { courseIds, isExceptional } = req.body;
+    if (!Array.isArray(courseIds) || courseIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'courseIds array is required' });
+    }
+    const result = await courseService.setExceptionalCourses(courseIds, !!isExceptional);
+    if (result.success) return res.json({ success: true, data: result.courses });
+    res.status(500).json({ success: false, error: result.error });
+  } catch (error) {
+    console.error('Error setting exceptional courses:', error);
+    res.status(500).json({ success: false, error: 'Failed to update courses' });
   }
 });
 

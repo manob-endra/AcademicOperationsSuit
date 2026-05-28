@@ -13,6 +13,7 @@ import semesterSelectionRoutes from './src/backend/api/semesterSelectionRoutes.j
 import roomAllocationRoutes from './src/backend/api/roomAllocationRoutes.js';
 import courseTeacherRoutes from './src/backend/api/courseTeacherRoutes.js';
 import teacherPrefRoutes from './src/backend/api/teacherPrefRoutes.js';
+import routineRoutes from './src/backend/api/routineRoutes.js';
 
 dotenv.config();
 
@@ -66,6 +67,9 @@ app.use('/api/course-teacher-choices', courseTeacherRoutes);
 
 // Teacher course preferences API routes
 app.use('/api/teacher-preferences', teacherPrefRoutes);
+
+// Routine generation API routes
+app.use('/api/routine', routineRoutes);
 
 app.listen(PORT, () => {
   console.log(`🚀 Email server running on http://localhost:${PORT}`);

@@ -14,6 +14,14 @@ router.get('/', async (req, res) => {
   res.status(500).json({ success: false, error: result.error });
 });
 
+// GET /api/course-teacher-choices/all
+// Returns every course that has at least one teacher assigned (for reverse-mapping in Teachers page)
+router.get('/all', async (req, res) => {
+  const result = await courseTeacherService.getAllAssignments();
+  if (result.success) return res.json({ success: true, data: result.data });
+  res.status(500).json({ success: false, error: result.error });
+});
+
 // PUT /api/course-teacher-choices/:courseId
 router.put('/:courseId', async (req, res) => {
   const { courseId } = req.params;

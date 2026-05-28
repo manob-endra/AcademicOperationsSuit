@@ -4,41 +4,79 @@ import './styles/CourseTime.css';
 
 /* ─── helpers ───────────────────────────────────────────────────────────── */
 
-const normalizeDuration = (value) => {
+const normalizePosInt = (value) => {
   const parsed = Number.parseInt(value, 10);
   return Number.isNaN(parsed) || parsed < 1 ? null : parsed;
 };
 
+/* ─── Inline Weekly-Classes cell ─────────────────────────────────────────── */
+
+function WeeklyClassesCell({ courseId, value, onSave }) {
+  const [local, setLocal]   = useState(value != null ? String(value) : '');
+  const [saving, setSaving] = useState(false);
+
+  // Keep in sync when parent updates (e.g. after "Apply to All")
+  useEffect(() => {
+    setLocal(value != null ? String(value) : '');
+  }, [value]);
+
+  const commit = async () => {
+    const parsed = normalizePosInt(local);
+    if (parsed === null) {
+      setLocal(value != null ? String(value) : '');
+      return;
+    }
+    if (parsed === value) return; // no change
+    setSaving(true);
+    await onSave(courseId, parsed);
+    setSaving(false);
+  };
+
+  return (
+    <input
+      type="number"
+      min="1"
+      className="ct-weekly-input"
+      value={local}
+      placeholder="—"
+      disabled={saving}
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+      title="Weekly classes — press Enter or click away to save"
+    />
+  );
+}
+
 /* ─── Section component ─────────────────────────────────────────────────── */
 
-/**
- * CourseDurationSection
- *
- * Props
- *   sectionKey       string   – unique id prefix for form labels
- *   title            string   – section heading ("Theory" / "Lab" / "Mixed")
- *   courses          array    – [{ id, code, title, course_type, year, semester }]
- *   durations        object   – { [courseId]: durationPeriods (number) }
- *   onSaveDuration   (courseId, periods) => Promise<{success, error?}>
- *   onSaveBulk       (courseIds, periods) => Promise<{success, error?}>
- */
-function CourseDurationSection({ sectionKey, title, courses, durations, onSaveDuration, onSaveBulk }) {
-  const [allCourseDuration, setAllCourseDuration] = useState('');
-  const [searchTerm, setSearchTerm]               = useState('');
-  const [selectedCourseId, setSelectedCourseId]   = useState('');
-  const [customDuration, setCustomDuration]       = useState('');
-  const [saving, setSaving]                       = useState(false);
-  const [message, setMessage]                     = useState({ text: '', type: 'success' });
+function CourseDurationSection({
+  sectionKey,
+  title,
+  courses,
+  durations,
+  weeklyClasses,
+  onSaveDuration,
+  onSaveBulk,
+  onSaveWeeklyClasses,
+  onSaveBulkWeeklyClasses,
+}) {
+  const [allDuration,      setAllDuration]      = useState('');
+  const [allWeekly,        setAllWeekly]         = useState('');
+  const [searchTerm,       setSearchTerm]        = useState('');
+  const [selectedCourseId, setSelectedCourseId] = useState('');
+  const [customDuration,   setCustomDuration]   = useState('');
+  const [customWeekly,     setCustomWeekly]     = useState('');
+  const [saving,           setSaving]           = useState(false);
+  const [message,          setMessage]          = useState({ text: '', type: 'success' });
   const msgTimerRef = useRef(null);
 
-  // Default selected course once courses arrive
   useEffect(() => {
     if (courses.length > 0 && !selectedCourseId) {
       setSelectedCourseId(courses[0].id);
     }
   }, [courses, selectedCourseId]);
 
-  // Cleanup timer on unmount
   useEffect(() => () => { if (msgTimerRef.current) clearTimeout(msgTimerRef.current); }, []);
 
   const showMessage = (text, type = 'success') => {
@@ -55,16 +93,23 @@ function CourseDurationSection({ sectionKey, title, courses, durations, onSaveDu
     );
   }, [courses, searchTerm]);
 
-  const assignedCount = useMemo(
+  const assignedDurCount = useMemo(
     () => courses.filter((c) => durations[c.id] != null).length,
     [courses, durations]
   );
 
-  /* apply to all ---------------------------------------------------------- */
+  const assignedWklyCount = useMemo(
+    () => courses.filter((c) => weeklyClasses[c.id] != null).length,
+    [courses, weeklyClasses]
+  );
+
+  /* apply duration to all ------------------------------------------------- */
   const handleApplyAll = async () => {
-    const value = normalizeDuration(allCourseDuration);
-    if (!value) {
-      showMessage('Enter a valid period count (≥ 1) to apply to all courses.', 'error');
+    const durVal  = normalizePosInt(allDuration);
+    const wklyVal = normalizePosInt(allWeekly);
+
+    if (!durVal && !wklyVal) {
+      showMessage('Enter a duration and/or weekly classes count to apply.', 'error');
       return;
     }
     if (courses.length === 0) {
@@ -73,39 +118,63 @@ function CourseDurationSection({ sectionKey, title, courses, durations, onSaveDu
     }
 
     setSaving(true);
-    const result = await onSaveBulk(courses.map((c) => c.id), value);
+    const promises = [];
+
+    if (durVal) {
+      promises.push(onSaveBulk(courses.map((c) => c.id), durVal));
+    }
+    if (wklyVal) {
+      promises.push(onSaveBulkWeeklyClasses(courses.map((c) => c.id), wklyVal));
+    }
+
+    const results = await Promise.all(promises);
     setSaving(false);
 
-    if (result.success) {
-      showMessage(`Applied ${value} period(s) to all ${courses.length} ${title.toLowerCase()} courses.`);
-      setAllCourseDuration('');
+    const failed = results.find((r) => !r.success);
+    if (failed) {
+      showMessage(`Save failed: ${failed.error}`, 'error');
     } else {
-      showMessage(`Save failed: ${result.error}`, 'error');
+      const parts = [];
+      if (durVal)  parts.push(`duration = ${durVal} period(s)`);
+      if (wklyVal) parts.push(`weekly classes = ${wklyVal}`);
+      showMessage(`Applied ${parts.join(', ')} to all ${courses.length} ${title.toLowerCase()} courses.`);
+      setAllDuration('');
+      setAllWeekly('');
     }
   };
 
-  /* apply custom ---------------------------------------------------------- */
+  /* apply custom per course ----------------------------------------------- */
   const handleApplyCustom = async () => {
     if (!selectedCourseId) {
-      showMessage('Select a course before applying a custom duration.', 'error');
+      showMessage('Select a course first.', 'error');
       return;
     }
-    const value = normalizeDuration(customDuration);
-    if (!value) {
-      showMessage('Enter a valid custom period count (≥ 1).', 'error');
+    const durVal  = normalizePosInt(customDuration);
+    const wklyVal = normalizePosInt(customWeekly);
+
+    if (!durVal && !wklyVal) {
+      showMessage('Enter a duration and/or weekly classes count to apply.', 'error');
       return;
     }
 
     const course = courses.find((c) => c.id === selectedCourseId);
     setSaving(true);
-    const result = await onSaveDuration(selectedCourseId, value);
+    const promises = [];
+    if (durVal)  promises.push(onSaveDuration(selectedCourseId, durVal));
+    if (wklyVal) promises.push(onSaveWeeklyClasses(selectedCourseId, wklyVal));
+    const results = await Promise.all(promises);
     setSaving(false);
 
-    if (result.success) {
-      showMessage(`Updated ${course?.code ?? selectedCourseId} → ${value} period(s).`);
-      setCustomDuration('');
+    const failed = results.find((r) => !r.success);
+    if (failed) {
+      showMessage(`Save failed: ${failed.error}`, 'error');
     } else {
-      showMessage(`Save failed: ${result.error}`, 'error');
+      const parts = [];
+      if (durVal)  parts.push(`${durVal} period(s)`);
+      if (wklyVal) parts.push(`${wklyVal} weekly class${wklyVal > 1 ? 'es' : ''}`);
+      showMessage(`Updated ${course?.code ?? selectedCourseId} → ${parts.join(', ')}.`);
+      setCustomDuration('');
+      setCustomWeekly('');
     }
   };
 
@@ -116,8 +185,7 @@ function CourseDurationSection({ sectionKey, title, courses, durations, onSaveDu
           <h3>{title} Courses</h3>
         </div>
         <p className="ct-empty">
-          No {title.toLowerCase()} courses found in the database. Add courses from the
-          Courses page first.
+          No {title.toLowerCase()} courses found. Add courses from the Courses page first.
         </p>
       </section>
     );
@@ -125,28 +193,42 @@ function CourseDurationSection({ sectionKey, title, courses, durations, onSaveDu
 
   return (
     <section className="ct-section-card" aria-label={`${title} course duration section`}>
+
       {/* ── header ── */}
       <div className="ct-section-header">
         <h3>{title} Courses</h3>
-        <span className="ct-course-count">
-          Assigned: {assignedCount} / {courses.length}
-        </span>
+        <div className="ct-assigned-counts">
+          <span className="ct-course-count">Duration: {assignedDurCount} / {courses.length}</span>
+          <span className="ct-course-count">Weekly Classes: {assignedWklyCount} / {courses.length}</span>
+        </div>
       </div>
 
       {/* ── apply to all ── */}
       <div className="ct-block">
-        <h4 className="ct-block-title">Set Duration For All Courses</h4>
-        <div className="ct-inline-controls">
+        <h4 className="ct-block-title">Apply To All Courses</h4>
+        <div className="ct-inline-controls ct-inline-controls--wide">
           <div className="ct-input-group">
             <label htmlFor={`${sectionKey}-all-duration`}>Duration (periods)</label>
             <input
               id={`${sectionKey}-all-duration`}
               type="number"
               min="1"
-              value={allCourseDuration}
-              onChange={(e) => setAllCourseDuration(e.target.value)}
+              value={allDuration}
+              onChange={(e) => setAllDuration(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur(); handleApplyAll(); } }}
-              placeholder="e.g. 2"
+              placeholder="e.g. 1"
+            />
+          </div>
+          <div className="ct-input-group">
+            <label htmlFor={`${sectionKey}-all-weekly`}>Weekly Classes</label>
+            <input
+              id={`${sectionKey}-all-weekly`}
+              type="number"
+              min="1"
+              value={allWeekly}
+              onChange={(e) => setAllWeekly(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur(); handleApplyAll(); } }}
+              placeholder="e.g. 3"
             />
           </div>
           <button
@@ -163,7 +245,7 @@ function CourseDurationSection({ sectionKey, title, courses, durations, onSaveDu
       {/* ── custom per course ── */}
       <div className="ct-block">
         <h4 className="ct-block-title">Custom Duration By Course</h4>
-        <div className="ct-grid-controls">
+        <div className="ct-grid-controls ct-grid-controls--4">
           <div className="ct-input-group">
             <label htmlFor={`${sectionKey}-search`}>Search Course</label>
             <input
@@ -195,13 +277,26 @@ function CourseDurationSection({ sectionKey, title, courses, durations, onSaveDu
           </div>
 
           <div className="ct-input-group">
-            <label htmlFor={`${sectionKey}-custom-duration`}>Custom Duration (periods)</label>
+            <label htmlFor={`${sectionKey}-custom-duration`}>Duration (periods)</label>
             <input
               id={`${sectionKey}-custom-duration`}
               type="number"
               min="1"
               value={customDuration}
               onChange={(e) => setCustomDuration(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur(); handleApplyCustom(); } }}
+              placeholder="e.g. 2"
+            />
+          </div>
+
+          <div className="ct-input-group">
+            <label htmlFor={`${sectionKey}-custom-weekly`}>Weekly Classes</label>
+            <input
+              id={`${sectionKey}-custom-weekly`}
+              type="number"
+              min="1"
+              value={customWeekly}
+              onChange={(e) => setCustomWeekly(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur(); handleApplyCustom(); } }}
               placeholder="e.g. 3"
             />
@@ -214,18 +309,18 @@ function CourseDurationSection({ sectionKey, title, courses, durations, onSaveDu
           onClick={handleApplyCustom}
           disabled={saving}
         >
-          {saving ? 'Saving…' : 'Apply Custom Duration'}
+          {saving ? 'Saving…' : 'Apply to Selected Course'}
         </button>
       </div>
 
-      {/* ── feedback message ── */}
+      {/* ── feedback ── */}
       {message.text && (
         <p className={`ct-message ${message.type === 'error' ? 'error' : 'success'}`}>
           {message.text}
         </p>
       )}
 
-      {/* ── duration table ── */}
+      {/* ── table ── */}
       <div className="ct-table-wrapper">
         <table className="ct-table">
           <thead>
@@ -234,13 +329,15 @@ function CourseDurationSection({ sectionKey, title, courses, durations, onSaveDu
               <th>Course Title</th>
               <th>Year / Semester</th>
               <th>Duration (Periods)</th>
+              <th>Weekly Classes</th>
             </tr>
           </thead>
           <tbody>
             {courses.map((course) => {
               const periods = durations[course.id];
+              const weekly  = weeklyClasses[course.id];
               return (
-                <tr key={course.id} className={periods != null ? 'ct-row-assigned' : ''}>
+                <tr key={course.id} className={periods != null || weekly != null ? 'ct-row-assigned' : ''}>
                   <td>
                     <span className="ct-course-code">{course.code}</span>
                   </td>
@@ -255,6 +352,13 @@ function CourseDurationSection({ sectionKey, title, courses, durations, onSaveDu
                       <span className="ct-unset">Not set</span>
                     )}
                   </td>
+                  <td>
+                    <WeeklyClassesCell
+                      courseId={course.id}
+                      value={weekly ?? null}
+                      onSave={onSaveWeeklyClasses}
+                    />
+                  </td>
                 </tr>
               );
             })}
@@ -268,10 +372,11 @@ function CourseDurationSection({ sectionKey, title, courses, durations, onSaveDu
 /* ─── Main page component ───────────────────────────────────────────────── */
 
 function CourseTime() {
-  const [courses, setCourses]     = useState([]);
-  const [durations, setDurations] = useState({});   // { [courseId]: durationPeriods }
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState(null);
+  const [courses,      setCourses]      = useState([]);
+  const [durations,    setDurations]    = useState({});      // { courseId: durationPeriods }
+  const [weeklyClasses, setWeeklyClasses] = useState({});    // { courseId: weeklyClasses }
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState(null);
 
   useEffect(() => { loadData(); }, []);
 
@@ -297,17 +402,20 @@ function CourseTime() {
     }
 
     if (durationsResult.success) {
-      const obj = {};
+      const durObj  = {};
+      const wklyObj = {};
       (durationsResult.data || []).forEach((d) => {
-        obj[d.course_id] = d.duration_periods;
+        durObj[d.course_id]  = d.duration_periods;
+        if (d.weekly_classes != null) wklyObj[d.course_id] = d.weekly_classes;
       });
-      setDurations(obj);
+      setDurations(durObj);
+      setWeeklyClasses(wklyObj);
     }
 
     setLoading(false);
   };
 
-  /* ── callbacks passed to sections ── */
+  /* ── callbacks ── */
 
   const saveDuration = async (courseId, durationPeriods) => {
     const result = await courseTimeAPI.saveDuration(courseId, durationPeriods);
@@ -332,9 +440,29 @@ function CourseTime() {
     return { success: false, error: result.error };
   };
 
-  /* ── filter courses by type ── */
-  // theory + mixed  →  Theory section
-  // lab             →  Lab section
+  const saveWeeklyClasses = async (courseId, count) => {
+    const result = await courseTimeAPI.saveWeeklyClasses(courseId, count);
+    if (result.success) {
+      setWeeklyClasses((prev) => ({ ...prev, [courseId]: count }));
+      return { success: true };
+    }
+    return { success: false, error: result.error };
+  };
+
+  const saveBulkWeeklyClasses = async (courseIds, count) => {
+    const result = await courseTimeAPI.saveBulkWeeklyClasses(courseIds, count);
+    if (result.success) {
+      setWeeklyClasses((prev) => {
+        const updated = { ...prev };
+        courseIds.forEach((id) => { updated[id] = count; });
+        return updated;
+      });
+      return { success: true };
+    }
+    return { success: false, error: result.error };
+  };
+
+  /* ── split courses by type ── */
   const theoryCourses = courses.filter(
     (c) => c.course_type === 'theory' || c.course_type === 'mixed'
   );
@@ -382,16 +510,22 @@ function CourseTime() {
           title="Theory"
           courses={theoryCourses}
           durations={durations}
+          weeklyClasses={weeklyClasses}
           onSaveDuration={saveDuration}
           onSaveBulk={saveBulkDurations}
+          onSaveWeeklyClasses={saveWeeklyClasses}
+          onSaveBulkWeeklyClasses={saveBulkWeeklyClasses}
         />
         <CourseDurationSection
           sectionKey="lab"
           title="Lab"
           courses={labCourses}
           durations={durations}
+          weeklyClasses={weeklyClasses}
           onSaveDuration={saveDuration}
           onSaveBulk={saveBulkDurations}
+          onSaveWeeklyClasses={saveWeeklyClasses}
+          onSaveBulkWeeklyClasses={saveBulkWeeklyClasses}
         />
       </div>
     </div>

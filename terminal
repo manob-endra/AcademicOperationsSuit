@@ -1,0 +1,6 @@
+ssh username@ipaddress
+cd /var/www/academic
+git pull
+npm install
+npm run build
+pm2 restart academic-backend

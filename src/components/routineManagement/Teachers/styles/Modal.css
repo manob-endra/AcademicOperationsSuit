@@ -65,6 +65,10 @@
   max-width: 500px;
 }
 
+.preference-modal--time {
+  max-width: 720px;
+}
+
 /* Modal Header */
 .modal-header {
   padding: 20px;

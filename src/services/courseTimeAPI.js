@@ -112,4 +112,34 @@ export const courseTimeAPI = {
     if (result.success) return { success: true, data: result.data };
     return result;
   },
+
+  /**
+   * Save weekly_classes for a single course.
+   * @param {string} courseId
+   * @param {number} weeklyClasses
+   */
+  async saveWeeklyClasses(courseId, weeklyClasses) {
+    const result = await makeRequest(`${API_BASE_URL}/weekly-classes/${courseId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ weeklyClasses }),
+    });
+    if (result.success) return { success: true, data: result.data };
+    return result;
+  },
+
+  /**
+   * Bulk-set weekly_classes for many courses.
+   * @param {string[]} courseIds
+   * @param {number} weeklyClasses
+   */
+  async saveBulkWeeklyClasses(courseIds, weeklyClasses) {
+    const result = await makeRequest(`${API_BASE_URL}/weekly-classes/bulk`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ courseIds, weeklyClasses }),
+    });
+    if (result.success) return { success: true };
+    return result;
+  },
 };

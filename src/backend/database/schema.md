@@ -435,3 +435,12 @@ CREATE INDEX IF NOT EXISTS idx_teacher_course_preferences_teacher_id ON teacher_
 CREATE TRIGGER trg_teacher_course_preferences_updated_at
   BEFORE UPDATE ON teacher_course_preferences
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+ALTER TABLE course_durations
+ADD COLUMN IF NOT EXISTS weekly_classes INTEGER;
+
+ALTER TABLE routines ADD COLUMN IF NOT EXISTS entries JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE routines ADD COLUMN IF NOT EXISTS generated_at TIMESTAMPTZ;
+
+-- Exceptional courses: when true the course is excluded from routine generation and conflict checks
+ALTER TABLE courses ADD COLUMN IF NOT EXISTS is_exceptional BOOLEAN DEFAULT false;

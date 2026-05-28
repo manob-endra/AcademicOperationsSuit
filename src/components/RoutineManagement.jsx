@@ -69,7 +69,7 @@ function RoutineManagement() {
       case 'timeslot':
         return <TimeSlot />;
       case 'routine':
-        return <Routine />;
+        return <Routine onNavigate={setActiveSection} />;
       case 'courses':
         return <Courses selectedSemesters={selectedSemesters} />;
       default:

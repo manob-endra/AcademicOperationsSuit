@@ -1,0 +1,133 @@
+/* EditCourseModal — extends base Modal.css */
+
+.ecm-modal {
+  max-width: 640px;
+}
+
+/* Back arrow button in header */
+.ecm-back-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #4a90e2;
+  padding: 0 8px 0 0;
+  line-height: 1;
+  vertical-align: middle;
+  transition: color 0.2s;
+}
+.ecm-back-btn:hover {
+  color: #357abd;
+}
+
+/* Body */
+.ecm-body {
+  padding: 20px;
+}
+
+.ecm-hint {
+  color: #666;
+  font-size: 13px;
+  margin: 0 0 14px 0;
+}
+
+/* Search input */
+.ecm-search {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  margin-bottom: 12px;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+.ecm-search:focus {
+  outline: none;
+  border-color: #4a90e2;
+  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+}
+
+/* Course picker list */
+.ecm-course-list {
+  max-height: 340px;
+  overflow-y: auto;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+
+.ecm-course-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  padding: 11px 14px;
+  background: white;
+  border: none;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.15s;
+}
+.ecm-course-item:last-child {
+  border-bottom: none;
+}
+.ecm-course-item:hover {
+  background-color: #f0f6ff;
+}
+
+.ecm-course-code {
+  font-weight: 600;
+  font-size: 14px;
+  color: #4a90e2;
+}
+.ecm-course-title {
+  font-size: 13px;
+  color: #333;
+}
+.ecm-course-meta {
+  font-size: 12px;
+  color: #888;
+}
+
+.ecm-count {
+  font-size: 12px;
+  color: #999;
+  margin: 0;
+  text-align: right;
+}
+
+/* Edit form — two-column grid */
+.ecm-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 20px;
+}
+
+/* Title spans full width */
+.ecm-form-grid .form-group:nth-child(2) {
+  grid-column: 1 / -1;
+}
+
+/* Success banner */
+.ecm-success-msg {
+  background-color: #e8f5e9;
+  border: 1px solid #a5d6a7;
+  color: #2e7d32;
+  padding: 10px 14px;
+  border-radius: 4px;
+  margin-bottom: 16px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .ecm-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .ecm-form-grid .form-group:nth-child(2) {
+    grid-column: 1;
+  }
+}
