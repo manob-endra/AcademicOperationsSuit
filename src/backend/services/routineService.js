@@ -1,5 +1,11 @@
 import { supabase } from '../config/supabaseClient.js';
 
+// Fixed UUID used as the single-row primary key for routine_storage.
+// routine_storage is a purpose-built single-row JSONB table (the original
+// `routines` table has a NOT NULL day_of_week constraint that blocks this pattern).
+const ROUTINE_ROW_ID = '00000000-0000-0000-0000-000000000001';
+const ROUTINE_TABLE  = 'routine_storage';
+
 const WEEK_DAYS = ['Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
 // Maps compact semester IDs (stored in semester_selection) to the year/semester
@@ -471,14 +477,16 @@ export const routineService = {
         }
       }
 
-      // Persist routine (single JSONB row)
+      // Persist routine (single JSONB row, fixed UUID primary key)
       const generatedAt = new Date().toISOString();
       const { error: saveErr } = await supabase
-        .from('routines')
-        .upsert({ id: 1, entries, generated_at: generatedAt }, { onConflict: 'id' });
+        .from(ROUTINE_TABLE)
+        .upsert({ id: ROUTINE_ROW_ID, entries, generated_at: generatedAt }, { onConflict: 'id' });
 
       if (saveErr) {
-        console.warn('routineService: could not persist routine:', saveErr.message);
+        console.error('routineService: could not persist routine:', saveErr.message);
+        // Don't throw — return the entries so the UI still shows the routine,
+        // but log clearly so the operator knows persistence failed.
       }
 
       return { success: true, entries, warnings, generatedAt };
@@ -491,9 +499,9 @@ export const routineService = {
   async getRoutine() {
     try {
       const { data, error } = await supabase
-        .from('routines')
+        .from(ROUTINE_TABLE)
         .select('entries,generated_at')
-        .eq('id', 1)
+        .eq('id', ROUTINE_ROW_ID)
         .maybeSingle();
 
       if (error) throw error;
@@ -503,15 +511,15 @@ export const routineService = {
         generatedAt: data?.generated_at || null,
       };
     } catch (err) {
-      // 42703 = undefined_column — routines table exists but schema is not set up yet
-      if (err?.code !== '42703') console.error('routineService.getRoutine:', err);
+      // 42P01 = table does not exist yet (routine_storage not created) — treat as empty
+      if (err?.code !== '42P01') console.error('routineService.getRoutine:', err);
       return { success: true, entries: [], generatedAt: null };
     }
   },
 
   async clearRoutine() {
     try {
-      await supabase.from('routines').delete().eq('id', 1);
+      await supabase.from(ROUTINE_TABLE).delete().eq('id', ROUTINE_ROW_ID);
       return { success: true };
     } catch {
       return { success: true };

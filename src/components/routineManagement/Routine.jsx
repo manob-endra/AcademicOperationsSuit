@@ -68,23 +68,59 @@ function minsToLabel(totalMins) {
   return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
-function buildSlotLabels(settings) {
-  if (!settings) return {};
-  const before    = parseInt(settings.classesBeforeLunch) || 3;
-  const after     = parseInt(settings.classesAfterLunch)  || 2;
+// Returns an ordered array of column descriptors for the routine grid.
+// Each entry is either a class slot: { type:'class', slotId, label, timeLabel }
+// or a break:                        { type:'break', slotId:'lunch', label, timeLabel }
+function buildColumns(settings) {
+  if (!settings) return [];
+  const before    = parseInt(settings.classesBeforeLunch) || 0;
+  const after     = parseInt(settings.classesAfterLunch)  || 0;
   const durMins   = parseDurationMins(settings.duration,      90);
-  const skipMins  = parseInt(settings.skipTime)           || 5;
+  const rawSkip   = parseInt(settings.skipTime);
+  const skipMins  = isNaN(rawSkip) ? 0 : rawSkip;
   const lunchMins = parseDurationMins(settings.lunchDuration, 60);
   let cur = parseMinutes(settings.startTime);
 
-  const labels = {};
-  for (let i = 0; i < before + after; i++) {
-    const id     = `s${i + 1}`;
+  const cols = [];
+
+  // Morning class periods
+  for (let i = 0; i < before; i++) {
     const endMin = cur + durMins;
-    labels[id]   = `${minsToLabel(cur)} – ${minsToLabel(endMin)}`;
-    cur = (i === before - 1) ? endMin + lunchMins : endMin + skipMins;
+    cols.push({
+      type: 'class',
+      slotId: `s${i + 1}`,
+      label: `P${i + 1}`,
+      timeLabel: `${minsToLabel(cur)} – ${minsToLabel(endMin)}`,
+    });
+    // No skip after the last morning class (break starts right when class ends)
+    cur = i < before - 1 ? endMin + skipMins : endMin;
   }
-  return labels;
+
+  // Lunch break column (only if there are morning classes and lunch duration > 0)
+  if (before > 0 && lunchMins > 0) {
+    const breakEnd = cur + lunchMins;
+    cols.push({
+      type: 'break',
+      slotId: 'lunch',
+      label: 'Break',
+      timeLabel: `${minsToLabel(cur)} – ${minsToLabel(breakEnd)}`,
+    });
+    cur = breakEnd;
+  }
+
+  // Afternoon class periods
+  for (let i = 0; i < after; i++) {
+    const endMin = cur + durMins;
+    cols.push({
+      type: 'class',
+      slotId: `s${before + 1 + i}`,
+      label: `P${before + 1 + i}`,
+      timeLabel: `${minsToLabel(cur)} – ${minsToLabel(endMin)}`,
+    });
+    cur = endMin + skipMins;
+  }
+
+  return cols;
 }
 
 // ---------------------------------------------------------------------------
@@ -108,6 +144,7 @@ function Routine({ onNavigate }) {
   const [warnings,   setWarnings]   = useState([]);
 
   const [selectedSemester, setSelectedSemester] = useState(null);
+  const [selectedTeacher,  setSelectedTeacher]  = useState(null);
 
   // -------------------------------------------------------------------------
   useEffect(() => {
@@ -127,6 +164,7 @@ function Routine({ onNavigate }) {
     if (teachersRes.success) setTeachers(teachersRes.data  || []);
     if (routineRes.success && (routineRes.entries?.length || 0) > 0) {
       setRoutine({ entries: routineRes.entries, generatedAt: routineRes.generatedAt });
+      setView('batchwise'); // show saved routine immediately on revisit
     }
     setLoading(false);
   };
@@ -142,16 +180,9 @@ function Routine({ onNavigate }) {
     () => Object.fromEntries(teachers.map(t => [t.id, t])),
     [teachers]
   );
-  const slotLabels = useMemo(() => buildSlotLabels(settings), [settings]);
+  const columns = useMemo(() => buildColumns(settings), [settings]);
 
   const activeDays = useMemo(() => parseWorkingDays(settings?.classDay), [settings]);
-
-  const slotIds = useMemo(() => {
-    if (!settings) return [];
-    const before = parseInt(settings.classesBeforeLunch) || 0;
-    const after  = parseInt(settings.classesAfterLunch)  || 0;
-    return Array.from({ length: before + after }, (_, i) => `s${i + 1}`);
-  }, [settings]);
 
   // Organised routine: day-wise and semester-wise
   const entriesByDaySlot = useMemo(() => {
@@ -176,6 +207,26 @@ function Routine({ onNavigate }) {
   const semesters = useMemo(() => {
     return [...new Set((routine?.entries || []).map(e => e.semester))].sort();
   }, [routine]);
+
+  // teacher_id → { 'day-slot' → entry }
+  const entriesByTeacherDaySlot = useMemo(() => {
+    const map = {};
+    for (const e of routine?.entries || []) {
+      if (!e.teacher_id) continue;
+      if (!map[e.teacher_id]) map[e.teacher_id] = {};
+      map[e.teacher_id][`${e.day_of_week}-${e.slot_id}`] = e;
+    }
+    return map;
+  }, [routine]);
+
+  // Sorted list of teachers who actually appear in the routine
+  const teachersInRoutine = useMemo(() => {
+    const ids = Object.keys(entriesByTeacherDaySlot);
+    return ids
+      .map(id => teacherMap[id])
+      .filter(Boolean)
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [entriesByTeacherDaySlot, teacherMap]);
 
   // -------------------------------------------------------------------------
   // Actions
@@ -250,6 +301,14 @@ function Routine({ onNavigate }) {
           title={!routine ? 'Generate a routine first' : ''}
         >
           Batch-Wise
+        </button>
+        <button
+          className={`routine-tab${view === 'teacherwise' ? ' active' : ''}`}
+          onClick={() => setView('teacherwise')}
+          disabled={!routine}
+          title={!routine ? 'Generate a routine first' : ''}
+        >
+          Teacher-Wise
         </button>
         {routine && (
           <button className="routine-tab routine-tab--clear" onClick={handleClear}>
@@ -351,45 +410,171 @@ function Routine({ onNavigate }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {slotIds.map(slotId => (
-                      <tr key={slotId}>
-                        <td className="routine-td routine-td--period">
-                          <div className="period-label">P{slotId.replace('s', '')}</div>
-                          <div className="period-time">{slotLabels[slotId]}</div>
-                        </td>
-                        {activeDays.map(day => {
-                          const cellEntries = entriesByDaySlot[`${day}-${slotId}`] || [];
-                          return (
-                            <td key={day} className="routine-td">
-                              {cellEntries.length === 0 ? (
-                                <span className="routine-empty">—</span>
-                              ) : (
-                                cellEntries.map((e, idx) => {
-                                  const c = courseMap[e.course_id];
-                                  return (
-                                    <div
-                                      key={idx}
-                                      className={`day-entry${c?.course_type === 'lab' ? ' lab' : ''}`}
-                                    >
-                                      <span className="day-entry-title">
-                                        {c?.title || c?.code || '?'}
-                                      </span>
-                                      <span className="day-entry-sem">{semLabel(e.semester)}</span>
-                                      {e.room && (
-                                        <span className="day-entry-room">{e.room}</span>
-                                      )}
-                                    </div>
-                                  );
-                                })
-                              )}
+                    {columns.map(col => {
+                      if (col.type === 'break') {
+                        return (
+                          <tr key="lunch" className="routine-tr--break">
+                            <td className="routine-td routine-td--break-label">
+                              <div className="break-label-text">Break</div>
+                              <div className="period-time">{col.timeLabel}</div>
                             </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
+                            {activeDays.map(day => (
+                              <td key={day} className="routine-td routine-td--break" />
+                            ))}
+                          </tr>
+                        );
+                      }
+                      return (
+                        <tr key={col.slotId}>
+                          <td className="routine-td routine-td--period">
+                            <div className="period-label">{col.label}</div>
+                            <div className="period-time">{col.timeLabel}</div>
+                          </td>
+                          {activeDays.map(day => {
+                            const cellEntries = entriesByDaySlot[`${day}-${col.slotId}`] || [];
+                            return (
+                              <td key={day} className="routine-td">
+                                {cellEntries.length === 0 ? (
+                                  <span className="routine-empty">—</span>
+                                ) : (
+                                  cellEntries.map((e, idx) => {
+                                    const c = courseMap[e.course_id];
+                                    return (
+                                      <div
+                                        key={idx}
+                                        className={`day-entry${c?.course_type === 'lab' ? ' lab' : ''}`}
+                                      >
+                                        <span className="day-entry-title">
+                                          {c?.title || c?.code || '?'}
+                                        </span>
+                                        <span className="day-entry-sem">{semLabel(e.semester)}</span>
+                                        {e.room && (
+                                          <span className="day-entry-room">{e.room}</span>
+                                        )}
+                                      </div>
+                                    );
+                                  })
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
+            </>
+          ) : (
+            <EmptyState onBack={() => setView('generation')} />
+          )}
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════
+          Teacher-Wise View
+      ════════════════════════════════════════ */}
+      {view === 'teacherwise' && (
+        <div className="routine-teacherwise">
+          {routine ? (
+            <>
+              <div className="routine-view-header">
+                <h3>Teacher-Wise Routine</h3>
+                <span className="generated-at">
+                  Generated: {new Date(routine.generatedAt).toLocaleString()}
+                </span>
+              </div>
+
+              {teachersInRoutine.length === 0 ? (
+                <p className="select-semester-hint">No teacher assignments found in this routine.</p>
+              ) : (
+                <>
+                  <div className="semester-list">
+                    {teachersInRoutine.map(t => (
+                      <button
+                        key={t.id}
+                        className={`semester-btn teacher-pill${selectedTeacher === t.id ? ' active' : ''}`}
+                        onClick={() => setSelectedTeacher(t.id === selectedTeacher ? null : t.id)}
+                      >
+                        <span className="teacher-pill-initials">{t.initials || t.name?.charAt(0)}</span>
+                        {t.name}
+                      </button>
+                    ))}
+                  </div>
+
+                  {selectedTeacher ? (() => {
+                    const t = teacherMap[selectedTeacher];
+                    const teacherEntries = entriesByTeacherDaySlot[selectedTeacher] || {};
+                    // Count total classes for this teacher
+                    const totalClasses = Object.keys(teacherEntries).length;
+                    return (
+                      <div className="batch-grid-wrapper">
+                        <div className="teacher-schedule-header">
+                          <h4 className="batch-title">
+                            {t?.initials && <span className="tw-initials">{t.initials}</span>}
+                            {t?.name}
+                          </h4>
+                          <span className="tw-class-count">{totalClasses} class{totalClasses !== 1 ? 'es' : ''} / week</span>
+                        </div>
+                        <div className="routine-table-wrapper">
+                          <table className="routine-table routine-table--batch">
+                            <thead>
+                              <tr>
+                                <th className="routine-th routine-th--day-col">Day</th>
+                                {columns.map(col => (
+                                  col.type === 'break' ? (
+                                    <th key="lunch" className="routine-th routine-th--break-col">
+                                      <div className="break-col-label">{col.label}</div>
+                                      <div className="break-col-time">{col.timeLabel}</div>
+                                    </th>
+                                  ) : (
+                                    <th key={col.slotId} className="routine-th routine-th--period-col">
+                                      <div className="period-label">{col.label}</div>
+                                      <div className="period-time">{col.timeLabel}</div>
+                                    </th>
+                                  )
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {activeDays.map(day => (
+                                <tr key={day}>
+                                  <td className="routine-td routine-td--day-col">
+                                    <div className="day-name-label">{day}</div>
+                                  </td>
+                                  {columns.map(col => {
+                                    if (col.type === 'break') {
+                                      return <td key="lunch" className="routine-td routine-td--break" />;
+                                    }
+                                    const e = teacherEntries[`${day}-${col.slotId}`];
+                                    const c = e ? courseMap[e.course_id] : null;
+                                    return (
+                                      <td key={col.slotId} className="routine-td">
+                                        {e ? (
+                                          <div className={`batch-entry tw-entry${c?.course_type === 'lab' ? ' lab' : ''}`}>
+                                            <span className="batch-entry-code">{c?.code}</span>
+                                            <span className="batch-entry-title">{c?.title}</span>
+                                            {e.room && <span className="batch-entry-room">{e.room}</span>}
+                                            <span className="tw-semester-tag">{semLabel(e.semester)}</span>
+                                          </div>
+                                        ) : (
+                                          <span className="routine-empty">—</span>
+                                        )}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })() : (
+                    <p className="select-semester-hint">Select a teacher above to view their schedule.</p>
+                  )}
+                </>
+              )}
             </>
           ) : (
             <EmptyState onBack={() => setView('generation')} />
@@ -427,37 +612,43 @@ function Routine({ onNavigate }) {
                     <table className="routine-table routine-table--batch">
                       <thead>
                         <tr>
-                          <th className="routine-th routine-th--period">Period</th>
-                          {activeDays.map(day => (
-                            <th key={day} className="routine-th">{day}</th>
+                          <th className="routine-th routine-th--day-col">Day</th>
+                          {columns.map(col => (
+                            col.type === 'break' ? (
+                              <th key="lunch" className="routine-th routine-th--break-col">
+                                <div className="break-col-label">{col.label}</div>
+                                <div className="break-col-time">{col.timeLabel}</div>
+                              </th>
+                            ) : (
+                              <th key={col.slotId} className="routine-th routine-th--period-col">
+                                <div className="period-label">{col.label}</div>
+                                <div className="period-time">{col.timeLabel}</div>
+                              </th>
+                            )
                           ))}
                         </tr>
                       </thead>
                       <tbody>
-                        {slotIds.map(slotId => (
-                          <tr key={slotId}>
-                            <td className="routine-td routine-td--period">
-                              <div className="period-label">P{slotId.replace('s', '')}</div>
-                              <div className="period-time">{slotLabels[slotId]}</div>
+                        {activeDays.map(day => (
+                          <tr key={day}>
+                            <td className="routine-td routine-td--day-col">
+                              <div className="day-name-label">{day}</div>
                             </td>
-                            {activeDays.map(day => {
-                              const e = entriesBySemDaySlot[selectedSemester]?.[`${day}-${slotId}`];
-                              const c = e ? courseMap[e.course_id]  : null;
+                            {columns.map(col => {
+                              if (col.type === 'break') {
+                                return <td key="lunch" className="routine-td routine-td--break" />;
+                              }
+                              const e = entriesBySemDaySlot[selectedSemester]?.[`${day}-${col.slotId}`];
+                              const c = e ? courseMap[e.course_id]   : null;
                               const t = e ? teacherMap[e.teacher_id] : null;
                               return (
-                                <td key={day} className="routine-td">
+                                <td key={col.slotId} className="routine-td">
                                   {e ? (
                                     <div className={`batch-entry${c?.course_type === 'lab' ? ' lab' : ''}`}>
                                       <span className="batch-entry-code">{c?.code}</span>
                                       <span className="batch-entry-title">{c?.title}</span>
-                                      {e.room && (
-                                        <span className="batch-entry-room">{e.room}</span>
-                                      )}
-                                      {t && (
-                                        <span className="batch-entry-teacher">
-                                          {t.initials || t.name}
-                                        </span>
-                                      )}
+                                      {e.room && <span className="batch-entry-room">{e.room}</span>}
+                                      {t && <span className="batch-entry-teacher">{t.initials || t.name}</span>}
                                     </div>
                                   ) : (
                                     <span className="routine-empty">—</span>
