@@ -444,3 +444,22 @@ ALTER TABLE routines ADD COLUMN IF NOT EXISTS generated_at TIMESTAMPTZ;
 
 -- Exceptional courses: when true the course is excluded from routine generation and conflict checks
 ALTER TABLE courses ADD COLUMN IF NOT EXISTS is_exceptional BOOLEAN DEFAULT false;
+
+
+-- ============================================================
+-- 21. ROUTINE_STORAGE TABLE
+-- Single-row JSONB table for persisting the generated routine.
+-- The original `routines` table has a NOT NULL constraint on
+-- day_of_week which breaks the single-row upsert pattern.
+-- This table is purpose-built for that pattern.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS routine_storage (
+  id UUID PRIMARY KEY,
+  entries JSONB NOT NULL DEFAULT '[]'::jsonb,
+  generated_at TIMESTAMPTZ
+);
+
+-- Seed the fixed primary key row so SELECT always returns a row
+INSERT INTO routine_storage (id, entries)
+VALUES ('00000000-0000-0000-0000-000000000001', '[]'::jsonb)
+ON CONFLICT (id) DO NOTHING;
