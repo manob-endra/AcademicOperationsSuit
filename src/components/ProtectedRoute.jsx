@@ -14,7 +14,10 @@ function ProtectedRoute({ children, requiredRole = null, requireEmailSuffix = nu
   }
 
   if (requiredRole && userRole !== requiredRole) {
-    return <Navigate to="/dashboard" replace />;
+    // Redirect to the correct portal instead of a dead end
+    if (userRole === 'admin') return <Navigate to="/admin-dashboard" replace />;
+    if (userRole === 'teacher') return <Navigate to="/teacher-dashboard" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   if (requireEmailSuffix && !user.email?.toLowerCase().endsWith(requireEmailSuffix.toLowerCase())) {

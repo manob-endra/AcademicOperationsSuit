@@ -1,5 +1,5 @@
 import { useState, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { authAPI, validateEmail } from '../services/authAPI';
 import { AuthContext } from '../contexts/AuthContext';
 import '../styles/Auth.css';
@@ -7,18 +7,12 @@ import '../styles/Auth.css';
 function Login() {
   const navigate = useNavigate();
   const { setUser } = useContext(AuthContext);
-  const [formData, setFormData] = useState({
-    email: '',
-    password: ''
-  });
+  const [formData, setFormData] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleLogin = async (e) => {
@@ -31,14 +25,17 @@ function Login() {
       if (!formData.password) throw new Error('Password is required');
 
       const result = await authAPI.signInWithEmail(formData.email, formData.password);
-
-      if (!result.success) {
-        throw new Error(result.error);
-      }
+      if (!result.success) throw new Error(result.error);
 
       setUser(result.user);
-      // Redirect to admin dashboard
-      navigate('/admin-dashboard');
+
+      if (result.user.role === 'admin') {
+        navigate('/admin-dashboard');
+      } else if (result.user.role === 'teacher') {
+        navigate('/teacher-dashboard');
+      } else {
+        navigate('/login');
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -47,36 +44,61 @@ function Login() {
   };
 
   return (
-    <div className="auth-container">
-      <h2>Login</h2>
-      {error && <div className="error-message">{error}</div>}
-      
-      <form onSubmit={handleLogin}>
-        <input
-          type="email"
-          name="email"
-          placeholder="Email"
-          value={formData.email}
-          onChange={handleChange}
-          required
-        />
-        
-        <input
-          type="password"
-          name="password"
-          placeholder="Password"
-          value={formData.password}
-          onChange={handleChange}
-          required
-        />
-        
-        <button type="submit" disabled={loading}>
-          {loading ? 'Logging in...' : 'Login'}
-        </button>
-      </form>
+    <div className="auth-page">
+      <div className="auth-card">
+        <div className="auth-card-header">
+          <div className="auth-logo">
+            <img src="/favicon.svg" alt="logo" />
+          </div>
+          <h1 className="auth-title">Academic Operation Suite</h1>
+          <p className="auth-subtitle">Department of CSE, University of Dhaka</p>
+        </div>
 
-      <p>Don't have an account? <a href="/signup">Sign up here</a></p>
-      <p><a href="/forgot-password">Forgot password?</a></p>
+        <div className="auth-card-body">
+          <h2 className="auth-form-title">Sign In</h2>
+
+          {error && <div className="auth-error">{error}</div>}
+
+          <form onSubmit={handleLogin} className="auth-form">
+            <div className="auth-field">
+              <label htmlFor="email">University Email</label>
+              <input
+                id="email"
+                type="email"
+                name="email"
+                placeholder="yourname@cse.du.ac.bd"
+                value={formData.email}
+                onChange={handleChange}
+                required
+                autoComplete="email"
+              />
+            </div>
+
+            <div className="auth-field">
+              <label htmlFor="password">Password</label>
+              <input
+                id="password"
+                type="password"
+                name="password"
+                placeholder="Enter your password"
+                value={formData.password}
+                onChange={handleChange}
+                required
+                autoComplete="current-password"
+              />
+            </div>
+
+            <button type="submit" className="auth-btn-primary" disabled={loading}>
+              {loading ? <span className="auth-spinner" /> : 'Sign In'}
+            </button>
+          </form>
+
+          <p className="auth-footer-text">
+            Don&apos;t have an account?{' '}
+            <Link to="/signup">Create one here</Link>
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
