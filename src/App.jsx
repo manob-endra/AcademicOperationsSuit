@@ -5,6 +5,7 @@ import Login from './components/Login';
 import EmailVerification from './components/EmailVerification';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminDashboard from './components/AdminDashboard';
+import TeacherDashboard from './components/TeacherDashboard';
 import RoutineManagement from './components/RoutineManagement';
 import ThesisManagement from './components/ThesisManagement';
 import ExamRoutine from './components/ExamRoutine';
@@ -15,61 +16,66 @@ function App() {
   return (
     <AuthProvider>
       <Routes>
+        {/* Public routes */}
         <Route path="/signup" element={<SignUp />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/verify" element={<EmailVerification />} /> {/* Verification code input page */}
-        
-        {/* Protected Admin Dashboard Route */}
-        <Route 
-          path="/admin-dashboard" 
+        <Route path="/login"  element={<Login />} />
+        <Route path="/verify" element={<EmailVerification />} />
+
+        {/* ── Admin routes (role = 'admin' only) ── */}
+        <Route
+          path="/admin-dashboard"
           element={
-            <ProtectedRoute requireEmailSuffix="@cse.du.ac.bd">
+            <ProtectedRoute requiredRole="admin">
               <AdminDashboard />
             </ProtectedRoute>
-          } 
+          }
         />
-
-        {/* Protected Module Routes */}
         <Route
           path="/admin-dashboard/routine-management"
           element={
-            <ProtectedRoute requireEmailSuffix="@cse.du.ac.bd">
+            <ProtectedRoute requiredRole="admin">
               <RoutineManagement />
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/admin-dashboard/thesis-management"
           element={
-            <ProtectedRoute requireEmailSuffix="@cse.du.ac.bd">
+            <ProtectedRoute requiredRole="admin">
               <ThesisManagement />
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/admin-dashboard/exam-routine"
           element={
-            <ProtectedRoute requireEmailSuffix="@cse.du.ac.bd">
+            <ProtectedRoute requiredRole="admin">
               <ExamRoutine />
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/admin-dashboard/invigilation-assignment"
           element={
-            <ProtectedRoute requireEmailSuffix="@cse.du.ac.bd">
+            <ProtectedRoute requiredRole="admin">
               <InvigilationAssignment />
             </ProtectedRoute>
           }
         />
 
-        <Route path="/dashboard" element={<Navigate to="/admin-dashboard" replace />} />
-        
-        {/* Default redirect */}
-        <Route path="/" element={<Navigate to="/login" replace />} />
+        {/* ── Teacher routes (role = 'teacher' only) ── */}
+        <Route
+          path="/teacher-dashboard"
+          element={
+            <ProtectedRoute requiredRole="teacher">
+              <TeacherDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Convenience redirects */}
+        <Route path="/dashboard" element={<Navigate to="/login" replace />} />
+        <Route path="/"          element={<Navigate to="/login" replace />} />
       </Routes>
     </AuthProvider>
   );

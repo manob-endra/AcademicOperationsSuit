@@ -463,3 +463,49 @@ CREATE TABLE IF NOT EXISTS routine_storage (
 INSERT INTO routine_storage (id, entries)
 VALUES ('00000000-0000-0000-0000-000000000001', '[]'::jsonb)
 ON CONFLICT (id) DO NOTHING;
+
+
+-- ============================================================
+-- 22. NOTIFICATIONS TABLE
+-- One row per signup event. Admin sees these as a bell-icon feed.
+-- is_handled = true once admin acts (e.g. admitting a teacher).
+-- ============================================================
+CREATE TABLE IF NOT EXISTS notifications (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  type VARCHAR(50) NOT NULL DEFAULT 'signup',
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  user_email VARCHAR(255) NOT NULL,
+  user_name VARCHAR(255),
+  user_role VARCHAR(50),
+  is_read BOOLEAN DEFAULT false,
+  is_handled BOOLEAN DEFAULT false,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_is_read    ON notifications(is_read);
+CREATE INDEX IF NOT EXISTS idx_notifications_is_handled ON notifications(is_handled);
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);
+
+
+-- ============================================================
+-- 23. NOTICES TABLE
+-- Stores notices posted by admin, visible to all teachers.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS notices (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  content TEXT NOT NULL,
+  priority VARCHAR(20) CHECK (priority IN ('normal', 'important', 'urgent')) DEFAULT 'normal',
+  created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_notices_is_active ON notices(is_active);
+CREATE INDEX IF NOT EXISTS idx_notices_created_at ON notices(created_at);
+
+CREATE TRIGGER trg_notices_updated_at
+  BEFORE UPDATE ON notices
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+  

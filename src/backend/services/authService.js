@@ -4,13 +4,17 @@ import { hashPassword, verifyPassword } from '../utils/passwordUtils.js';
 
 /**
  * Authentication Service
- * 
+ *
  * Handles all user authentication operations including:
  * - Sign up with email/password
  * - Sign in with email/password
  * - Password hashing and verification
  * - Email validation
  */
+
+// Emails that are granted admin role regardless of domain.
+// All other @cse.du.ac.bd users are treated as teachers.
+const ADMIN_EMAILS = ['tst@cse.du.ac.bd'];
 
 export const authService = {
   
@@ -114,7 +118,10 @@ export const authService = {
         throw new Error('Invalid password');
       }
 
-      return { success: true, user: data };
+      // Always recompute role from email so ADMIN_EMAILS whitelist takes effect
+      // even for rows that were inserted before the whitelist was added.
+      const role = this.getUserRoleByEmail(email);
+      return { success: true, user: { ...data, role } };
     } catch (error) {
       console.error('Sign in error:', error);
       return { success: false, error: error.message };
@@ -122,12 +129,16 @@ export const authService = {
   },
 
   /**
-   * Determine user role based on email domain
+   * Determine user role based on email. Specific admin emails take
+   * precedence over domain-based assignment.
    * @param {string} email - User email
    * @returns {string} - 'admin', 'teacher', or 'student'
    */
   getUserRoleByEmail(email) {
-    const domain = email.split('@')[1];
+    const normalized = email.toLowerCase().trim();
+    if (ADMIN_EMAILS.includes(normalized)) return 'admin';
+
+    const domain = normalized.split('@')[1];
     const adminDomains = ['admin.du.ac.bd'];
     const teacherDomains = ['cs.du.ac.bd', 'cse.du.ac.bd'];
 

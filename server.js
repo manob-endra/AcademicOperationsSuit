@@ -14,6 +14,8 @@ import roomAllocationRoutes from './src/backend/api/roomAllocationRoutes.js';
 import courseTeacherRoutes from './src/backend/api/courseTeacherRoutes.js';
 import teacherPrefRoutes from './src/backend/api/teacherPrefRoutes.js';
 import routineRoutes from './src/backend/api/routineRoutes.js';
+import noticeRoutes from './src/backend/api/noticeRoutes.js';
+import notificationRoutes from './src/backend/api/notificationRoutes.js';
 
 dotenv.config();
 
@@ -70,6 +72,12 @@ app.use('/api/teacher-preferences', teacherPrefRoutes);
 
 // Routine generation API routes
 app.use('/api/routine', routineRoutes);
+
+// Notices API routes
+app.use('/api/notices', noticeRoutes);
+
+// Notifications API routes (admin bell feed)
+app.use('/api/notifications', notificationRoutes);
 
 app.listen(PORT, () => {
   console.log(`🚀 Email server running on http://localhost:${PORT}`);
