@@ -40,6 +40,27 @@ const moduleOptions = [
     description: 'Post and manage notices visible to all teachers.',
     icon: '📢',
     color: 'gradient-teal'
+  },
+  {
+    key: 'teacher-management',
+    title: 'Teacher Management',
+    description: 'Manage teacher profiles, designations, availability, and records.',
+    icon: '👨‍🏫',
+    color: 'gradient-indigo'
+  },
+  {
+    key: 'student-management',
+    title: 'Student Management',
+    description: 'Manage student records, year progression, batch promotion, and contact details.',
+    icon: '🎓',
+    color: 'gradient-rose'
+  },
+  {
+    key: 'notification-center',
+    title: 'Notification Center',
+    description: 'Publish routines, audit email delivery logs, and manage unsubscribe preferences.',
+    icon: '🔔',
+    color: 'gradient-amber'
   }
 ];
 
@@ -132,7 +153,7 @@ function AdminDashboard() {
 
       {/* Module Grid */}
       <section className="modules-grid-container">
-        <div className="modules-grid modules-grid-5">
+        <div className="modules-grid modules-grid-8">
           {moduleOptions.map((module) => (
             <div
               key={module.key}

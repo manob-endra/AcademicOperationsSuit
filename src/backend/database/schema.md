@@ -5,6 +5,125 @@
 
 
 -- ============================================================
+-- 0d. EMAIL NOTIFICATION SYSTEM TABLES
+--
+-- email_notification_jobs      : one row per event (idempotency via UNIQUE trigger)
+-- email_notification_deliveries: one row per recipient per job
+-- email_notification_prefs     : per-email opt-out preferences
+--
+-- routine_storage additions    : published_at + published_label
+-- ============================================================
+
+-- Jobs table — one per trigger event
+CREATE TABLE IF NOT EXISTS email_notification_jobs (
+  id                UUID    DEFAULT gen_random_uuid() PRIMARY KEY,
+  type              VARCHAR(50)  NOT NULL,           -- 'routine_published'
+  trigger_id        VARCHAR(255) NOT NULL,           -- idempotency key
+  trigger_ref       JSONB        NOT NULL DEFAULT '{}', -- extra context (semester label, years …)
+  status            VARCHAR(20)  NOT NULL DEFAULT 'pending', -- pending|processing|completed|failed|cancelled
+  total_recipients  INT          NOT NULL DEFAULT 0,
+  sent_count        INT          NOT NULL DEFAULT 0,
+  failed_count      INT          NOT NULL DEFAULT 0,
+  created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  started_at        TIMESTAMP,
+  completed_at      TIMESTAMP,
+  UNIQUE(type, trigger_id)
+);
+
+-- Per-recipient delivery records
+CREATE TABLE IF NOT EXISTS email_notification_deliveries (
+  id              UUID    DEFAULT gen_random_uuid() PRIMARY KEY,
+  job_id          UUID    REFERENCES email_notification_jobs(id) ON DELETE CASCADE,
+  recipient_type  VARCHAR(20)  NOT NULL,  -- 'student' | 'teacher'
+  recipient_id    UUID,
+  recipient_email VARCHAR(255) NOT NULL,
+  recipient_name  VARCHAR(255),
+  subject         VARCHAR(500),
+  status          VARCHAR(20)  NOT NULL DEFAULT 'pending', -- pending|sent|failed|bounced|skipped
+  attempts        INT          NOT NULL DEFAULT 0,
+  last_error      TEXT,
+  sent_at         TIMESTAMP,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_end_job_id   ON email_notification_deliveries(job_id);
+CREATE INDEX IF NOT EXISTS idx_end_status   ON email_notification_deliveries(status);
+CREATE INDEX IF NOT EXISTS idx_end_email    ON email_notification_deliveries(recipient_email);
+
+-- Unsubscribe / opt-out preferences
+CREATE TABLE IF NOT EXISTS email_notification_prefs (
+  id                UUID    DEFAULT gen_random_uuid() PRIMARY KEY,
+  email             VARCHAR(255) NOT NULL,
+  notification_type VARCHAR(50)  NOT NULL DEFAULT 'all',
+  opted_out         BOOLEAN      NOT NULL DEFAULT false,
+  unsubscribe_token VARCHAR(100) NOT NULL UNIQUE,
+  updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(email, notification_type)
+);
+
+-- Extend routine_storage to track publish state
+ALTER TABLE routine_storage ADD COLUMN IF NOT EXISTS published_at     TIMESTAMP;
+ALTER TABLE routine_storage ADD COLUMN IF NOT EXISTS published_label  VARCHAR(255);
+
+
+-- ============================================================
+-- 0c. STUDENTS TABLE
+--     General student registry managed by admin.
+--     academic_year : '1st' | '2nd' | '3rd' | '4th' | 'ms'
+--     session       : e.g. '2019-20', '2020-21'
+--     is_active     : false = soft-deleted (restorable)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS students (
+  id                  UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  registration_no     VARCHAR(50) UNIQUE,
+  name                VARCHAR(255) NOT NULL,
+  hall                VARCHAR(150),
+  date_of_birth       DATE,
+  roll                VARCHAR(50),
+  email               VARCHAR(255),
+  mobile              VARCHAR(20),
+  institutional_email VARCHAR(255),
+  session             VARCHAR(20),
+  academic_year       VARCHAR(10) DEFAULT '1st',
+  parents_contact     VARCHAR(20),
+  is_active           BOOLEAN DEFAULT true,
+  created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+-- ============================================================
+-- 0a. ACADEMIC SEMESTERS TABLE
+--     Top-level containers (e.g. "Spring 2026") that group all
+--     routine-management work. Created by admin in SemesterHub.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS academic_semesters (
+  id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  year       VARCHAR(10)  NOT NULL,
+  name       VARCHAR(100) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+-- ============================================================
+-- 0b. ACADEMIC CALENDARS TABLE
+--     One calendar per academic semester.
+--     config   : { startDate, totalWeeks }
+--     entries  : { "YYYY-MM-DD": { type, label } }
+--     published: false = draft, true = published
+-- ============================================================
+CREATE TABLE IF NOT EXISTS academic_calendars (
+  id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  semester_id UUID REFERENCES academic_semesters(id) ON DELETE CASCADE UNIQUE,
+  config      JSONB NOT NULL DEFAULT '{}',
+  entries     JSONB NOT NULL DEFAULT '{}',
+  published   BOOLEAN DEFAULT false,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+-- ============================================================
 -- 1. USERS TABLE
 -- ============================================================
 CREATE TABLE IF NOT EXISTS users (
@@ -72,10 +191,23 @@ CREATE TABLE IF NOT EXISTS teachers (
   email VARCHAR(255) UNIQUE,
   weekly_load_hours INT DEFAULT 0,
   load_limit INT DEFAULT 20,
+  -- Extended profile fields (added for admin Teacher Management)
+  designation VARCHAR(100),
+  joining_date DATE,
+  special_post VARCHAR(255),
+  contact_number VARCHAR(20),
+  availability_status VARCHAR(50) DEFAULT 'available',
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Run these if the table already exists (adds missing columns):
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS designation VARCHAR(100);
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS joining_date DATE;
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS special_post VARCHAR(255);
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS contact_number VARCHAR(20);
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS availability_status VARCHAR(50) DEFAULT 'available';
 
 CREATE INDEX IF NOT EXISTS idx_teachers_user_id ON teachers(user_id);
 CREATE INDEX IF NOT EXISTS idx_teachers_email ON teachers(email);
@@ -508,4 +640,17 @@ CREATE INDEX IF NOT EXISTS idx_notices_created_at ON notices(created_at);
 CREATE TRIGGER trg_notices_updated_at
   BEFORE UPDATE ON notices
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-  
+
+
+-- ============================================================
+-- MIGRATION: Email Verification Token Columns
+-- Run this in Supabase SQL Editor if the users table already exists.
+-- Safe to run multiple times (IF NOT EXISTS / IF EXISTS guards).
+-- ============================================================
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS verification_token VARCHAR(6),
+  ADD COLUMN IF NOT EXISTS verification_token_expires_at TIMESTAMP WITH TIME ZONE;
+
+-- Make sure email_verified defaults to false for new rows
+ALTER TABLE users ALTER COLUMN email_verified SET DEFAULT false;
+

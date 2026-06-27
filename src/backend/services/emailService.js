@@ -1,159 +1,62 @@
-import { supabase } from '../config/supabaseClient.js';
-import { generateVerificationCode } from '../utils/codeGenerator.js';
+import nodemailer from 'nodemailer';
 
-/**
- * Email Service
- * 
- * Handles email-related operations:
- * - Email verification codes
- * - Code validation
- * - Resending verification codes
- */
+const createTransporter = () =>
+  nodemailer.createTransport({
+    host:   process.env.SMTP_HOST   || 'smtp.gmail.com',
+    port:   parseInt(process.env.SMTP_PORT || '587'),
+    secure: process.env.SMTP_SECURE === 'true', // true for port 465, false for 587
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
 
 export const emailService = {
-
-  /**
-   * Send verification code to user email
-   * @param {string} userId - User ID
-   * @param {string} userEmail - User email
-   * @returns {Promise<{success: boolean, code?: string, error?: string}>}
-   */
-  async sendVerificationCode(userId, userEmail) {
-    try {
-      const code = generateVerificationCode();
-      const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
-
-      // Store verification code
-      const { data, error } = await supabase
-        .from('email_verifications')
-        .insert([{
-          user_id: userId,
-          code,
-          expires_at: expiresAt.toISOString()
-        }])
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // TODO: Integrate with email service (SendGrid, Mailgun, etc.)
-      console.log(`📧 Verification code for ${userEmail}: ${code}`);
-
-      return { success: true, code };
-    } catch (error) {
-      console.error('Send verification code error:', error);
-      return { success: false, error: error.message };
+  async sendVerificationEmail(toEmail, toName, code) {
+    // Dev fallback: if SMTP not configured, just print the code to server console
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      console.log(`\n📧  [DEV EMAIL] Verification code for ${toEmail}: ${code}\n`);
+      return { success: true, dev: true };
     }
-  },
 
-  /**
-   * Verify email code
-   * @param {string} userId - User ID
-   * @param {string} code - Verification code
-   * @returns {Promise<{success: boolean, error?: string}>}
-   */
-  async verifyEmailCode(userId, code) {
     try {
-      const { data, error } = await supabase
-        .from('email_verifications')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('code', code)
-        .single();
+      const transporter = createTransporter();
+      const fromEmail = process.env.FROM_EMAIL || process.env.SMTP_USER;
+      const fromName  = process.env.FROM_NAME  || 'Academic Portal';
 
-      if (error || !data) {
-        throw new Error('Invalid or expired verification code');
-      }
-
-      // Check if expired
-      const expiresAt = new Date(data.expires_at);
-      if (new Date() > expiresAt) {
-        throw new Error('Verification code has expired');
-      }
-
-      // Mark email as verified
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({ email_verified: true })
-        .eq('id', userId);
-
-      if (updateError) throw updateError;
-
-      // Delete used code
-      await supabase
-        .from('email_verifications')
-        .delete()
-        .eq('id', data.id);
+      await transporter.sendMail({
+        from:    `"${fromName}" <${fromEmail}>`,
+        to:      toEmail,
+        subject: 'Verify Your Email — Academic Operation Suite',
+        html: `
+<div style="font-family:'Segoe UI',Arial,sans-serif;max-width:520px;margin:0 auto;background:#f5f7fa;padding:40px 20px;">
+  <div style="background:white;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.1);">
+    <div style="background:linear-gradient(135deg,#1e3a5f 0%,#2c5f8a 100%);padding:32px;text-align:center;">
+      <h1 style="color:white;margin:0;font-size:20px;font-weight:700;">Academic Operation Suite</h1>
+      <p style="color:rgba(255,255,255,.72);margin:8px 0 0;font-size:13px;">Department of CSE, University of Dhaka</p>
+    </div>
+    <div style="padding:36px 32px;">
+      <h2 style="color:#1a2a4a;margin:0 0 10px;font-size:20px;font-weight:700;">Verify your email address</h2>
+      <p style="color:#6b7280;font-size:14px;line-height:1.65;margin:0 0 28px;">
+        Hi ${toName || 'there'}, enter the 6-digit code below to complete your registration.<br>
+        The code expires in <strong>15 minutes</strong>.
+      </p>
+      <div style="background:#f0f7ff;border:2px solid #bae6fd;border-radius:12px;padding:26px 20px;text-align:center;margin:0 0 28px;">
+        <span style="font-size:42px;font-weight:800;letter-spacing:14px;color:#1e3a5f;font-family:monospace;">${code}</span>
+      </div>
+      <p style="color:#9ca3af;font-size:12px;text-align:center;margin:0;line-height:1.5;">
+        If you didn't sign up for Academic Operation Suite, you can safely ignore this email.
+      </p>
+    </div>
+  </div>
+</div>
+        `,
+      });
 
       return { success: true };
-    } catch (error) {
-      console.error('Verify email code error:', error);
-      return { success: false, error: error.message };
+    } catch (err) {
+      console.error('Email send error:', err.message);
+      return { success: false, error: err.message };
     }
   },
-
-  /**
-   * Resend verification code
-   * @param {string} userId - User ID
-   * @param {string} userEmail - User email
-   * @returns {Promise<{success: boolean, error?: string}>}
-   */
-  async resendVerificationCode(userId, userEmail) {
-    try {
-      // Delete old codes
-      await supabase
-        .from('email_verifications')
-        .delete()
-        .eq('user_id', userId);
-
-      // Send new code
-      return await this.sendVerificationCode(userId, userEmail);
-    } catch (error) {
-      console.error('Resend verification code error:', error);
-      return { success: false, error: error.message };
-    }
-  },
-
-  /**
-   * Send password reset email
-   * @param {string} userEmail - User email
-   * @returns {Promise<{success: boolean, error?: string}>}
-   */
-  async sendPasswordResetEmail(userEmail) {
-    try {
-      // Get user
-      const { data: user, error: userError } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', userEmail)
-        .single();
-
-      if (userError || !user) {
-        throw new Error('User not found');
-      }
-
-      // Generate reset token
-      const resetToken = generateVerificationCode();
-      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-
-      // Store reset token
-      const { error } = await supabase
-        .from('password_resets')
-        .insert([{
-          user_id: user.id,
-          token: resetToken,
-          expires_at: expiresAt.toISOString()
-        }]);
-
-      if (error) throw error;
-
-      // TODO: Send email with reset link
-      console.log(`🔐 Password reset token for ${userEmail}: ${resetToken}`);
-
-      return { success: true };
-    } catch (error) {
-      console.error('Send password reset email error:', error);
-      return { success: false, error: error.message };
-    }
-  }
 };

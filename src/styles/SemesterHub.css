@@ -1,0 +1,258 @@
+.sh-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.sh-section-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a2a4a;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sh-count {
+  background: #e8f0fe;
+  color: #1e3a5f;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 12px;
+}
+
+.sh-create-btn {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2c5f8a 100%);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.sh-create-btn:hover {
+  opacity: 0.88;
+}
+
+.sh-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.sh-card {
+  background: white;
+  border-radius: 14px;
+  padding: 28px 24px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  transition: transform 0.18s, box-shadow 0.18s;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 2px solid transparent;
+  position: relative;
+}
+
+.sh-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 28px rgba(30, 58, 95, 0.16);
+  border-color: #2c5f8a;
+}
+
+.sh-card-year {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sh-card-name {
+  font-size: 22px;
+  font-weight: 800;
+  color: #1a2a4a;
+}
+
+.sh-card-arrow {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 20px;
+  color: #9ca3af;
+  transition: color 0.18s, right 0.18s;
+}
+
+.sh-card:hover .sh-card-arrow {
+  color: #2c5f8a;
+  right: 16px;
+}
+
+.sh-loading {
+  text-align: center;
+  padding: 60px 20px;
+  color: #6b7280;
+  font-size: 15px;
+}
+
+.sh-empty {
+  text-align: center;
+  padding: 80px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.sh-empty-icon {
+  font-size: 52px;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.sh-empty-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a2a4a;
+  margin: 0;
+}
+
+.sh-empty-sub {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0 0 16px;
+}
+
+.sh-error-banner {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+}
+
+.sh-retry-btn {
+  background: #dc2626;
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* Modal */
+.sh-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.sh-modal {
+  background: white;
+  border-radius: 16px;
+  padding: 36px 32px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sh-modal-title {
+  margin: 0 0 20px;
+  font-size: 20px;
+  font-weight: 800;
+  color: #1a2a4a;
+}
+
+.sh-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin-top: 8px;
+}
+
+.sh-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #1a2a4a;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.18s;
+}
+
+.sh-input:focus {
+  border-color: #2c5f8a;
+}
+
+.sh-form-error {
+  color: #dc2626;
+  font-size: 13px;
+  margin: 4px 0 0;
+}
+
+.sh-modal-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+  justify-content: flex-end;
+}
+
+.sh-cancel-btn {
+  background: #f3f4f6;
+  color: #374151;
+  border: none;
+  padding: 10px 22px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s;
+}
+
+.sh-cancel-btn:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+
+.sh-confirm-btn {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2c5f8a 100%);
+  color: white;
+  border: none;
+  padding: 10px 22px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.18s;
+}
+
+.sh-confirm-btn:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.sh-confirm-btn:disabled,
+.sh-cancel-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

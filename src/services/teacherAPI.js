@@ -105,6 +105,16 @@ export const teacherAPI = {
     return result;
   },
 
+  async updateTeacher(teacherId, fields) {
+    const result = await makeRequest(`${API_BASE_URL}/${teacherId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fields),
+    });
+    if (result.success) return { success: true, data: result.data };
+    return result;
+  },
+
   async importTeachers(teachers) {
     const result = await makeRequest(`${API_BASE_URL}/import`, {
       method: 'POST',

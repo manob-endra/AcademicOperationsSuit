@@ -37,12 +37,20 @@ router.post('/import', async (req, res) => {
 
 // POST /api/teachers  — create single teacher
 router.post('/', async (req, res) => {
-  const { name, initials, department, email, load_limit } = req.body;
+  const { name, initials, department, email, load_limit, designation, joining_date, special_post, contact_number, availability_status } = req.body;
   if (!name?.trim()) {
     return res.status(400).json({ success: false, error: 'Teacher name is required.' });
   }
-  const result = await teacherTimeService.createTeacher({ name, initials, department, email, load_limit });
+  const result = await teacherTimeService.createTeacher({ name, initials, department, email, load_limit, designation, joining_date, special_post, contact_number, availability_status });
   if (result.success) return res.status(201).json({ success: true, data: result.data });
+  res.status(500).json({ success: false, error: result.error });
+});
+
+// PATCH /api/teachers/:id  — update teacher profile fields (must come before /:id/load-limit etc.)
+router.patch('/:id', async (req, res) => {
+  const { id } = req.params;
+  const result = await teacherTimeService.updateTeacher(id, req.body);
+  if (result.success) return res.json({ success: true, data: result.data });
   res.status(500).json({ success: false, error: result.error });
 });
 

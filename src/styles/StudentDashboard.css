@@ -1,0 +1,363 @@
+/* ============================================================
+   Student Dashboard — Layout & Theme
+   ============================================================ */
+.student-dashboard {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f0fdf4;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #1a2e2a;
+}
+
+/* ── Header / Navbar ── */
+.sd-header {
+  background: linear-gradient(135deg, #065f46 0%, #047857 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  height: 64px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 12px rgba(4, 120, 87, 0.3);
+}
+
+/* Brand */
+.sd-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 210px;
+}
+
+.sd-brand-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  padding: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
+}
+
+.sd-brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.sd-brand-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: white;
+  letter-spacing: 0.2px;
+}
+
+.sd-brand-role {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.65);
+  font-weight: 400;
+}
+
+/* Nav */
+.sd-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  justify-content: center;
+}
+
+.sd-nav-item {
+  padding: 8px 20px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.15s, color 0.15s;
+  letter-spacing: 0.1px;
+}
+
+.sd-nav-item:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+}
+
+.sd-nav-item.active {
+  background: rgba(255, 255, 255, 0.18);
+  color: white;
+  font-weight: 600;
+}
+
+/* User area */
+.sd-user-area {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 200px;
+  justify-content: flex-end;
+}
+
+.sd-user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sd-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #10b981, #059669);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  color: white;
+  flex-shrink: 0;
+}
+
+.sd-user-meta {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.sd-user-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+}
+
+.sd-user-email {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.sd-logout-btn {
+  padding: 6px 14px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: white;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.sd-logout-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ── Main Content ── */
+.sd-content {
+  flex: 1;
+  padding: 32px 36px;
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+/* ── Section headings ── */
+.sd-section-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #065f46;
+  margin: 0 0 6px;
+}
+
+.sd-section-subtitle {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0 0 28px;
+}
+
+/* ── Loading ── */
+.sd-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 60px 20px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.sd-loading-spinner {
+  width: 22px;
+  height: 22px;
+  border: 3px solid #d1fae5;
+  border-top-color: #059669;
+  border-radius: 50%;
+  animation: sd-spin 0.75s linear infinite;
+}
+
+@keyframes sd-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Alert ── */
+.sd-alert {
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  margin-bottom: 20px;
+}
+
+.sd-alert.error {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+/* ── Empty state ── */
+.sd-empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #9ca3af;
+}
+
+.sd-empty-icon {
+  font-size: 52px;
+  margin-bottom: 14px;
+}
+
+.sd-empty-state p {
+  font-size: 14px;
+  margin: 0;
+}
+
+/* ── Notice cards ── */
+.sd-notice-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sd-notice-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px 24px;
+  border-left: 4px solid #d1fae5;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: box-shadow 0.2s;
+}
+
+.sd-notice-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.sd-notice-card.priority-important {
+  border-left-color: #f59e0b;
+}
+
+.sd-notice-card.priority-urgent {
+  border-left-color: #ef4444;
+  background: #fffbfb;
+}
+
+.sd-notice-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.sd-notice-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a2e2a;
+  margin: 0;
+}
+
+.sd-notice-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.sd-notice-badge.normal {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.sd-notice-badge.important {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.sd-notice-badge.urgent {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.sd-notice-content {
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.65;
+  margin: 0 0 12px;
+  white-space: pre-wrap;
+}
+
+.sd-notice-footer {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+/* ── Placeholder pages (My Routine, My Courses) ── */
+.sd-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  text-align: center;
+}
+
+.sd-placeholder-icon {
+  font-size: 64px;
+  margin-bottom: 20px;
+}
+
+.sd-placeholder-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #065f46;
+  margin: 0 0 10px;
+}
+
+.sd-placeholder-text {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+  max-width: 400px;
+  line-height: 1.6;
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .sd-brand { min-width: auto; }
+  .sd-user-meta { display: none; }
+  .sd-user-area { min-width: auto; }
+  .sd-content { padding: 20px 16px; }
+}
+
+@media (max-width: 640px) {
+  .sd-header { height: auto; padding: 10px 16px; flex-wrap: wrap; gap: 10px; }
+  .sd-nav { order: 3; width: 100%; justify-content: flex-start; overflow-x: auto; padding-bottom: 4px; }
+  .sd-nav-item { padding: 6px 14px; font-size: 13px; white-space: nowrap; }
+  .sd-brand-name { font-size: 13px; }
+}

@@ -60,4 +60,12 @@ export const routineAPI = {
   async clearRoutine() {
     return makeRequest(API_BASE_URL, { method: 'DELETE' });
   },
+
+  async publishRoutine(semesterId, semesterLabel) {
+    return makeRequest(`${API_BASE_URL}/publish`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ semesterId, semesterLabel }),
+    });
+  },
 };
