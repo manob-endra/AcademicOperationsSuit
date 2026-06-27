@@ -38,7 +38,7 @@ export const validateDomain = (email) => {
 export const getUserRoleByEmail = (email) => {
   const domain = email.split('@')[1];
   const adminDomains = ['admin.du.ac.bd'];
-  const teacherDomains = ['cs.du.ac.bd', 'cse.du.ac.bd'];
+  const teacherDomains = ['cse.du.ac.bd'];
 
   if (adminDomains.includes(domain)) return 'admin';
   if (teacherDomains.includes(domain)) return 'teacher';

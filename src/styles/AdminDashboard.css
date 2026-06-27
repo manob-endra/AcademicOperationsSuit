@@ -157,6 +157,21 @@
   color: white;
 }
 
+.module-card.gradient-indigo {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  color: white;
+}
+
+.module-card.gradient-rose {
+  background: linear-gradient(135deg, #f43f5e 0%, #ec4899 100%);
+  color: white;
+}
+
+.module-card.gradient-amber {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+}
+
 /* 5-module grid: 3 on first row, 2 centred on second */
 .modules-grid-5 {
   display: grid;
@@ -169,6 +184,39 @@
 }
 
 .modules-grid-5 .module-card:nth-child(5) {
+  grid-column: 2 / 3;
+}
+
+/* 6-module grid: even 3x2 */
+.modules-grid-6 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+/* 7-module grid: 3+3+1 (last item centred) */
+.modules-grid-7 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.modules-grid-7 .module-card:nth-child(7) {
+  grid-column: 2 / 3;
+}
+
+/* 8-module grid: 3+3+2 (last row: cards 7&8 centred in middle two columns) */
+.modules-grid-8 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.modules-grid-8 .module-card:nth-child(7) {
+  grid-column: 1 / 2;
+}
+
+.modules-grid-8 .module-card:nth-child(8) {
   grid-column: 2 / 3;
 }
 

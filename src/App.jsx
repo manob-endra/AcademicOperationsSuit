@@ -6,10 +6,18 @@ import EmailVerification from './components/EmailVerification';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminDashboard from './components/AdminDashboard';
 import TeacherDashboard from './components/TeacherDashboard';
+import StudentDashboard from './components/StudentDashboard';
+import SemesterHub from './components/SemesterHub';
+import SemesterOptions from './components/SemesterOptions';
+import AcademicCalendar from './components/AcademicCalendar';
 import RoutineManagement from './components/RoutineManagement';
 import ThesisManagement from './components/ThesisManagement';
 import ExamRoutine from './components/ExamRoutine';
 import InvigilationAssignment from './components/InvigilationAssignment';
+import TeacherManagement from './components/TeacherManagement';
+import StudentManagement from './components/StudentManagement';
+import NotificationCenter from './components/NotificationCenter';
+import Unsubscribe from './components/Unsubscribe';
 import './App.css';
 
 function App() {
@@ -34,7 +42,31 @@ function App() {
           path="/admin-dashboard/routine-management"
           element={
             <ProtectedRoute requiredRole="admin">
+              <SemesterHub />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin-dashboard/routine-management/:semesterId"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <SemesterOptions />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin-dashboard/routine-management/:semesterId/routine"
+          element={
+            <ProtectedRoute requiredRole="admin">
               <RoutineManagement />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin-dashboard/routine-management/:semesterId/academic-calendar"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <AcademicCalendar />
             </ProtectedRoute>
           }
         />
@@ -62,6 +94,33 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/admin-dashboard/teacher-management"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <TeacherManagement />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin-dashboard/student-management"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <StudentManagement />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin-dashboard/notification-center"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <NotificationCenter />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Public unsubscribe — no auth required */}
+        <Route path="/unsubscribe" element={<Unsubscribe />} />
 
         {/* ── Teacher routes (role = 'teacher' only) ── */}
         <Route
@@ -69,6 +128,16 @@ function App() {
           element={
             <ProtectedRoute requiredRole="teacher">
               <TeacherDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ── Student routes (role = 'student' only) ── */}
+        <Route
+          path="/student-dashboard"
+          element={
+            <ProtectedRoute requiredRole="student">
+              <StudentDashboard />
             </ProtectedRoute>
           }
         />

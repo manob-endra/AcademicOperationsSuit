@@ -5,6 +5,89 @@ import { courseAPI } from '../../services/courseAPI';
 import { teacherAPI } from '../../services/teacherAPI';
 import './Routine.css';
 
+// ── Publish Confirmation Modal ─────────────────────────────────────────────────
+function PublishModal({ semId, semLabel, onConfirm, onCancel }) {
+  const [publishing, setPublishing] = useState(false);
+  const [done, setDone]             = useState(null); // null | { ok, msg }
+
+  const handleConfirm = async () => {
+    setPublishing(true);
+    const r = await routineAPI.publishRoutine(semId, semLabel);
+    setPublishing(false);
+    if (r.success) {
+      setDone({ ok: true, msg: r.duplicate ? 'Already published recently (no duplicate job created).' : 'Routine published! Emails are being sent.' });
+    } else {
+      setDone({ ok: false, msg: r.error || 'Publish failed.' });
+    }
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+    }}>
+      <div style={{
+        background: 'white', borderRadius: 14, padding: '32px 36px',
+        maxWidth: 460, width: '94%', boxShadow: '0 16px 48px rgba(0,0,0,.22)',
+        fontFamily: "'Segoe UI', Arial, sans-serif",
+      }}>
+        {!done ? (
+          <>
+            <div style={{ fontSize: 36, textAlign: 'center', marginBottom: 10 }}>📢</div>
+            <h2 style={{ margin: '0 0 8px', fontSize: 18, color: '#1a3a52', textAlign: 'center' }}>
+              Publish Routine
+            </h2>
+            <p style={{ margin: '0 0 6px', fontSize: 14, color: '#374151', textAlign: 'center' }}>
+              Semester: <strong>{semLabel}</strong>
+            </p>
+            <p style={{ margin: '0 0 24px', fontSize: 13, color: '#6b7280', textAlign: 'center', lineHeight: 1.6 }}>
+              This will send the routine to all students of this batch (to their institutional email)
+              and to all teachers assigned to courses in this semester.
+            </p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+              <button
+                onClick={onCancel}
+                style={{ padding: '9px 24px', border: '1.5px solid #d1d5db', borderRadius: 8, background: 'white', fontSize: 14, cursor: 'pointer', fontWeight: 600, color: '#374151' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirm}
+                disabled={publishing}
+                style={{ padding: '9px 24px', border: 'none', borderRadius: 8, background: 'linear-gradient(135deg,#1a3a52,#2c5f8a)', color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer', opacity: publishing ? .6 : 1 }}
+              >
+                {publishing ? 'Sending…' : 'Confirm & Send Emails'}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize: 40, textAlign: 'center', marginBottom: 10 }}>
+              {done.ok ? '✅' : '❌'}
+            </div>
+            <p style={{ margin: '0 0 20px', fontSize: 14, color: done.ok ? '#166534' : '#dc2626', textAlign: 'center', fontWeight: 600 }}>
+              {done.msg}
+            </p>
+            {done.ok && (
+              <p style={{ margin: '0 0 20px', fontSize: 13, color: '#6b7280', textAlign: 'center' }}>
+                You can track delivery status in the <strong>Notification Center</strong>.
+              </p>
+            )}
+            <div style={{ textAlign: 'center' }}>
+              <button
+                onClick={onCancel}
+                style={{ padding: '9px 28px', border: 'none', borderRadius: 8, background: '#1a3a52', color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+              >
+                Close
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -145,6 +228,7 @@ function Routine({ onNavigate }) {
 
   const [selectedSemester, setSelectedSemester] = useState(null);
   const [selectedTeacher,  setSelectedTeacher]  = useState(null);
+  const [publishModal,     setPublishModal]      = useState(null); // null | { semId, semLabel }
 
   // -------------------------------------------------------------------------
   useEffect(() => {
@@ -582,6 +666,16 @@ function Routine({ onNavigate }) {
         </div>
       )}
 
+      {/* Publish confirmation modal */}
+      {publishModal && (
+        <PublishModal
+          semId={publishModal.semId}
+          semLabel={publishModal.semLabel}
+          onConfirm={() => {}}
+          onCancel={() => setPublishModal(null)}
+        />
+      )}
+
       {/* ════════════════════════════════════════
           Batch-Wise View
       ════════════════════════════════════════ */}
@@ -607,7 +701,28 @@ function Routine({ onNavigate }) {
 
               {selectedSemester ? (
                 <div className="batch-grid-wrapper">
-                  <h4 className="batch-title">{semLabel(selectedSemester)}</h4>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 8 }}>
+                    <h4 className="batch-title" style={{ margin: 0 }}>{semLabel(selectedSemester)}</h4>
+                    <button
+                      onClick={() => setPublishModal({ semId: selectedSemester, semLabel: semLabel(selectedSemester) })}
+                      style={{
+                        padding: '8px 20px',
+                        background: 'linear-gradient(135deg,#1a3a52,#2c5f8a)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: 8,
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                      title={`Publish ${semLabel(selectedSemester)} routine and notify students & teachers`}
+                    >
+                      📢 Publish &amp; Notify
+                    </button>
+                  </div>
                   <div className="routine-table-wrapper">
                     <table className="routine-table routine-table--batch">
                       <thead>

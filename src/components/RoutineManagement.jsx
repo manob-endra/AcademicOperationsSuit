@@ -1,5 +1,5 @@
 import { useState, useContext, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { AuthContext } from '../contexts/AuthContext';
 import { semesterSelectionAPI } from '../services/semesterSelectionAPI';
 import Home from './routineManagement/Home';
@@ -22,6 +22,7 @@ const sections = [
 
 function RoutineManagement() {
   const navigate = useNavigate();
+  const { semesterId } = useParams();
   const { user } = useContext(AuthContext);
   const [activeSection, setActiveSection]       = useState('home');
   const [selectedSemesters, setSelectedSemesters] = useState([]);
@@ -88,7 +89,12 @@ function RoutineManagement() {
       <header className="routine-module-header">
         <div className="header-top">
           <div className="header-left">
-            <button className="back-button" onClick={() => navigate('/admin-dashboard')}>
+            <button
+              className="back-button"
+              onClick={() => semesterId
+                ? navigate(`/admin-dashboard/routine-management/${semesterId}`)
+                : navigate('/admin-dashboard/routine-management')}
+            >
               ←
             </button>
             <h1>Routine Manager</h1>

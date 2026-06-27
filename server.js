@@ -16,6 +16,12 @@ import teacherPrefRoutes from './src/backend/api/teacherPrefRoutes.js';
 import routineRoutes from './src/backend/api/routineRoutes.js';
 import noticeRoutes from './src/backend/api/noticeRoutes.js';
 import notificationRoutes from './src/backend/api/notificationRoutes.js';
+import academicSemesterRoutes from './src/backend/api/academicSemesterRoutes.js';
+import academicCalendarRoutes from './src/backend/api/academicCalendarRoutes.js';
+import studentRoutes from './src/backend/api/studentRoutes.js';
+import notificationSystemRoutes from './src/backend/api/notificationSystemRoutes.js';
+import unsubscribeRoutes from './src/backend/api/unsubscribeRoutes.js';
+import { startNotificationWorker } from './src/backend/services/notificationWorker.js';
 
 dotenv.config();
 
@@ -79,8 +85,25 @@ app.use('/api/notices', noticeRoutes);
 // Notifications API routes (admin bell feed)
 app.use('/api/notifications', notificationRoutes);
 
+// Academic semesters API routes
+app.use('/api/academic-semesters', academicSemesterRoutes);
+
+// Academic calendars API routes
+app.use('/api/academic-calendars', academicCalendarRoutes);
+
+// Students API routes
+app.use('/api/students', studentRoutes);
+
+// Email notification system (admin audit log, retry, opted-out management)
+app.use('/api/email-notifications', notificationSystemRoutes);
+
+// Public token-based unsubscribe endpoint
+app.use('/api/unsubscribe', unsubscribeRoutes);
+
 app.listen(PORT, () => {
   console.log(`🚀 Email server running on http://localhost:${PORT}`);
   console.log(`📧 Using SendGrid for email delivery`);
   console.log('Ready to send emails!');
+  // Start email notification worker (polls every 60 seconds)
+  startNotificationWorker(60_000);
 });

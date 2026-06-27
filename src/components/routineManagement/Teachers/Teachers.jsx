@@ -6,10 +6,6 @@ import { courseTeacherAPI } from '../../../services/courseTeacherAPI';
 import TeacherPreferences from '../allocation/TeacherPreferences';
 import './styles/Teachers.css';
 import './styles/Modal.css';
-import AddTeacherModal from './components/AddTeacherModal';
-import ImportTeachersModal from './components/ImportTeachersModal';
-import RemoveTeachersModal from './components/RemoveTeachersModal';
-import RemovedTeachersModal from './components/RemovedTeachersModal';
 import TeacherPreferenceModal from './components/TeacherPreferenceModal';
 
 // Map a raw DB teacher row to the shape this component expects
@@ -39,21 +35,12 @@ function Teachers() {
 
   // Teachers state
   const [teachers, setTeachers]           = useState([]);
-  const [removedTeachers, setRemovedTeachers] = useState([]);
   const [loading, setLoading]             = useState(true);
   const [error, setError]                 = useState(null);
 
   // Filter and search state
   const [searchTerm, setSearchTerm]       = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All teachers');
-
-  // Modal states
-  const [modals, setModals] = useState({
-    addTeacher: false,
-    importTeachers: false,
-    removeTeachers: false,
-    removedTeachers: false,
-  });
 
   const [preferenceModal, setPreferenceModal] = useState({
     isOpen: false,
@@ -91,21 +78,21 @@ function Teachers() {
   // Load all data — called on mount and when switching back to Details tab
   const loadData = async (showSpinner = true) => {
     if (showSpinner) { setLoading(true); setError(null); }
-    const [activeResult, removedResult, prefResult, courseResult, availResult, assignResult] = await Promise.all([
+    const [activeResult, prefResult, courseResult, availResult, assignResult] = await Promise.all([
       teacherAPI.getTeachers(),
-      teacherAPI.getRemovedTeachers(),
       teacherPrefAPI.getAllPreferences(),
       courseAPI.getAllCourses(),
       teacherAPI.getAllAvailability(),
       courseTeacherAPI.getAllAssignments(),
     ]);
     if (activeResult.success) {
-      setTeachers((activeResult.data || []).map(mapTeacher));
+      setTeachers(
+        (activeResult.data || [])
+          .filter(row => !row.availability_status || row.availability_status === 'available')
+          .map(mapTeacher)
+      );
     } else if (showSpinner) {
       setError(activeResult.error);
-    }
-    if (removedResult.success) {
-      setRemovedTeachers((removedResult.data || []).map(mapTeacher));
     }
     if (prefResult.success) {
       const map = {};
@@ -173,12 +160,6 @@ function Teachers() {
     (t) => t.weeklyLoadHours > t.loadLimit * 0.8 && t.weeklyLoadHours <= t.loadLimit
   ).length;
 
-  // All initials in use (active + removed) — passed to modals for uniqueness checks
-  const existingInitials = useMemo(
-    () => [...teachers, ...removedTeachers].map((t) => t.initials).filter(Boolean),
-    [teachers, removedTeachers]
-  );
-
   // Filter teachers based on search term and selected filter (use computed load)
   const filteredTeachers = useMemo(() => {
     return teachersWithLoad.filter((teacher) => {
@@ -205,62 +186,6 @@ function Teachers() {
       return searchMatch && filterMatch;
     });
   }, [teachersWithLoad, searchTerm, selectedFilter]);
-
-  // Modal handlers
-  const handleOpenModal = useCallback((modalName) => {
-    setModals(prev => ({ ...prev, [modalName]: true }));
-  }, []);
-
-  const handleCloseModal = useCallback((modalName) => {
-    setModals(prev => ({ ...prev, [modalName]: false }));
-  }, []);
-
-  // Teacher operations
-  const handleAddTeacher = useCallback(async (newTeacher) => {
-    const result = await teacherAPI.createTeacher({
-      name:              newTeacher.name,
-      initials:          newTeacher.initials,
-      load_limit:        10,
-      weekly_load_hours: 0,
-    });
-    if (result.success) {
-      setTeachers(prev => [...prev, mapTeacher(result.data)]);
-      handleCloseModal('addTeacher');
-    }
-  }, [handleCloseModal]);
-
-  const handleImportTeachers = useCallback(async (importedTeachers) => {
-    const result = await teacherAPI.importTeachers(
-      importedTeachers.map(t => ({
-        name:              t.name,
-        initials:          t.initials,
-        load_limit:        10,
-        weekly_load_hours: 0,
-      }))
-    );
-    if (result.success) {
-      setTeachers(prev => [...prev, ...(result.data || []).map(mapTeacher)]);
-    }
-    handleCloseModal('importTeachers');
-  }, [handleCloseModal]);
-
-  const handleRemoveTeachers = useCallback(async (teachersToRemove) => {
-    await Promise.all(teachersToRemove.map(t => teacherAPI.deleteTeacher(t.id)));
-    setTeachers(prev =>
-      prev.filter(t => !teachersToRemove.some(r => r.initials === t.initials))
-    );
-    setRemovedTeachers(prev => [...prev, ...teachersToRemove]);
-    handleCloseModal('removeTeachers');
-  }, [handleCloseModal]);
-
-  const handleRestoreTeachers = useCallback(async (teachersToRestore) => {
-    await Promise.all(teachersToRestore.map(t => teacherAPI.restoreTeacher(t.id)));
-    setRemovedTeachers(prev =>
-      prev.filter(t => !teachersToRestore.some(r => r.initials === t.initials))
-    );
-    setTeachers(prev => [...prev, ...teachersToRestore]);
-    handleCloseModal('removedTeachers');
-  }, [handleCloseModal]);
 
   const handleLoadLimitChange = useCallback(async (teacherId, newLimit, oldLimit) => {
     // Optimistic update so the select feels instant
@@ -334,22 +259,6 @@ function Teachers() {
             <p className="teachers-error">{error}</p>
           ) : (
             <>
-              {/* Top Action Buttons */}
-              <div className="action-buttons-block">
-                <button className="action-btn add-btn" onClick={() => handleOpenModal('addTeacher')}>
-                  + Add Teacher
-                </button>
-                <button className="action-btn import-btn" onClick={() => handleOpenModal('importTeachers')}>
-                  ⬆ Import Teachers
-                </button>
-                <button className="action-btn removed-btn" onClick={() => handleOpenModal('removedTeachers')}>
-                  📋 Removed Teachers
-                </button>
-                <button className="action-btn remove-btn" onClick={() => handleOpenModal('removeTeachers')}>
-                  🗑 Remove
-                </button>
-              </div>
-
               {/* Summary Cards */}
               <div className="summary-cards-container">
                 {/* Preferences Summary Card */}
@@ -567,36 +476,6 @@ function Teachers() {
               <div className="table-info">
                 Showing {filteredTeachers.length} of {teachers.length} teachers
               </div>
-
-              {/* Modals */}
-              <AddTeacherModal
-                isOpen={modals.addTeacher}
-                onClose={() => handleCloseModal('addTeacher')}
-                onAddTeacher={handleAddTeacher}
-                existingInitials={existingInitials}
-              />
-
-              <ImportTeachersModal
-                isOpen={modals.importTeachers}
-                onClose={() => handleCloseModal('importTeachers')}
-                onImportTeachers={handleImportTeachers}
-                existingTeachers={teachers}
-                existingInitials={existingInitials}
-              />
-
-              <RemoveTeachersModal
-                isOpen={modals.removeTeachers}
-                onClose={() => handleCloseModal('removeTeachers')}
-                teachers={teachers}
-                onRemoveTeachers={handleRemoveTeachers}
-              />
-
-              <RemovedTeachersModal
-                isOpen={modals.removedTeachers}
-                onClose={() => handleCloseModal('removedTeachers')}
-                removedTeachers={removedTeachers}
-                onRestoreTeachers={handleRestoreTeachers}
-              />
 
               <TeacherPreferenceModal
                 isOpen={preferenceModal.isOpen}

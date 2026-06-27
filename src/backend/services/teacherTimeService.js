@@ -6,7 +6,7 @@ export const teacherTimeService = {
     try {
       const { data: teacherRows, error: teacherError } = await supabase
         .from('teachers')
-        .select('id, name, initials, department, email, load_limit, weekly_load_hours')
+        .select('id, name, initials, department, email, load_limit, weekly_load_hours, designation, joining_date, special_post, contact_number, availability_status')
         .eq('is_active', true)
         .order('created_at', { ascending: true });
       if (teacherError) throw teacherError;
@@ -69,7 +69,7 @@ export const teacherTimeService = {
     try {
       const { data, error } = await supabase
         .from('teachers')
-        .select('id, name, initials, department, email, load_limit, weekly_load_hours')
+        .select('id, name, initials, department, email, load_limit, weekly_load_hours, designation, joining_date, special_post, contact_number, availability_status')
         .eq('is_active', false)
         .order('created_at', { ascending: true });
       if (error) throw error;
@@ -80,7 +80,7 @@ export const teacherTimeService = {
     }
   },
 
-  async createTeacher({ name, initials, department, email, load_limit, weekly_load_hours }) {
+  async createTeacher({ name, initials, department, email, load_limit, weekly_load_hours, designation, joining_date, special_post, contact_number, availability_status }) {
     try {
       const { data, error } = await supabase
         .from('teachers')
@@ -91,6 +91,11 @@ export const teacherTimeService = {
           email: email?.trim() || null,
           load_limit: Number(load_limit) || 20,
           weekly_load_hours: Number(weekly_load_hours) || 0,
+          designation: designation?.trim() || null,
+          joining_date: joining_date || null,
+          special_post: special_post?.trim() || null,
+          contact_number: contact_number?.trim() || null,
+          availability_status: availability_status || 'available',
           is_active: true,
         }])
         .select()
@@ -99,6 +104,27 @@ export const teacherTimeService = {
       return { success: true, data };
     } catch (err) {
       console.error('teacherTimeService.createTeacher:', err);
+      return { success: false, error: err.message };
+    }
+  },
+
+  async updateTeacher(id, fields) {
+    try {
+      const allowed = ['name', 'initials', 'department', 'email', 'load_limit', 'designation', 'joining_date', 'special_post', 'contact_number', 'availability_status'];
+      const updateData = { updated_at: new Date().toISOString() };
+      allowed.forEach(key => {
+        if (fields[key] !== undefined) updateData[key] = fields[key];
+      });
+      const { data, error } = await supabase
+        .from('teachers')
+        .update(updateData)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return { success: true, data };
+    } catch (err) {
+      console.error('teacherTimeService.updateTeacher:', err);
       return { success: false, error: err.message };
     }
   },
@@ -151,9 +177,14 @@ export const teacherTimeService = {
         .map(t => ({
           name: String(t.name || '').trim(),
           initials: String(t.initials || '').trim(),
-          department: t.department?.trim() || null,
-          email: t.email?.trim() || null,
+          department: String(t.department || '').trim() || null,
+          email: String(t.email || '').trim() || null,
           load_limit: Number(t.load_limit) || 20,
+          designation: String(t.designation || '').trim() || null,
+          joining_date: t.joining_date || null,
+          special_post: String(t.special_post || '').trim() || null,
+          contact_number: String(t.contact_number || '').trim() || null,
+          availability_status: t.availability_status || 'available',
           is_active: true,
         }))
         .filter(t => t.name);

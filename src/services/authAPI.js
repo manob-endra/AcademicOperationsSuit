@@ -93,6 +93,10 @@ export const authAPI = {
 
       if (!response.ok) {
         const result = await response.json();
+        // Pass EMAIL_NOT_VERIFIED code through so the frontend can show resend UI
+        if (result.code === 'EMAIL_NOT_VERIFIED') {
+          return { success: false, error: result.error, code: result.code, email: result.email };
+        }
         throw new Error(result.error || 'Login failed');
       }
 

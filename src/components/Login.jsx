@@ -7,25 +7,41 @@ import '../styles/Auth.css';
 function Login() {
   const navigate = useNavigate();
   const { setUser } = useContext(AuthContext);
-  const [formData, setFormData] = useState({ email: '', password: '' });
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+
+  const [formData,       setFormData]       = useState({ email: '', password: '' });
+  const [error,          setError]          = useState('');
+  const [loading,        setLoading]        = useState(false);
+  const [unverifiedEmail, setUnverifiedEmail] = useState(''); // set when EMAIL_NOT_VERIFIED
+  const [resendLoading,  setResendLoading]  = useState(false);
+  const [resendInfo,     setResendInfo]     = useState('');
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+    // Clear the unverified banner when user edits the form
+    if (unverifiedEmail) { setUnverifiedEmail(''); setResendInfo(''); }
   };
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
+    setUnverifiedEmail('');
+    setResendInfo('');
     setLoading(true);
 
     try {
       if (!validateEmail(formData.email)) throw new Error('Invalid email format');
-      if (!formData.password) throw new Error('Password is required');
+      if (!formData.password)             throw new Error('Password is required');
 
       const result = await authAPI.signInWithEmail(formData.email, formData.password);
-      if (!result.success) throw new Error(result.error);
+
+      if (!result.success) {
+        if (result.code === 'EMAIL_NOT_VERIFIED') {
+          setUnverifiedEmail(result.email || formData.email);
+        } else {
+          throw new Error(result.error);
+        }
+        return;
+      }
 
       setUser(result.user);
 
@@ -33,6 +49,8 @@ function Login() {
         navigate('/admin-dashboard');
       } else if (result.user.role === 'teacher') {
         navigate('/teacher-dashboard');
+      } else if (result.user.role === 'student') {
+        navigate('/student-dashboard');
       } else {
         navigate('/login');
       }
@@ -40,6 +58,21 @@ function Login() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setResendInfo('');
+    setError('');
+    setResendLoading(true);
+    try {
+      const result = await authAPI.resendVerificationCode(unverifiedEmail);
+      if (!result.success) throw new Error(result.error);
+      setResendInfo('Verification code sent! Check your inbox.');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -58,6 +91,38 @@ function Login() {
           <h2 className="auth-form-title">Sign In</h2>
 
           {error && <div className="auth-error">{error}</div>}
+
+          {/* Email-not-verified banner */}
+          {unverifiedEmail && (
+            <div className="auth-unverified-banner">
+              <div className="auth-unverified-icon">✉️</div>
+              <div className="auth-unverified-body">
+                <p className="auth-unverified-title">Email not verified</p>
+                <p className="auth-unverified-email">{unverifiedEmail}</p>
+                {resendInfo
+                  ? <p className="auth-unverified-info">{resendInfo}</p>
+                  : <p className="auth-unverified-hint">Check your inbox for the verification code.</p>
+                }
+                <div className="auth-unverified-actions">
+                  <button
+                    type="button"
+                    className="auth-unverified-resend"
+                    onClick={handleResend}
+                    disabled={resendLoading}
+                  >
+                    {resendLoading ? 'Sending…' : 'Resend Code'}
+                  </button>
+                  <Link
+                    to="/verify"
+                    state={{ userEmail: unverifiedEmail }}
+                    className="auth-unverified-enter"
+                  >
+                    Enter Code →
+                  </Link>
+                </div>
+              </div>
+            </div>
+          )}
 
           <form onSubmit={handleLogin} className="auth-form">
             <div className="auth-field">
