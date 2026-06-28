@@ -32,14 +32,33 @@ export const notificationCoreService = {
   },
 
   async getNextPendingJob() {
+    const now = new Date().toISOString();
     const { data } = await supabase
       .from(JOBS_TABLE)
       .select('*')
       .eq('status', 'pending')
+      .or(`process_after.is.null,process_after.lte.${now}`)
       .order('created_at')
       .limit(1)
       .maybeSingle();
     return data || null;
+  },
+
+  async createScheduledJob(type, triggerId, triggerRef, processAfter) {
+    try {
+      const { data, error } = await supabase
+        .from(JOBS_TABLE)
+        .insert([{ type, trigger_id: triggerId, trigger_ref: triggerRef, status: 'pending', process_after: processAfter }])
+        .select()
+        .single();
+      if (error) {
+        if (error.code === '23505') return { success: false, duplicate: true };
+        throw error;
+      }
+      return { success: true, job: data };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
   },
 
   async markJobProcessing(id) {

@@ -1,5 +1,14 @@
 import { useState } from 'react';
 
+const SPECIAL_POSITIONS = [
+  'None',
+  'Chairman',
+  'Dean',
+  'Student Advisor',
+  'Exam Committee Chair',
+  'Exam Committee Member',
+];
+
 const DESIGNATIONS = [
   'Professor',
   'Associate Professor',
@@ -138,13 +147,16 @@ function AddTeacherModal({ onClose, onAdd }) {
             </div>
 
             <div className="tm-form-group tm-span-2">
-              <label className="tm-label">Special Post</label>
-              <input
+              <label className="tm-label">Special / Departmental Position</label>
+              <select
                 className="tm-input"
                 value={form.special_post}
-                onChange={e => set('special_post', e.target.value)}
-                placeholder="e.g. Chairman, Dean, Exam Committee Member"
-              />
+                onChange={e => set('special_post', e.target.value === 'None' ? '' : e.target.value)}
+              >
+                {SPECIAL_POSITIONS.map(p => (
+                  <option key={p} value={p === 'None' ? '' : p}>{p}</option>
+                ))}
+              </select>
             </div>
 
             <div className="tm-form-group tm-span-2">

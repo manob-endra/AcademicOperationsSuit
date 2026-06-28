@@ -27,6 +27,11 @@ export const studentAPI = {
     return r.success ? { success: true, data: r.data } : r;
   },
 
+  async getStudentByEmail(email) {
+    const r = await makeRequest(`${API_BASE_URL}/by-email?email=${encodeURIComponent(email)}`);
+    return r.success ? { success: true, data: r.data } : r;
+  },
+
   async getRemovedStudents() {
     const r = await makeRequest(`${API_BASE_URL}/removed`);
     return r.success ? { success: true, data: r.data } : r;

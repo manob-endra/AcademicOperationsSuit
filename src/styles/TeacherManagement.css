@@ -517,3 +517,227 @@ select.tm-input { cursor: pointer; }
 /* ── Misc ────────────────────────────────────────────────────────────────── */
 .tm-loading-text { color: #6b7280; font-size: 13px; }
 .tm-empty-text   { color: #9ca3af; font-size: 13px; text-align: center; padding: 24px 0; }
+
+/* ── Page Tabs (Details / Leave Management) ─────────────────────────────── */
+.tm-page-tabs {
+  display: flex;
+  gap: 4px;
+  background: white;
+  border-bottom: 2px solid #e5e7eb;
+  padding: 0 28px;
+}
+.tm-page-tab {
+  padding: 12px 24px;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  transition: color .15s, border-color .15s;
+}
+.tm-page-tab:hover { color: #1e3a5f; }
+.tm-page-tab.active { color: #1e3a5f; border-bottom-color: #1e3a5f; }
+
+/* ── Danger button ──────────────────────────────────────────────────────── */
+.tm-btn-danger {
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.tm-btn-danger:hover { opacity: .88; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Leave Management  (prefix: lm-)
+══════════════════════════════════════════════════════════════════════════ */
+.lm-page { display: flex; flex-direction: column; flex: 1; }
+
+/* Sub-tabs */
+.lm-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 28px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e5e7eb;
+}
+.lm-tab {
+  padding: 10px 20px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
+  transition: color .15s, border-color .15s;
+}
+.lm-tab:hover { color: #1e3a5f; }
+.lm-tab.lm-tab--active { color: #1e3a5f; border-bottom-color: #1e3a5f; }
+
+.lm-content { padding: 20px 28px; flex: 1; }
+
+/* Toolbar */
+.lm-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.lm-select {
+  padding: 8px 12px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 13px;
+  outline: none;
+  background: white;
+  min-width: 160px;
+}
+.lm-select--wide { min-width: 260px; }
+.lm-select:focus { border-color: #1e3a5f; }
+
+.lm-btn-refresh {
+  padding: 8px 14px;
+  background: #f3f4f6;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #374151;
+}
+.lm-btn-refresh:hover { background: #e5e7eb; }
+
+.lm-btn-add {
+  padding: 8px 16px;
+  background: linear-gradient(135deg,#1e3a5f,#2c5f8a);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.lm-btn-add:hover { opacity: .88; }
+
+.lm-btn-approve {
+  padding: 5px 12px;
+  background: #dcfce7;
+  color: #166534;
+  border: none;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.lm-btn-approve:hover:not(:disabled) { opacity: .82; }
+.lm-btn-approve:disabled { opacity: .45; cursor: not-allowed; }
+
+.lm-btn-reject {
+  padding: 5px 12px;
+  background: #fef2f2;
+  color: #dc2626;
+  border: none;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.lm-btn-reject:hover:not(:disabled) { opacity: .82; }
+.lm-btn-reject:disabled { opacity: .45; cursor: not-allowed; }
+
+.lm-badge-count {
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Table */
+.lm-table-wrap { overflow-x: auto; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.07); }
+.lm-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.lm-table th {
+  background: #f8fafc;
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: #6b7280;
+  border-bottom: 1px solid #e5e7eb;
+  white-space: nowrap;
+}
+.lm-table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+.lm-table tr:last-child td { border-bottom: none; }
+.lm-table tr:hover td { background: #f9fafb; }
+
+/* Badges */
+.lm-init-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(135deg,#1e3a5f,#2c5f8a);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.lm-init-badge--lg { width: 40px; height: 40px; font-size: 14px; }
+
+.lm-teacher-cell { display: flex; align-items: center; gap: 8px; }
+
+.lm-type-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #ede9fe;
+  color: #5b21b6;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.lm-status-badge {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+/* Teacher header row */
+.lm-teacher-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: white;
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.07);
+}
+
+.lm-loading { color: #6b7280; font-size: 13px; padding: 24px 0; }
+.lm-empty   { color: #9ca3af; font-size: 14px; padding: 48px 0; text-align: center; }

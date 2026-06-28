@@ -5,6 +5,93 @@
 
 
 -- ============================================================
+-- 0e. TEACHER LEAVES TABLE
+-- Tracks both admin-added approved leaves and teacher-submitted pending requests.
+-- status: 'approved' (admin-added) | 'pending' (teacher request) | 'rejected'
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS teacher_leaves (
+  id           UUID    DEFAULT gen_random_uuid() PRIMARY KEY,
+  teacher_id   UUID    NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+  leave_type   VARCHAR(50)  NOT NULL,  -- study_leave | sick_leave | conference | sabbatical | casual
+  start_date   DATE         NOT NULL,
+  end_date     DATE         NOT NULL,
+  status       VARCHAR(20)  NOT NULL DEFAULT 'approved', -- approved | pending | rejected
+  added_by     VARCHAR(20)  NOT NULL DEFAULT 'admin',    -- admin | teacher
+  reason       TEXT,
+  admin_note   TEXT,
+  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_tl_teacher_id ON teacher_leaves(teacher_id);
+CREATE INDEX IF NOT EXISTS idx_tl_status     ON teacher_leaves(status);
+
+
+-- ============================================================
+-- 0f. EXAM ROUTINE TABLES
+--     exam_sessions       : one session per semester per type (incourse | final)
+--     exam_slots          : one row per course per exam date
+--     exam_invigilators   : assigned invigilators per slot
+--     teacher_exam_weights: per-teacher per-session weight overrides
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS exam_sessions (
+  id                   UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  semester_id          TEXT         NOT NULL,  -- short code e.g. 'Y4-S1'
+  session_type         VARCHAR(20)  NOT NULL DEFAULT 'incourse', -- 'incourse' | 'final'
+  title                VARCHAR(200),
+  teachers_per_exam    INT          NOT NULL DEFAULT 2,
+  default_start_time   VARCHAR(10)  DEFAULT '09:00',
+  default_duration_mins INT         DEFAULT 60,
+  published            BOOLEAN      DEFAULT false,
+  published_at         TIMESTAMP,
+  created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_es_semester ON exam_sessions(semester_id);
+CREATE INDEX IF NOT EXISTS idx_es_type     ON exam_sessions(session_type);
+-- Migration (run if table already exists):
+-- ALTER TABLE exam_sessions DROP CONSTRAINT IF EXISTS exam_sessions_semester_id_fkey;
+-- ALTER TABLE exam_sessions ALTER COLUMN semester_id TYPE TEXT;
+
+CREATE TABLE IF NOT EXISTS exam_slots (
+  id           UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  session_id   UUID NOT NULL REFERENCES exam_sessions(id) ON DELETE CASCADE,
+  course_id    UUID NOT NULL REFERENCES courses(id),
+  exam_date    DATE,
+  start_time   VARCHAR(10) NOT NULL,
+  end_time     VARCHAR(10) NOT NULL,
+  rooms        TEXT DEFAULT '',
+  slot_order   INT  DEFAULT 0,
+  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_esl_session ON exam_slots(session_id);
+
+CREATE TABLE IF NOT EXISTS exam_invigilators (
+  id                UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  slot_id           UUID NOT NULL REFERENCES exam_slots(id) ON DELETE CASCADE,
+  teacher_id        UUID NOT NULL REFERENCES teachers(id),
+  is_course_teacher BOOLEAN DEFAULT false,
+  is_lead           BOOLEAN DEFAULT false,
+  created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(slot_id, teacher_id)
+);
+CREATE INDEX IF NOT EXISTS idx_ei_slot ON exam_invigilators(slot_id);
+
+CREATE TABLE IF NOT EXISTS teacher_exam_weights (
+  id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  session_id UUID NOT NULL REFERENCES exam_sessions(id) ON DELETE CASCADE,
+  teacher_id UUID NOT NULL REFERENCES teachers(id),
+  weight     INT  NOT NULL DEFAULT 2,
+  UNIQUE(session_id, teacher_id)
+);
+
+-- Add process_after to notification jobs (for 24-hour reminders)
+ALTER TABLE email_notification_jobs ADD COLUMN IF NOT EXISTS process_after TIMESTAMP;
+CREATE INDEX IF NOT EXISTS idx_enj_process_after ON email_notification_jobs(process_after) WHERE status = 'pending';
+
+
+-- ============================================================
 -- 0d. EMAIL NOTIFICATION SYSTEM TABLES
 --
 -- email_notification_jobs      : one row per event (idempotency via UNIQUE trigger)
@@ -113,14 +200,18 @@ CREATE TABLE IF NOT EXISTS academic_semesters (
 --     published: false = draft, true = published
 -- ============================================================
 CREATE TABLE IF NOT EXISTS academic_calendars (
-  id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  semester_id UUID REFERENCES academic_semesters(id) ON DELETE CASCADE UNIQUE,
-  config      JSONB NOT NULL DEFAULT '{}',
-  entries     JSONB NOT NULL DEFAULT '{}',
-  published   BOOLEAN DEFAULT false,
-  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  id           UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  semester_id  UUID REFERENCES academic_semesters(id) ON DELETE CASCADE UNIQUE,
+  config       JSONB NOT NULL DEFAULT '{}',
+  entries      JSONB NOT NULL DEFAULT '{}',
+  published    BOOLEAN DEFAULT false,
+  published_at TIMESTAMP,
+  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Migration (run if table already exists):
+-- ALTER TABLE academic_calendars ADD COLUMN IF NOT EXISTS published_at TIMESTAMP;
 
 
 -- ============================================================

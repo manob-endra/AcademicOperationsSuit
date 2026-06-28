@@ -8,16 +8,17 @@ import Allocation from './routineManagement/Allocation';
 import TimeSlot from './routineManagement/TimeSlot';
 import Routine from './routineManagement/Routine';
 import Courses from './routineManagement/Courses/Courses';
+import RoutineSection from './routineManagement/RoutineSection';
 import '../styles/ModulePages.css';
 import '../styles/RoutineManagement.css';
 
 const sections = [
-  { key: 'home', label: 'Home' },
-  { key: 'teacher', label: 'Teacher' },
+  { key: 'home',       label: 'Home'       },
+  { key: 'teacher',    label: 'Teacher'    },
   { key: 'allocation', label: 'Allocation' },
-  { key: 'timeslot', label: 'Time Slot' },
-  { key: 'routine', label: 'Routine' },
-  { key: 'courses', label: 'Courses' }
+  { key: 'timeslot',   label: 'Time Slot'  },
+  { key: 'routine',    label: 'Routine'    },
+  { key: 'courses',    label: 'Courses'    },
 ];
 
 function RoutineManagement() {
@@ -70,7 +71,12 @@ function RoutineManagement() {
       case 'timeslot':
         return <TimeSlot />;
       case 'routine':
-        return <Routine onNavigate={setActiveSection} />;
+        return (
+          <RoutineSection
+            selectedSemesters={selectedSemesters}
+            onNavigate={setActiveSection}
+          />
+        );
       case 'courses':
         return <Courses selectedSemesters={selectedSemesters} />;
       default:

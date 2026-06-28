@@ -182,8 +182,8 @@ export default function AcademicCalendar() {
 
   const handlePublishConfirm = async () => {
     setSaving(true);
-    const res = await academicCalendarAPI.saveCalendar(
-      semesterId, { startDate, totalWeeks: totalWeeksNum }, entries, true
+    const res = await academicCalendarAPI.publishCalendar(
+      semesterId, { startDate, totalWeeks: totalWeeksNum }, entries
     );
     setSaving(false);
     if (res.success) {

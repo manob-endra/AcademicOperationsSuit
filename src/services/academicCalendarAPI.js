@@ -42,11 +42,24 @@ export const academicCalendarAPI = {
   async getCalendar(semesterId) {
     return makeRequest(`${API_BASE}/${semesterId}`);
   },
+
+  async getPublishedCalendars() {
+    return makeRequest(API_BASE);
+  },
+
   async saveCalendar(semesterId, config, entries, published = false) {
     return makeRequest(`${API_BASE}/${semesterId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ config, entries, published }),
+    });
+  },
+
+  async publishCalendar(semesterId, config, entries) {
+    return makeRequest(`${API_BASE}/${semesterId}/publish`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ config, entries }),
     });
   },
 };

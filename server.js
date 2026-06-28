@@ -19,8 +19,10 @@ import notificationRoutes from './src/backend/api/notificationRoutes.js';
 import academicSemesterRoutes from './src/backend/api/academicSemesterRoutes.js';
 import academicCalendarRoutes from './src/backend/api/academicCalendarRoutes.js';
 import studentRoutes from './src/backend/api/studentRoutes.js';
+import teacherLeaveRoutes from './src/backend/api/teacherLeaveRoutes.js';
 import notificationSystemRoutes from './src/backend/api/notificationSystemRoutes.js';
 import unsubscribeRoutes from './src/backend/api/unsubscribeRoutes.js';
+import examRoutineRoutes from './src/backend/api/examRoutineRoutes.js';
 import { startNotificationWorker } from './src/backend/services/notificationWorker.js';
 
 dotenv.config();
@@ -94,11 +96,17 @@ app.use('/api/academic-calendars', academicCalendarRoutes);
 // Students API routes
 app.use('/api/students', studentRoutes);
 
+// Teacher leave management routes
+app.use('/api/teacher-leaves', teacherLeaveRoutes);
+
 // Email notification system (admin audit log, retry, opted-out management)
 app.use('/api/email-notifications', notificationSystemRoutes);
 
 // Public token-based unsubscribe endpoint
 app.use('/api/unsubscribe', unsubscribeRoutes);
+
+// Exam routine (incourse / final)
+app.use('/api/exam-routine', examRoutineRoutes);
 
 app.listen(PORT, () => {
   console.log(`🚀 Email server running on http://localhost:${PORT}`);

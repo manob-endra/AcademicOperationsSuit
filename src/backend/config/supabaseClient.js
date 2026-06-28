@@ -15,20 +15,21 @@ dotenv.config();
  */
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
+const anonKey = process.env.VITE_SUPABASE_ANON_KEY;
+
+// Only use the service role key if it's set AND is a real JWT (not the placeholder example)
+const rawServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const isRealServiceKey = rawServiceKey.length > 100 && !rawServiceKey.includes('your-service-role-key');
+const supabaseKey = isRealServiceKey ? rawServiceKey : anonKey;
 
 if (!supabaseUrl || !supabaseKey) {
   console.error('⚠️ Missing Supabase credentials. Check your .env file!');
-  console.error('Required: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY');
+}
+
+if (!isRealServiceKey) {
+  console.warn('⚠️ Using anon key for backend DB access. If RLS is enabled on your tables, add SUPABASE_SERVICE_ROLE_KEY to .env (Supabase Dashboard → Project Settings → API → service_role)');
 }
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Optional: Create an admin client for server-side operations (if using Supabase Functions)
-export const createAdminClient = () => {
-  const adminKey = import.meta.env.VITE_SUPABASE_SERVICE_KEY;
-  if (!adminKey) {
-    console.warn('Service key not available. Use this only in secure backend environments.');
-  }
-  return createClient(supabaseUrl, adminKey);
-};
+export const createAdminClient = () => createClient(supabaseUrl, supabaseKey);
