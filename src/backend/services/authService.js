@@ -139,13 +139,15 @@ export const authService = {
 
   async signInWithEmail(email, password) {
     try {
+      const normalizedEmail = email.toLowerCase().trim();
       const { data, error } = await supabase
         .from('users')
         .select('*')
-        .eq('email', email)
-        .single();
+        .ilike('email', normalizedEmail)
+        .maybeSingle();
 
-      if (error || !data) throw new Error('User not found');
+      if (error) throw new Error(error.message);
+      if (!data) throw new Error('User not found');
 
       const isValid = await verifyPassword(password, data.password_hash);
       if (!isValid) throw new Error('Invalid password');

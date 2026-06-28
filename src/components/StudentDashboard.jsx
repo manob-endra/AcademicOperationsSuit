@@ -1,15 +1,19 @@
 import { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../contexts/AuthContext';
-import StudentNotice   from './student/StudentNotice';
-import StudentRoutine  from './student/StudentRoutine';
-import StudentCourses  from './student/StudentCourses';
+import StudentNotice           from './student/StudentNotice';
+import StudentRoutine          from './student/StudentRoutine';
+import StudentCourses          from './student/StudentCourses';
+import StudentAcademicCalendar from './student/StudentAcademicCalendar';
+import StudentExamRoutine from './student/StudentExamRoutine';
 import '../styles/StudentDashboard.css';
 
 const ALL_NAV = [
-  { key: 'notice',   label: 'Notices'    },
-  { key: 'routine',  label: 'My Routine' },
-  { key: 'courses',  label: 'My Courses' },
+  { key: 'notice',    label: 'Notices'           },
+  { key: 'routine',   label: 'My Routine'        },
+  { key: 'courses',   label: 'My Courses'        },
+  { key: 'calendar',  label: 'Academic Calendar' },
+  { key: 'exam',      label: 'Exam Schedule'     },
 ];
 
 function StudentDashboard() {
@@ -36,10 +40,12 @@ function StudentDashboard() {
 
   const renderContent = () => {
     switch (activeSection) {
-      case 'notice':  return <StudentNotice />;
-      case 'routine': return <StudentRoutine />;
-      case 'courses': return <StudentCourses />;
-      default:        return <StudentNotice />;
+      case 'notice':   return <StudentNotice />;
+      case 'routine':  return <StudentRoutine />;
+      case 'courses':  return <StudentCourses />;
+      case 'calendar': return <StudentAcademicCalendar />;
+      case 'exam':     return <StudentExamRoutine />;
+      default:         return <StudentNotice />;
     }
   };
 

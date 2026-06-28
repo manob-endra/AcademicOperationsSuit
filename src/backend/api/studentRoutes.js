@@ -10,6 +10,15 @@ router.get('/', async (req, res) => {
   res.status(500).json({ success: false, error: result.error });
 });
 
+// GET /api/students/by-email?email=xxx  (must stay before /:id)
+router.get('/by-email', async (req, res) => {
+  const { email } = req.query;
+  if (!email) return res.status(400).json({ success: false, error: 'email query param required.' });
+  const result = await studentService.getStudentByEmail(email);
+  if (result.success) return res.json({ success: true, data: result.data });
+  res.status(500).json({ success: false, error: result.error });
+});
+
 // GET /api/students/removed
 router.get('/removed', async (req, res) => {
   const result = await studentService.getInactiveStudents();

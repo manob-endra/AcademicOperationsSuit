@@ -6,16 +6,22 @@ import Notice from './teacher/Notice';
 import MyRoutine from './teacher/MyRoutine';
 import BatchWiseRoutine from './teacher/BatchWiseRoutine';
 import Preference from './teacher/Preference';
+import LeaveRequest from './teacher/LeaveRequest';
+import TeacherAcademicCalendar from './teacher/TeacherAcademicCalendar';
+import TeacherExamRoutine from './teacher/TeacherExamRoutine';
 import '../styles/TeacherDashboard.css';
 
 // Nav items that require admission
-const RESTRICTED = new Set(['my-routine', 'preference']);
+const RESTRICTED = new Set(['my-routine', 'preference', 'leave']);
 
 const ALL_NAV = [
   { key: 'notice',        label: 'Notice' },
   { key: 'my-routine',    label: 'My Routine' },
   { key: 'batch-routine', label: 'Batch Wise Routine' },
   { key: 'preference',    label: 'Preference' },
+  { key: 'leave',         label: 'Leave' },
+  { key: 'calendar',      label: 'Academic Calendar' },
+  { key: 'exam',          label: 'Exam Schedule' },
 ];
 
 function TeacherDashboard() {
@@ -87,6 +93,9 @@ function TeacherDashboard() {
       case 'my-routine':    return <MyRoutine user={user} teacherRecord={teacherRecord} />;
       case 'batch-routine': return <BatchWiseRoutine />;
       case 'preference':    return <Preference user={user} teacherRecord={teacherRecord} />;
+      case 'leave':         return <LeaveRequest teacherRecord={teacherRecord} userEmail={user?.email} />;
+      case 'calendar':      return <TeacherAcademicCalendar />;
+      case 'exam':          return <TeacherExamRoutine teacherRecord={teacherRecord} />;
       default:              return <Notice />;
     }
   };

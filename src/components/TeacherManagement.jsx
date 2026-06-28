@@ -6,6 +6,7 @@ import EditTeacherModal from './teacherManagement/EditTeacherModal';
 import ImportModal from './teacherManagement/ImportModal';
 import RemovedModal from './teacherManagement/RemovedModal';
 import RemoveConfirmModal from './teacherManagement/RemoveConfirmModal';
+import LeaveManagement from './teacherManagement/LeaveManagement';
 import '../styles/TeacherManagement.css';
 
 const AVAIL_LABEL = {
@@ -27,6 +28,7 @@ const FILTER_OPTIONS = [
 
 function TeacherManagement() {
   const navigate = useNavigate();
+  const [activePage, setActivePage] = useState('details'); // 'details' | 'leave'
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -120,19 +122,44 @@ function TeacherManagement() {
             <p className="tm-subtitle">{teachers.length} teacher{teachers.length !== 1 ? 's' : ''} registered</p>
           </div>
         </div>
-        <div className="tm-header-actions">
-          <button className="tm-btn tm-btn-ghost" onClick={() => setShowRemoved(true)}>
-            Removed Teachers
-          </button>
-          <button className="tm-btn tm-btn-secondary" onClick={() => setShowImport(true)}>
-            Import
-          </button>
-          <button className="tm-btn tm-btn-primary" onClick={() => setShowAdd(true)}>
-            + Add Teacher
-          </button>
-        </div>
+        {activePage === 'details' && (
+          <div className="tm-header-actions">
+            <button className="tm-btn tm-btn-ghost" onClick={() => setShowRemoved(true)}>
+              Removed Teachers
+            </button>
+            <button className="tm-btn tm-btn-secondary" onClick={() => setShowImport(true)}>
+              Import
+            </button>
+            <button className="tm-btn tm-btn-primary" onClick={() => setShowAdd(true)}>
+              + Add Teacher
+            </button>
+          </div>
+        )}
       </header>
 
+      {/* Page-level tabs */}
+      <div className="tm-page-tabs">
+        <button
+          className={`tm-page-tab${activePage === 'details' ? ' active' : ''}`}
+          onClick={() => setActivePage('details')}
+        >
+          Details
+        </button>
+        <button
+          className={`tm-page-tab${activePage === 'leave' ? ' active' : ''}`}
+          onClick={() => setActivePage('leave')}
+        >
+          Leave Management
+        </button>
+      </div>
+
+      {/* Leave Management page */}
+      {activePage === 'leave' && !loading && (
+        <LeaveManagement teachers={teachers} />
+      )}
+
+      {/* Details page */}
+      {activePage === 'details' && (
       <div className="tm-content">
         {error && <div className="tm-error-banner">{error}</div>}
 
@@ -180,7 +207,7 @@ function TeacherManagement() {
                   <th>Designation</th>
                   <th>Email</th>
                   <th>Joining Date</th>
-                  <th>Special Post</th>
+                  <th>Special / Dept. Position</th>
                   <th>Contact</th>
                   <th>Availability</th>
                   <th className="tm-th-actions"></th>
@@ -240,6 +267,7 @@ function TeacherManagement() {
           <span> · Unavailable: {teachers.filter(t => t.availability_status === 'unavailable').length}</span>
         </div>
       </div>
+      )} {/* end activePage === 'details' */}
 
       {showAdd && (
         <AddTeacherModal onClose={() => setShowAdd(false)} onAdd={handleAdd} />

@@ -35,6 +35,35 @@ export const studentService = {
     }
   },
 
+  async getStudentByEmail(email) {
+    try {
+      const lc = email.toLowerCase().trim();
+
+      // Prioritise institutional_email (primary login identifier)
+      const { data: byInst, error: e1 } = await supabase
+        .from('students')
+        .select(FIELDS)
+        .ilike('institutional_email', lc)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (e1) throw e1;
+      if (byInst) return { success: true, data: byInst };
+
+      // Fallback: personal/general email field
+      const { data: byEmail, error: e2 } = await supabase
+        .from('students')
+        .select(FIELDS)
+        .ilike('email', lc)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (e2) throw e2;
+      return { success: true, data: byEmail || null };
+    } catch (err) {
+      console.error('studentService.getStudentByEmail:', err);
+      return { success: false, error: err.message };
+    }
+  },
+
   async createStudent(fields) {
     try {
       const { data, error } = await supabase
