@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { examRoutineAPI } from '../../services/examRoutineAPI';
+import { academicCalendarAPI } from '../../services/academicCalendarAPI';
 
 const API = import.meta.env.VITE_API_URL || '';
 
@@ -56,10 +57,11 @@ export default function IncourseExamRoutine({ selectedSemesters = [] }) {
   const [routineMap,  setRoutineMap]  = useState({});
   const [globalLoad,  setGlobalLoad]  = useState(true);
 
-  const [semSessions, setSemSessions] = useState({}); // semId → { session, slots(DB), weightMap, leaveMap, loaded }
-  const [editSlots,   setEditSlots]   = useState({}); // semId → [editable slot]
-  const [invigState,  setInvigState]  = useState({}); // semId → { slotId: [invig] }
-  const [configs,     setConfigs]     = useState({}); // semId → config
+  const [semSessions,    setSemSessions]    = useState({}); // semId → { session, slots(DB), weightMap, leaveMap, loaded }
+  const [editSlots,      setEditSlots]      = useState({}); // semId → [editable slot]
+  const [invigState,     setInvigState]     = useState({}); // semId → { slotId: [invig] }
+  const [configs,        setConfigs]        = useState({}); // semId → config
+  const [calendarDates,  setCalendarDates]  = useState([]); // sorted incourse dates from academic calendar
 
   const [activeTab,  setActiveTab]  = useState('slots');
   const [saving,     setSaving]     = useState(false);
@@ -70,10 +72,11 @@ export default function IncourseExamRoutine({ selectedSemesters = [] }) {
   useEffect(() => {
     (async () => {
       setGlobalLoad(true);
-      const [cRes, tRes, rRes] = await Promise.all([
+      const [cRes, tRes, rRes, calRes] = await Promise.all([
         fetch(`${API}/courses`).then(r => r.json()).catch(() => ({})),
         fetch(`${API}/teachers`).then(r => r.json()).catch(() => ({})),
         fetch(`${API}/routine`).then(r => r.json()).catch(() => ({})),
+        academicCalendarAPI.getPublishedCalendars().catch(() => ({ success: false })),
       ]);
       const cm = {};
       for (const c of (cRes.data || cRes.courses || [])) cm[c.id] = c;
@@ -85,6 +88,15 @@ export default function IncourseExamRoutine({ selectedSemesters = [] }) {
         rm[e.semester].push(e);
       }
       setRoutineMap(rm);
+      // Extract incourse dates from the most recently published academic calendar
+      if (calRes.success && calRes.data?.length) {
+        const latest = calRes.data[0]; // ordered by updated_at DESC
+        const incDates = Object.entries(latest.entries || {})
+          .filter(([, v]) => v?.type === 'incourse')
+          .map(([d]) => d)
+          .sort();
+        setCalendarDates(incDates);
+      }
       setGlobalLoad(false);
     })();
   }, []);
@@ -150,14 +162,22 @@ export default function IncourseExamRoutine({ selectedSemesters = [] }) {
     const courses = theoryCourses(semId);
     if (!courses.length) { setMsg({ type:'error', text:'No theory courses found in the routine for this semester.' }); return; }
     const c = cfg(semId);
+    const hasCal = calendarDates.length > 0;
     setEditSlots(prev => ({
-      ...prev, [semId]: courses.map(course => ({
+      ...prev, [semId]: courses.map((course, idx) => ({
         _id: `new-${course.id}`, course_id: course.id,
-        exam_date: '', start_time: c.startTime, end_time: addMins(c.startTime, c.durationMins),
+        // Cycle through available calendar incourse dates; empty string if none
+        exam_date: hasCal ? calendarDates[idx % calendarDates.length] : '',
+        start_time: c.startTime, end_time: addMins(c.startTime, c.durationMins),
         rooms: c.rooms,
       })),
     }));
-    setMsg({ type:'info', text:`Generated ${courses.length} theory course slots. Set the exam date for each, then save.` });
+    setMsg({
+      type: hasCal ? 'success' : 'info',
+      text: hasCal
+        ? `Generated ${courses.length} slots. Dates pre-filled from academic calendar (${calendarDates.length} incourse day${calendarDates.length !== 1 ? 's' : ''}). Edit dates as needed.`
+        : `Generated ${courses.length} theory course slots. No incourse dates found in academic calendar — set dates manually.`,
+    });
   };
 
   const updEditSlot = (semId, idx, field, val) => {
@@ -177,7 +197,8 @@ export default function IncourseExamRoutine({ selectedSemesters = [] }) {
     setEditSlots(prev => ({
       ...prev, [semId]: [...(prev[semId] || []), {
         _id: `new-${Date.now()}`, course_id: courses[0]?.id || '',
-        exam_date: '', start_time: c.startTime, end_time: addMins(c.startTime, c.durationMins), rooms: c.rooms,
+        exam_date: calendarDates[0] || '', start_time: c.startTime,
+        end_time: addMins(c.startTime, c.durationMins), rooms: c.rooms,
       }],
     }));
   };
@@ -394,7 +415,7 @@ export default function IncourseExamRoutine({ selectedSemesters = [] }) {
             {/* ─── SLOTS TAB ─── */}
             {activeTab === 'slots' && (
               <div>
-                <div style={{ display:'flex', gap:10, marginBottom:16, flexWrap:'wrap', alignItems:'center' }}>
+                <div style={{ display:'flex', gap:10, marginBottom:12, flexWrap:'wrap', alignItems:'center' }}>
                   <button onClick={() => generateSlots(semId)}
                     style={{ padding:'8px 16px', borderRadius:8, border:'1.5px solid #d1d5db', fontSize:13, fontWeight:600, cursor:'pointer', background:'white', color:'#374151' }}>
                     Generate from theory courses ({theory.length})
@@ -405,6 +426,17 @@ export default function IncourseExamRoutine({ selectedSemesters = [] }) {
                   </button>
                   <span style={{ fontSize:11, color:'#9ca3af' }}>Lab courses excluded automatically.</span>
                 </div>
+                {calendarDates.length > 0 ? (
+                  <div style={{ fontSize:12, color:'#92400e', background:'#fef3c7', border:'1px solid #fde68a', borderRadius:7, padding:'7px 12px', marginBottom:14, display:'inline-flex', alignItems:'center', gap:6 }}>
+                    📅 <strong>{calendarDates.length} incourse exam day{calendarDates.length !== 1 ? 's' : ''}</strong> found in academic calendar:&nbsp;
+                    {calendarDates.map(d => fmtDate(d)?.date || d).join(', ')}
+                    . Dates will be pre-filled automatically.
+                  </div>
+                ) : (
+                  <div style={{ fontSize:12, color:'#6b7280', marginBottom:14 }}>
+                    No incourse exam dates published in academic calendar yet — dates must be set manually.
+                  </div>
+                )}
 
                 {slots.length === 0 ? (
                   <div style={{ textAlign:'center', padding:'48px 20px', color:'#9ca3af', fontSize:13, border:'1.5px dashed #e5e7eb', borderRadius:12 }}>
@@ -426,6 +458,7 @@ export default function IncourseExamRoutine({ selectedSemesters = [] }) {
                         {slots.map((slot, idx) => {
                           const course = allCourses[slot.course_id];
                           const df = slot.exam_date ? fmtDate(slot.exam_date) : null;
+                          const isFromCalendar = slot.exam_date && calendarDates.includes(slot.exam_date);
                           return (
                             <tr key={idx} style={{ background: idx%2===0?'white':'#f8fafc' }}>
                               <td style={{ ...TD, textAlign:'center', fontWeight:700, width:36 }}>{idx+1}</td>
@@ -433,6 +466,11 @@ export default function IncourseExamRoutine({ selectedSemesters = [] }) {
                                 <input type='date' value={slot.exam_date}
                                   onChange={e => updEditSlot(semId, idx, 'exam_date', e.target.value)}
                                   style={{ padding:'4px 8px', borderRadius:6, fontSize:12, display:'block', marginBottom:4, border:`1px solid ${slot.exam_date?'#d1d5db':'#f59e0b'}` }}/>
+                                {isFromCalendar && (
+                                  <div style={{ fontSize:10, color:'#b45309', background:'#fef3c7', border:'1px solid #fde68a', borderRadius:4, padding:'1px 5px', display:'inline-block', marginBottom:3 }}>
+                                    📅 from calendar
+                                  </div>
+                                )}
                                 {df && <div style={{ fontSize:11, color:'#6b7280', marginBottom:4 }}>{df.day}</div>}
                                 <div style={{ display:'flex', gap:4, alignItems:'center' }}>
                                   <input type='time' value={slot.start_time}
