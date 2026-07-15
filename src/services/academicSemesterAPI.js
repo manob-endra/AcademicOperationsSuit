@@ -54,22 +54,48 @@ export const academicSemesterAPI = {
     return result;
   },
 
+  async getRemovedSemesters() {
+    const result = await makeRequest(`${API_BASE_URL}/removed`);
+    if (result.success) return { success: true, data: result.data };
+    return result;
+  },
+
   async getSemesterById(id) {
     const result = await makeRequest(`${API_BASE_URL}/${id}`);
     if (result.success) return { success: true, data: result.data };
     return result;
   },
 
-  async createSemester(year, name) {
+  /**
+   * Create a semester. Pass rollover=true to archive the current
+   * course→teacher assignments to course history and refresh all
+   * routine data (loads, preferences, time slots, rooms, selection).
+   */
+  async createSemester(year, name, rollover = false) {
     const result = await makeRequest(API_BASE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ year, name }),
+      body: JSON.stringify({ year, name, rollover }),
     });
+    if (result.success) return { success: true, data: result.data, rollover: result.rollover };
+    return result;
+  },
+
+  /** Soft delete — semester moves to the recoverable Removed list. */
+  async removeSemester(id) {
+    const result = await makeRequest(`${API_BASE_URL}/${id}/remove`, { method: 'PATCH' });
     if (result.success) return { success: true, data: result.data };
     return result;
   },
 
+  /** Recover a semester from the Removed list. */
+  async restoreSemester(id) {
+    const result = await makeRequest(`${API_BASE_URL}/${id}/restore`, { method: 'PATCH' });
+    if (result.success) return { success: true, data: result.data };
+    return result;
+  },
+
+  /** Permanent delete (from the Removed list only). */
   async deleteSemester(id) {
     const result = await makeRequest(`${API_BASE_URL}/${id}`, { method: 'DELETE' });
     if (result.success) return { success: true };

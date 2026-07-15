@@ -217,14 +217,17 @@ function Routine({ onNavigate }) {
   const [settings,  setSettings]  = useState(null);
   const [courses,   setCourses]   = useState([]);
   const [teachers,  setTeachers]  = useState([]);
-  const [routine,   setRoutine]   = useState(null); // { entries, generatedAt }
+  const [routine,   setRoutine]   = useState(null); // { entries, generatedAt, saved }
 
   // UI states
   const [loading,    setLoading]    = useState(true);
   const [checking,   setChecking]   = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [saving,     setSaving]     = useState(false);
   const [conflicts,  setConflicts]  = useState(null); // null = not checked yet
   const [warnings,   setWarnings]   = useState([]);
+  const [gaReport,   setGaReport]   = useState(null); // GA result report (violations, stats)
+  const [seedInput,  setSeedInput]  = useState('');   // optional reproducibility seed
 
   const [selectedSemester, setSelectedSemester] = useState(null);
   const [selectedTeacher,  setSelectedTeacher]  = useState(null);
@@ -247,7 +250,7 @@ function Routine({ onNavigate }) {
     if (coursesRes.success)  setCourses(coursesRes.courses || []);
     if (teachersRes.success) setTeachers(teachersRes.data  || []);
     if (routineRes.success && (routineRes.entries?.length || 0) > 0) {
-      setRoutine({ entries: routineRes.entries, generatedAt: routineRes.generatedAt });
+      setRoutine({ entries: routineRes.entries, generatedAt: routineRes.generatedAt, saved: true });
       setView('batchwise'); // show saved routine immediately on revisit
     }
     setLoading(false);
@@ -279,11 +282,15 @@ function Routine({ onNavigate }) {
     return map;
   }, [routine]);
 
+  // sem → 'day-slot' → [entries] (Group A of one lab may legally sit beside
+  // Group B of another, so a cell can hold more than one entry)
   const entriesBySemDaySlot = useMemo(() => {
     const map = {};
     for (const e of routine?.entries || []) {
       if (!map[e.semester]) map[e.semester] = {};
-      map[e.semester][`${e.day_of_week}-${e.slot_id}`] = e;
+      const key = `${e.day_of_week}-${e.slot_id}`;
+      if (!map[e.semester][key]) map[e.semester][key] = [];
+      map[e.semester][key].push(e);
     }
     return map;
   }, [routine]);
@@ -292,16 +299,26 @@ function Routine({ onNavigate }) {
     return [...new Set((routine?.entries || []).map(e => e.semester))].sort();
   }, [routine]);
 
-  // teacher_id → { 'day-slot' → entry }
+  // teacher_id → { 'day-slot' → entry } — a course may have several teachers
   const entriesByTeacherDaySlot = useMemo(() => {
     const map = {};
     for (const e of routine?.entries || []) {
-      if (!e.teacher_id) continue;
-      if (!map[e.teacher_id]) map[e.teacher_id] = {};
-      map[e.teacher_id][`${e.day_of_week}-${e.slot_id}`] = e;
+      const tids = e.teacher_ids?.length ? e.teacher_ids : (e.teacher_id ? [e.teacher_id] : []);
+      for (const tid of tids) {
+        if (!map[tid]) map[tid] = {};
+        map[tid][`${e.day_of_week}-${e.slot_id}`] = e;
+      }
     }
     return map;
   }, [routine]);
+
+  // Display helpers for the new entry fields
+  const entryTeachers = (e) => {
+    const tids = e.teacher_ids?.length ? e.teacher_ids : (e.teacher_id ? [e.teacher_id] : []);
+    return tids.map(id => teacherMap[id]?.initials || teacherMap[id]?.name).filter(Boolean).join(', ');
+  };
+  const groupLabel = (g) =>
+    g === 'alt' ? 'Group A/B · alt weeks' : g ? `Group ${g}` : null;
 
   // Sorted list of teachers who actually appear in the routine
   const teachersInRoutine = useMemo(() => {
@@ -328,24 +345,40 @@ function Routine({ onNavigate }) {
 
   const handleGenerate = async () => {
     setGenerating(true);
-    const result = await routineAPI.generateRoutine();
+    const seed = seedInput.trim() === '' ? undefined : Number(seedInput);
+    const result = await routineAPI.generateRoutine(seed);
     setGenerating(false);
     if (result.success) {
-      setRoutine({ entries: result.entries, generatedAt: result.generatedAt });
-      setWarnings(result.warnings || []);
+      // Preview only — the admin saves explicitly before publishing
+      setRoutine({ entries: result.entries, generatedAt: result.generatedAt, saved: false });
+      setGaReport(result.report || null);
+      setWarnings(result.report?.inputProblems || result.warnings || []);
       setConflicts(null);
-      setView('daywise');
+      setView('batchwise');
     } else {
       alert(`Generation failed: ${result.error}`);
     }
   };
 
+  const handleSave = async () => {
+    if (!routine || routine.saved) return;
+    setSaving(true);
+    const r = await routineAPI.saveRoutine(routine.entries, routine.generatedAt);
+    setSaving(false);
+    if (r.success) {
+      setRoutine(prev => ({ ...prev, saved: true, generatedAt: r.generatedAt || prev.generatedAt }));
+    } else {
+      alert(`Save failed: ${r.error}`);
+    }
+  };
+
   const handleClear = async () => {
     if (!window.confirm('Clear the generated routine?')) return;
-    await routineAPI.clearRoutine();
+    if (routine?.saved) await routineAPI.clearRoutine();
     setRoutine(null);
     setWarnings([]);
     setConflicts(null);
+    setGaReport(null);
     setView('generation');
   };
 
@@ -401,6 +434,39 @@ function Routine({ onNavigate }) {
         )}
       </div>
 
+      {/* ── Preview / Save bar ── */}
+      {routine && (
+        <div className={`routine-preview-bar${routine.saved ? ' routine-preview-bar--saved' : ''}`}>
+          {routine.saved ? (
+            <span className="rpb-text">
+              ✓ Routine saved{routine.generatedAt ? ` — ${new Date(routine.generatedAt).toLocaleString()}` : ''}. You can publish it per semester from the Batch-Wise view.
+            </span>
+          ) : (
+            <>
+              <span className="rpb-text">
+                👁 <strong>Preview</strong> — this routine is <strong>not saved yet</strong>. Save it to enable publishing, or regenerate for a different layout.
+              </span>
+              <div className="rpb-actions">
+                <button
+                  className="rpb-btn rpb-btn--regen"
+                  onClick={handleGenerate}
+                  disabled={generating || saving}
+                >
+                  {generating ? 'Regenerating…' : '🔄 Regenerate'}
+                </button>
+                <button
+                  className="rpb-btn rpb-btn--save"
+                  onClick={handleSave}
+                  disabled={saving || generating}
+                >
+                  {saving ? 'Saving…' : '💾 Save Routine'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {/* ════════════════════════════════════════
           Generation View
       ════════════════════════════════════════ */}
@@ -425,16 +491,46 @@ function Routine({ onNavigate }) {
               {checking ? 'Checking…' : 'Check Conflicts'}
             </button>
 
-            {conflicts !== null && !hasErrors && (
-              <button
-                className="routine-btn routine-btn--generate"
-                onClick={handleGenerate}
-                disabled={generating}
-              >
-                {generating ? 'Generating…' : 'Generate Routine'}
-              </button>
-            )}
+            <button
+              className="routine-btn routine-btn--generate"
+              onClick={handleGenerate}
+              disabled={generating}
+            >
+              {generating ? 'Generating (memetic GA)…' : 'Generate Routine'}
+            </button>
+
+            <input
+              className="routine-seed-input"
+              type="number"
+              placeholder="Seed (optional)"
+              title="Enter a number to make the generation reproducible — the same seed always produces the same routine."
+              value={seedInput}
+              onChange={e => setSeedInput(e.target.value)}
+            />
           </div>
+
+          {/* GA result report */}
+          {gaReport && (
+            <div className={`ga-report${gaReport.feasible ? ' ga-report--ok' : ' ga-report--bad'}`}>
+              <div className="ga-report-head">
+                {gaReport.feasible
+                  ? '✓ Conflict-free routine generated (all hard constraints satisfied).'
+                  : `✕ ${gaReport.hardCount} hard violation${gaReport.hardCount !== 1 ? 's' : ''} could not be resolved — the input may be infeasible.`}
+              </div>
+              <div className="ga-report-stats">
+                {gaReport.stats.events} events · {gaReport.stats.entries} routine slots ·{' '}
+                {gaReport.stats.generations} generations · {(gaReport.stats.elapsedMs / 1000).toFixed(1)}s ·{' '}
+                soft score {gaReport.softCost} · seed {gaReport.stats.seed}
+              </div>
+              {gaReport.hardViolations.length > 0 && (
+                <ul className="ga-report-violations">
+                  {gaReport.hardViolations.map((v, i) => (
+                    <li key={i}><strong>{v.type}</strong> — {v.message}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
           {/* Conflict results */}
           {conflicts !== null && (
@@ -531,6 +627,9 @@ function Routine({ onNavigate }) {
                                         <span className="day-entry-title">
                                           {c?.title || c?.code || '?'}
                                         </span>
+                                        {e.group && (
+                                          <span className="entry-group-chip">{groupLabel(e.group)}</span>
+                                        )}
                                         <span className="day-entry-sem">{semLabel(e.semester)}</span>
                                         {e.room && (
                                           <span className="day-entry-room">{e.room}</span>
@@ -638,6 +737,9 @@ function Routine({ onNavigate }) {
                                           <div className={`batch-entry tw-entry${c?.course_type === 'lab' ? ' lab' : ''}`}>
                                             <span className="batch-entry-code">{c?.code}</span>
                                             <span className="batch-entry-title">{c?.title}</span>
+                                            {e.group && (
+                                              <span className="entry-group-chip">{groupLabel(e.group)}</span>
+                                            )}
                                             {e.room && <span className="batch-entry-room">{e.room}</span>}
                                             <span className="tw-semester-tag">{semLabel(e.semester)}</span>
                                           </div>
@@ -705,6 +807,7 @@ function Routine({ onNavigate }) {
                     <h4 className="batch-title" style={{ margin: 0 }}>{semLabel(selectedSemester)}</h4>
                     <button
                       onClick={() => setPublishModal({ semId: selectedSemester, semLabel: semLabel(selectedSemester) })}
+                      disabled={!routine?.saved}
                       style={{
                         padding: '8px 20px',
                         background: 'linear-gradient(135deg,#1a3a52,#2c5f8a)',
@@ -713,12 +816,15 @@ function Routine({ onNavigate }) {
                         borderRadius: 8,
                         fontSize: 13,
                         fontWeight: 700,
-                        cursor: 'pointer',
+                        cursor: routine?.saved ? 'pointer' : 'not-allowed',
+                        opacity: routine?.saved ? 1 : 0.55,
                         display: 'flex',
                         alignItems: 'center',
                         gap: 6,
                       }}
-                      title={`Publish ${semLabel(selectedSemester)} routine and notify students & teachers`}
+                      title={routine?.saved
+                        ? `Publish ${semLabel(selectedSemester)} routine and notify students & teachers`
+                        : 'Save the routine first — publishing sends the saved routine'}
                     >
                       📢 Publish &amp; Notify
                     </button>
@@ -753,20 +859,27 @@ function Routine({ onNavigate }) {
                               if (col.type === 'break') {
                                 return <td key="lunch" className="routine-td routine-td--break" />;
                               }
-                              const e = entriesBySemDaySlot[selectedSemester]?.[`${day}-${col.slotId}`];
-                              const c = e ? courseMap[e.course_id]   : null;
-                              const t = e ? teacherMap[e.teacher_id] : null;
+                              const es = entriesBySemDaySlot[selectedSemester]?.[`${day}-${col.slotId}`] || [];
                               return (
                                 <td key={col.slotId} className="routine-td">
-                                  {e ? (
-                                    <div className={`batch-entry${c?.course_type === 'lab' ? ' lab' : ''}`}>
-                                      <span className="batch-entry-code">{c?.code}</span>
-                                      <span className="batch-entry-title">{c?.title}</span>
-                                      {e.room && <span className="batch-entry-room">{e.room}</span>}
-                                      {t && <span className="batch-entry-teacher">{t.initials || t.name}</span>}
-                                    </div>
-                                  ) : (
+                                  {es.length === 0 ? (
                                     <span className="routine-empty">—</span>
+                                  ) : (
+                                    es.map((e, i) => {
+                                      const c = courseMap[e.course_id];
+                                      const tNames = entryTeachers(e);
+                                      return (
+                                        <div key={i} className={`batch-entry${c?.course_type === 'lab' ? ' lab' : ''}`}>
+                                          <span className="batch-entry-code">{c?.code}</span>
+                                          <span className="batch-entry-title">{c?.title}</span>
+                                          {e.group && (
+                                            <span className="entry-group-chip">{groupLabel(e.group)}</span>
+                                          )}
+                                          {e.room && <span className="batch-entry-room">{e.room}</span>}
+                                          {tNames && <span className="batch-entry-teacher">{tNames}</span>}
+                                        </div>
+                                      );
+                                    })
                                   )}
                                 </td>
                               );

@@ -131,6 +131,24 @@ router.get('/semester/:semester', async (req, res) => {
 });
 
 /**
+ * GET /api/courses/:id/history
+ * Teaching history for a course (archived on semester rollover)
+ */
+router.get('/:id/history', async (req, res) => {
+  try {
+    const result = await courseService.getCourseHistory(req.params.id);
+    if (result.success) {
+      res.json({ success: true, data: result.history });
+    } else {
+      res.status(400).json({ success: false, error: result.error });
+    }
+  } catch (error) {
+    console.error('Error fetching course history:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch course history' });
+  }
+});
+
+/**
  * GET /api/courses/:id
  * Get a single course by ID
  */

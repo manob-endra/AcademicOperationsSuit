@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { academicSemesterAPI } from '../services/academicSemesterAPI';
+import AdminHeader from './shared/layout/AdminHeader';
+import AppFooter from './shared/layout/AppFooter';
+import BackToDashboard from './shared/layout/BackToDashboard';
 import '../styles/ModulePages.css';
 import '../styles/SemesterOptions.css';
 
@@ -40,31 +43,22 @@ function SemesterOptions() {
   };
 
   return (
-    <main className="module-page">
-      <header className="module-header">
-        <button
-          className="back-button"
-          onClick={() => navigate('/admin-dashboard/routine-management')}
-        >
-          ← Semesters
-        </button>
-        <div>
-          {loading ? (
-            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700 }}>Loading…</h1>
-          ) : error ? (
-            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: '#fca5a5' }}>{error}</h1>
-          ) : (
-            <>
-              <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700 }}>
-                {semester.name} {semester.year}
-              </h1>
-              <p style={{ margin: '2px 0 0', fontSize: 13, opacity: 0.75 }}>
-                Choose what you want to manage for this semester
-              </p>
-            </>
-          )}
-        </div>
-      </header>
+    <main className="module-page page-shell">
+      <BackToDashboard />
+      <AdminHeader pageTitle="Routine Management" />
+
+      <div className="module-title-bar">
+        {loading ? (
+          <h1>Loading…</h1>
+        ) : error ? (
+          <h1 style={{ color: '#dc2626' }}>{error}</h1>
+        ) : (
+          <>
+            <h1>{semester.name} {semester.year}</h1>
+            <p>Choose what you want to manage for this semester</p>
+          </>
+        )}
+      </div>
 
       <div className="module-content">
         {!loading && !error && (
@@ -91,6 +85,8 @@ function SemesterOptions() {
           </div>
         )}
       </div>
+
+      <AppFooter />
     </main>
   );
 }

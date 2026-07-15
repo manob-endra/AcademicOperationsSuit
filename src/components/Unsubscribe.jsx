@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { notificationSystemAPI } from '../services/notificationSystemAPI';
+import AppFooter from './shared/layout/AppFooter';
 
 const S = {
   page: {
@@ -95,13 +96,16 @@ export default function Unsubscribe() {
   };
 
   return (
-    <div style={S.page}>
-      <div style={S.card}>
-        <div style={{ marginBottom: 6, fontSize: 13, color: '#9ca3af' }}>
-          Academic Operation Suite — CSE, University of Dhaka
+    <div style={{ ...S.page, flexDirection: 'column', alignItems: 'stretch', justifyContent: 'flex-start' }}>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div style={S.card}>
+          <div style={{ marginBottom: 6, fontSize: 13, color: '#9ca3af' }}>
+            Academic Operation Suite — CSE, University of Dhaka
+          </div>
+          {render()}
         </div>
-        {render()}
       </div>
+      <AppFooter />
     </div>
   );
 }

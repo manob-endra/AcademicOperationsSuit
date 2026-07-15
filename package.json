@@ -9,6 +9,7 @@
     "dev-all": "concurrently \"npm run server\" \"npm run dev\"",
     "build": "vite build",
     "lint": "eslint .",
+    "test:ga": "node --test \"src/backend/services/routineGA/__tests__/routineGA.test.mjs\"",
     "preview": "vite preview"
   },
   "dependencies": {

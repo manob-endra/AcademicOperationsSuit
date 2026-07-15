@@ -964,3 +964,125 @@
   font-size: 15px;
   margin: 0;
 }
+
+/* ── Preview / Save bar ── */
+.routine-preview-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  background: #fffbeb;
+  border: 1.5px solid #fde68a;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 18px;
+}
+
+.routine-preview-bar--saved {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.rpb-text {
+  font-size: 13.5px;
+  color: #78350f;
+}
+
+.routine-preview-bar--saved .rpb-text {
+  color: #166534;
+}
+
+.rpb-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.rpb-btn {
+  padding: 8px 18px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.rpb-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.rpb-btn--save {
+  background: linear-gradient(135deg, #166534, #16a34a);
+  color: white;
+}
+
+.rpb-btn--regen {
+  background: white;
+  color: #92400e;
+  border: 1.5px solid #fcd34d;
+}
+
+.rpb-btn:hover:not(:disabled) { opacity: 0.85; }
+
+/* ── Seed input ── */
+.routine-seed-input {
+  width: 140px;
+  padding: 10px 12px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #1f2937;
+  outline: none;
+}
+
+.routine-seed-input:focus { border-color: #2c5f8a; }
+
+/* ── GA result report ── */
+.ga-report {
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-top: 18px;
+  border: 1.5px solid;
+  font-size: 13.5px;
+}
+
+.ga-report--ok  { background: #f0fdf4; border-color: #bbf7d0; }
+.ga-report--bad { background: #fef2f2; border-color: #fecaca; }
+
+.ga-report-head {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.ga-report--ok  .ga-report-head { color: #166534; }
+.ga-report--bad .ga-report-head { color: #b91c1c; }
+
+.ga-report-stats {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.ga-report-violations {
+  margin: 10px 0 0;
+  padding-left: 20px;
+  color: #7f1d1d;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+/* ── Lab group chip on routine entries ── */
+.entry-group-chip {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  background: #ede9fe;
+  color: #5b21b6;
+  border-radius: 10px;
+  padding: 1px 8px;
+  margin: 2px 0;
+  white-space: nowrap;
+}

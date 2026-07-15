@@ -1,17 +1,18 @@
-import { useNavigate } from 'react-router-dom';
+import AdminHeader from './shared/layout/AdminHeader';
+import AppFooter from './shared/layout/AppFooter';
+import BackToDashboard from './shared/layout/BackToDashboard';
 import '../styles/ModulePages.css';
 
 function ExamRoutine() {
-  const navigate = useNavigate();
-
   return (
-    <main className="module-page">
-      <header className="module-header">
-        <button className="back-button" onClick={() => navigate('/admin-dashboard')}>
-          ←
-        </button>
+    <main className="module-page page-shell">
+      <BackToDashboard />
+      <AdminHeader pageTitle="Exam Routine" />
+
+      <div className="module-title-bar">
         <h1>Exam Routine</h1>
-      </header>
+        <p>Schedule examinations and coordinate hall-wise planning.</p>
+      </div>
 
       <section className="module-content">
         <div className="content-placeholder">
@@ -24,6 +25,8 @@ function ExamRoutine() {
           </ul>
         </div>
       </section>
+
+      <AppFooter />
     </main>
   );
 }

@@ -9,6 +9,7 @@ import Preference from './teacher/Preference';
 import LeaveRequest from './teacher/LeaveRequest';
 import TeacherAcademicCalendar from './teacher/TeacherAcademicCalendar';
 import TeacherExamRoutine from './teacher/TeacherExamRoutine';
+import AppFooter from './shared/layout/AppFooter';
 import '../styles/TeacherDashboard.css';
 
 // Nav items that require admission
@@ -101,7 +102,7 @@ function TeacherDashboard() {
   };
 
   return (
-    <div className="teacher-dashboard">
+    <div className="teacher-dashboard page-shell">
       {/* ── Top Navigation Bar ── */}
       <header className="td-header">
         {/* Brand */}
@@ -158,6 +159,8 @@ function TeacherDashboard() {
       <main className="td-content">
         {renderContent()}
       </main>
+
+      <AppFooter />
     </div>
   );
 }

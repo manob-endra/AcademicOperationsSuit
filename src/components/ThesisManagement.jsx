@@ -1,17 +1,18 @@
-import { useNavigate } from 'react-router-dom';
+import AdminHeader from './shared/layout/AdminHeader';
+import AppFooter from './shared/layout/AppFooter';
+import BackToDashboard from './shared/layout/BackToDashboard';
 import '../styles/ModulePages.css';
 
 function ThesisManagement() {
-  const navigate = useNavigate();
-
   return (
-    <main className="module-page">
-      <header className="module-header">
-        <button className="back-button" onClick={() => navigate('/admin-dashboard')}>
-          ←
-        </button>
+    <main className="module-page page-shell">
+      <BackToDashboard />
+      <AdminHeader pageTitle="Thesis Management" />
+
+      <div className="module-title-bar">
         <h1>Thesis Management</h1>
-      </header>
+        <p>Track thesis topics, supervisors, and submission status.</p>
+      </div>
 
       <section className="module-content">
         <div className="content-placeholder">
@@ -24,6 +25,8 @@ function ThesisManagement() {
           </ul>
         </div>
       </section>
+
+      <AppFooter />
     </main>
   );
 }

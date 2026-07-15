@@ -1,17 +1,18 @@
-import { useNavigate } from 'react-router-dom';
+import AdminHeader from './shared/layout/AdminHeader';
+import AppFooter from './shared/layout/AppFooter';
+import BackToDashboard from './shared/layout/BackToDashboard';
 import '../styles/ModulePages.css';
 
 function InvigilationAssignment() {
-  const navigate = useNavigate();
-
   return (
-    <main className="module-page">
-      <header className="module-header">
-        <button className="back-button" onClick={() => navigate('/admin-dashboard')}>
-          ←
-        </button>
+    <main className="module-page page-shell">
+      <BackToDashboard />
+      <AdminHeader pageTitle="Invigilation Assignment" />
+
+      <div className="module-title-bar">
         <h1>Invigilation Assignment</h1>
-      </header>
+        <p>Assign invigilators by date, slot, and examination hall.</p>
+      </div>
 
       <section className="module-content">
         <div className="content-placeholder">
@@ -24,6 +25,8 @@ function InvigilationAssignment() {
           </ul>
         </div>
       </section>
+
+      <AppFooter />
     </main>
   );
 }

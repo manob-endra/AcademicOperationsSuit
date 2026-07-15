@@ -2,6 +2,7 @@ import { useState, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authAPI, validateEmail } from '../services/authAPI';
 import { AuthContext } from '../contexts/AuthContext';
+import AuthLayout from './shared/layout/AuthLayout';
 import '../styles/Auth.css';
 
 function Login() {
@@ -77,20 +78,12 @@ function Login() {
   };
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <div className="auth-card-header">
-          <div className="auth-logo">
-            <img src="/favicon.svg" alt="logo" />
-          </div>
-          <h1 className="auth-title">Academic Operation Suite</h1>
-          <p className="auth-subtitle">Department of CSE, University of Dhaka</p>
-        </div>
+    <AuthLayout>
+      <div className="auth-card-simple">
+        <h2 className="auth-form-title">Sign In</h2>
+        <p className="auth-form-sub">Use your university email to continue</p>
 
-        <div className="auth-card-body">
-          <h2 className="auth-form-title">Sign In</h2>
-
-          {error && <div className="auth-error">{error}</div>}
+        {error && <div className="auth-error">{error}</div>}
 
           {/* Email-not-verified banner */}
           {unverifiedEmail && (
@@ -158,13 +151,12 @@ function Login() {
             </button>
           </form>
 
-          <p className="auth-footer-text">
-            Don&apos;t have an account?{' '}
-            <Link to="/signup">Create one here</Link>
-          </p>
-        </div>
+        <p className="auth-footer-text">
+          Don&apos;t have an account?{' '}
+          <Link to="/signup">Create one here</Link>
+        </p>
       </div>
-    </div>
+    </AuthLayout>
   );
 }
 
