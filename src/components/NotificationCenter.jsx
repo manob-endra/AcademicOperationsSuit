@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { notificationSystemAPI } from '../services/notificationSystemAPI';
+import AdminHeader from './shared/layout/AdminHeader';
+import AppFooter from './shared/layout/AppFooter';
+import BackToDashboard from './shared/layout/BackToDashboard';
 import '../styles/NotificationCenter.css';
 
 const PAGE_SIZE = 50;
@@ -299,7 +301,6 @@ const TABS = [
 ];
 
 export default function NotificationCenter() {
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('jobs');
 
   // ── Publish bar state ──────────────────────────────────────────────────────
@@ -342,11 +343,10 @@ export default function NotificationCenter() {
   };
 
   return (
-    <div className="nc-page">
+    <div className="nc-page page-shell">
+      <BackToDashboard />
+      <AdminHeader pageTitle="Notification Center" />
       <div className="nc-header">
-        <button className="nc-back-btn" onClick={() => navigate('/admin-dashboard')}>
-          ← Back
-        </button>
         <div className="nc-header-titles">
           <h1>Notification Center</h1>
           <p>Publish routines and audit email delivery logs</p>
@@ -396,6 +396,8 @@ export default function NotificationCenter() {
         {activeTab === 'deliveries' && <DeliveryTab />}
         {activeTab === 'unsub'      && <UnsubscribeTab />}
       </div>
+
+      <AppFooter />
     </div>
   );
 }

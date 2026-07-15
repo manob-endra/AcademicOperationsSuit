@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { authAPI } from '../services/authAPI';
+import AuthLayout from './shared/layout/AuthLayout';
 import '../styles/Auth.css';
 
 const EXPIRY_SECONDS = 15 * 60; // 15 minutes
@@ -92,95 +93,68 @@ function EmailVerification() {
   // ── Success screen ──
   if (phase === 'success') {
     return (
-      <div className="auth-page">
-        <div className="auth-card">
-          <div className="auth-card-header">
-            <div className="auth-logo">
-              <img src="/favicon.svg" alt="logo" />
-            </div>
-            <h1 className="auth-title">Academic Operation Suite</h1>
-            <p className="auth-subtitle">Department of CSE, University of Dhaka</p>
-          </div>
-          <div className="auth-card-body" style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 52, marginBottom: 14 }}>✅</div>
-            <h2 className="auth-form-title" style={{ marginBottom: 10 }}>Email Verified!</h2>
-            <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 28 }}>
-              Your email address has been verified successfully.<br />
-              You can now sign in to your account.
-            </p>
-            <button
-              className="auth-btn-primary"
-              onClick={() => navigate('/login')}
-            >
-              Go to Sign In
-            </button>
-          </div>
+      <AuthLayout>
+        <div className="auth-card-simple" style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 52, marginBottom: 14 }}>✅</div>
+          <h2 className="auth-form-title" style={{ marginBottom: 10 }}>Email Verified!</h2>
+          <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 28 }}>
+            Your email address has been verified successfully.<br />
+            You can now sign in to your account.
+          </p>
+          <button
+            className="auth-btn-primary"
+            onClick={() => navigate('/login')}
+          >
+            Go to Sign In
+          </button>
         </div>
-      </div>
+      </AuthLayout>
     );
   }
 
   // ── Enter email screen (no state provided) ──
   if (phase === 'enter-email') {
     return (
-      <div className="auth-page">
-        <div className="auth-card">
-          <div className="auth-card-header">
-            <div className="auth-logo">
-              <img src="/favicon.svg" alt="logo" />
+      <AuthLayout>
+        <div className="auth-card-simple">
+          <h2 className="auth-form-title">Verify Your Email</h2>
+          <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 24, textAlign: 'center' }}>
+            Enter your university email and we&apos;ll send you a verification code.
+          </p>
+
+          {error && <div className="auth-error">{error}</div>}
+
+          <form onSubmit={handleSendCode} className="auth-form">
+            <div className="auth-field">
+              <label htmlFor="emailInput">University Email</label>
+              <input
+                id="emailInput"
+                type="email"
+                placeholder="yourname@cse.du.ac.bd"
+                value={emailInput}
+                onChange={e => setEmailInput(e.target.value)}
+                required
+                autoComplete="email"
+              />
             </div>
-            <h1 className="auth-title">Academic Operation Suite</h1>
-            <p className="auth-subtitle">Department of CSE, University of Dhaka</p>
-          </div>
-          <div className="auth-card-body">
-            <h2 className="auth-form-title">Verify Your Email</h2>
-            <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 24, textAlign: 'center' }}>
-              Enter your university email and we&apos;ll send you a verification code.
-            </p>
+            <button type="submit" className="auth-btn-primary" disabled={loading}>
+              {loading ? <span className="auth-spinner" /> : 'Send Verification Code'}
+            </button>
+          </form>
 
-            {error && <div className="auth-error">{error}</div>}
-
-            <form onSubmit={handleSendCode} className="auth-form">
-              <div className="auth-field">
-                <label htmlFor="emailInput">University Email</label>
-                <input
-                  id="emailInput"
-                  type="email"
-                  placeholder="yourname@cse.du.ac.bd"
-                  value={emailInput}
-                  onChange={e => setEmailInput(e.target.value)}
-                  required
-                  autoComplete="email"
-                />
-              </div>
-              <button type="submit" className="auth-btn-primary" disabled={loading}>
-                {loading ? <span className="auth-spinner" /> : 'Send Verification Code'}
-              </button>
-            </form>
-
-            <p className="auth-footer-text">
-              Already verified? <Link to="/login">Sign in</Link>
-            </p>
-          </div>
+          <p className="auth-footer-text">
+            Already verified? <Link to="/login">Sign in</Link>
+          </p>
         </div>
-      </div>
+      </AuthLayout>
     );
   }
 
   // ── Code entry screen ──
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <div className="auth-card-header">
-          <div className="auth-logo">
-            <img src="/favicon.svg" alt="logo" />
-          </div>
-          <h1 className="auth-title">Academic Operation Suite</h1>
-          <p className="auth-subtitle">Department of CSE, University of Dhaka</p>
-        </div>
-
-        <div className="auth-card-body">
-          <h2 className="auth-form-title">Check Your Email</h2>
+    <AuthLayout>
+      <div className="auth-card-simple">
+        <h2 className="auth-form-title">Check Your Email</h2>
 
           <p style={{ color: '#6b7280', fontSize: 14, textAlign: 'center', marginBottom: 6 }}>
             We sent a 6-digit verification code to
@@ -251,9 +225,8 @@ function EmailVerification() {
           <p className="auth-footer-text" style={{ marginTop: 16 }}>
             Wrong email? <Link to="/signup">Sign up again</Link>
           </p>
-        </div>
       </div>
-    </div>
+    </AuthLayout>
   );
 }
 

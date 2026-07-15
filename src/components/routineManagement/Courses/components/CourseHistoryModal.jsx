@@ -1,14 +1,18 @@
 import '../styles/Modal.css';
 
-function CourseHistoryModal({ isOpen, onClose, courseCode, courseTitle, history }) {
-  const defaultHistory = [
-    { semester: 'Jun-2025', teacher: 'Dr. John Smith', students: 45 },
-    { semester: 'Dec-2024', teacher: 'Prof. Sarah Johnson', students: 52 },
-    { semester: 'Jun-2024', teacher: 'Dr. John Smith', students: 48 },
-  ];
+function formatDate(d) {
+  if (!d) return '';
+  const dt = new Date(d);
+  if (isNaN(dt)) return '';
+  return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
 
-  const courseHistory = history || defaultHistory;
-
+/**
+ * Shows which teachers taught this course in previous semesters.
+ * Entries come from the course_history table, written automatically
+ * when the admin creates a new semester with rollover.
+ */
+function CourseHistoryModal({ isOpen, onClose, courseCode, courseTitle, history = [], loading = false }) {
   if (!isOpen) return null;
 
   return (
@@ -27,27 +31,36 @@ function CourseHistoryModal({ isOpen, onClose, courseCode, courseTitle, history 
 
           <div className="history-list">
             <h4>Teaching History:</h4>
-            {courseHistory.length > 0 ? (
+            {loading ? (
+              <p className="no-history">Loading history…</p>
+            ) : history.length > 0 ? (
               <table className="history-table">
                 <thead>
                   <tr>
                     <th>Semester</th>
-                    <th>Teacher</th>
-                    <th>Students</th>
+                    <th>Teacher(s)</th>
+                    <th>Archived</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {courseHistory.map((item, index) => (
+                  {history.map((item, index) => (
                     <tr key={index}>
-                      <td>{item.semester}</td>
-                      <td>{item.teacher}</td>
-                      <td>{item.students}</td>
+                      <td>{item.semester_label}</td>
+                      <td>
+                        {Array.isArray(item.teacher_names) && item.teacher_names.length > 0
+                          ? item.teacher_names.join(', ')
+                          : '—'}
+                      </td>
+                      <td>{formatDate(item.archived_at)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             ) : (
-              <p className="no-history">No history available for this course.</p>
+              <p className="no-history">
+                No history yet. When a new semester is created with rollover,
+                this course&apos;s assigned teachers are archived here.
+              </p>
             )}
           </div>
         </div>

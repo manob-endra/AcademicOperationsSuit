@@ -1,9 +1,9 @@
 const API_BASE_URL = `${import.meta.env.VITE_API_URL}/routine`;
 
-const makeRequest = async (url, options = {}) => {
+const makeRequest = async (url, options = {}, timeoutMs = 20000) => {
   try {
     const controller = new AbortController();
-    const timeoutId  = setTimeout(() => controller.abort(), 20000);
+    const timeoutId  = setTimeout(() => controller.abort(), timeoutMs);
     const response   = await fetch(url, { ...options, signal: controller.signal });
     clearTimeout(timeoutId);
 
@@ -33,20 +33,37 @@ export const routineAPI = {
     return result;
   },
 
-  async generateRoutine() {
+  /**
+   * Run the memetic GA and get a routine PREVIEW (not persisted).
+   * Optional `seed` reproduces a previous run exactly.
+   * Generation can take a while on large inputs — generous timeout.
+   */
+  async generateRoutine(seed) {
+    const body = seed !== undefined && seed !== null && seed !== '' ? { seed } : {};
     const result = await makeRequest(`${API_BASE_URL}/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-    });
+      body: JSON.stringify(body),
+    }, 180000);
     if (result.success) {
       return {
         success:     true,
         entries:     result.entries,
         warnings:    result.warnings || [],
+        report:      result.report || null,
         generatedAt: result.generatedAt,
       };
     }
     return result;
+  },
+
+  /** Persist a previewed routine so it can be published. */
+  async saveRoutine(entries, generatedAt) {
+    return makeRequest(`${API_BASE_URL}/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entries, generatedAt }),
+    });
   },
 
   async getRoutine() {

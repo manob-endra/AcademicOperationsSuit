@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { teacherAPI } from '../services/teacherAPI';
 import AddTeacherModal from './teacherManagement/AddTeacherModal';
 import EditTeacherModal from './teacherManagement/EditTeacherModal';
@@ -7,6 +6,9 @@ import ImportModal from './teacherManagement/ImportModal';
 import RemovedModal from './teacherManagement/RemovedModal';
 import RemoveConfirmModal from './teacherManagement/RemoveConfirmModal';
 import LeaveManagement from './teacherManagement/LeaveManagement';
+import AdminHeader from './shared/layout/AdminHeader';
+import AppFooter from './shared/layout/AppFooter';
+import BackToDashboard from './shared/layout/BackToDashboard';
 import '../styles/TeacherManagement.css';
 
 const AVAIL_LABEL = {
@@ -27,7 +29,6 @@ const FILTER_OPTIONS = [
 ];
 
 function TeacherManagement() {
-  const navigate = useNavigate();
   const [activePage, setActivePage] = useState('details'); // 'details' | 'leave'
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -111,12 +112,11 @@ function TeacherManagement() {
   };
 
   return (
-    <main className="tm-page">
+    <main className="tm-page page-shell">
+      <BackToDashboard />
+      <AdminHeader pageTitle="Teacher Management" />
       <header className="tm-header">
         <div className="tm-header-left">
-          <button className="tm-back-btn" onClick={() => navigate('/admin-dashboard')}>
-            ← Dashboard
-          </button>
           <div>
             <h1 className="tm-title">Teacher Management</h1>
             <p className="tm-subtitle">{teachers.length} teacher{teachers.length !== 1 ? 's' : ''} registered</p>
@@ -293,6 +293,8 @@ function TeacherManagement() {
       {showRemoved && (
         <RemovedModal onClose={() => setShowRemoved(false)} onRestored={load} />
       )}
+
+      <AppFooter />
     </main>
   );
 }

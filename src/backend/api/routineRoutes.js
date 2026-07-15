@@ -22,18 +22,35 @@ router.get('/', async (req, res) => {
   res.status(500).json({ success: false, error: result.error });
 });
 
-// POST /api/routine/generate  — run generation algorithm and save
+// POST /api/routine/generate  — run the memetic GA and return a PREVIEW
+// Body (optional): { seed: number } for a reproducible run
 router.post('/generate', async (req, res) => {
-  const result = await routineService.generateRoutine();
+  const seed = Number.isFinite(Number(req.body?.seed)) && req.body.seed !== ''
+    ? Number(req.body.seed)
+    : undefined;
+  const result = await routineService.generateRoutine({ seed });
   if (result.success) {
     return res.json({
       success: true,
       entries:     result.entries,
       warnings:    result.warnings,
+      report:      result.report,
       generatedAt: result.generatedAt,
+      saved:       false,
     });
   }
   res.status(500).json({ success: false, error: result.error });
+});
+
+// POST /api/routine/save  — persist a previewed routine
+// Body: { entries: [...], generatedAt?: ISO string }
+router.post('/save', async (req, res) => {
+  const { entries, generatedAt } = req.body || {};
+  const result = await routineService.saveRoutine(entries, generatedAt);
+  if (result.success) {
+    return res.json({ success: true, generatedAt: result.generatedAt });
+  }
+  res.status(400).json({ success: false, error: result.error });
 });
 
 // POST /api/routine/publish  — mark routine as published and enqueue notification job

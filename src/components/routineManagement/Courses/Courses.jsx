@@ -202,6 +202,8 @@ function Courses({ selectedSemesters = [] }) {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedCourseForHistory, setSelectedCourseForHistory] = useState(null);
+  const [courseHistory, setCourseHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   // Load courses from API on component mount
   useEffect(() => {
@@ -564,10 +566,15 @@ function Courses({ selectedSemesters = [] }) {
     setExceptionalSaving(false);
   };
 
-  // Handle Show History
-  const handleShowHistory = (course) => {
+  // Handle Show History — teachers who taught the course in past semesters
+  // (archived automatically on semester rollover)
+  const handleShowHistory = async (course) => {
     setSelectedCourseForHistory(course);
     setShowHistoryModal(true);
+    setHistoryLoading(true);
+    const result = await courseAPI.getCourseHistory(course.id);
+    setCourseHistory(result.success ? result.history : []);
+    setHistoryLoading(false);
   };
 
   return (
@@ -983,7 +990,8 @@ function Courses({ selectedSemesters = [] }) {
         onClose={() => setShowHistoryModal(false)}
         courseCode={selectedCourseForHistory?.code}
         courseTitle={selectedCourseForHistory?.title}
-        history={selectedCourseForHistory?.history}
+        history={courseHistory}
+        loading={historyLoading}
       />
 
       <EditCourseModal

@@ -1,4 +1,5 @@
 import { supabase } from '../config/supabaseClient.js';
+import { generateWithGA } from './routineGA/index.js';
 
 // Fixed UUID used as the single-row primary key for routine_storage.
 // routine_storage is a purpose-built single-row JSONB table (the original
@@ -79,7 +80,7 @@ export const routineService = {
       supabase.from('courses').select('id,code,title,course_type,year,semester,credit_hours,is_exceptional').eq('is_active', true),
       supabase.from('course_durations').select('course_id,duration_periods,weekly_classes'),
       supabase.from('room_allocation').select('theory_rooms,lab_rooms,semester_theory_rooms').eq('id', 1).maybeSingle(),
-      supabase.from('teachers').select('id,name,initials,load_limit,weekly_load_hours').eq('is_active', true),
+      supabase.from('teachers').select('id,name,initials,designation,load_limit,weekly_load_hours').eq('is_active', true),
       supabase.from('teacher_availability').select('teacher_id,day_of_week,slot_id'),
       supabase.from('course_teacher_choices').select('course_id,teacher_assignments'),
     ]);
@@ -120,7 +121,6 @@ export const routineService = {
       // class_day is stored as "Sunday-Thursday" — derive the actual day list
       const activeDays = getWorkingDays(classDay);
       const slotCount  = classesBeforeLunch + classesAfterLunch;
-      const slotIds    = Array.from({ length: slotCount }, (_, i) => `s${i + 1}`);
       const totalAvailableSlots = activeDays.length * slotCount;
 
       if (activeDays.length === 0) {
@@ -355,143 +355,69 @@ export const routineService = {
     }
   },
 
-  async generateRoutine() {
+  /**
+   * Generate a routine PREVIEW with the memetic GA (does NOT persist —
+   * the admin reviews the preview and saves it explicitly via saveRoutine).
+   * `options.seed` makes a run reproducible.
+   */
+  async generateRoutine(options = {}) {
     try {
       const d = await this._loadData();
 
       if (!d.settings) {
         return { success: false, error: 'No class time settings configured.' };
       }
-
-      const classesBeforeLunch = d.settings.classes_before_lunch || 3;
-      const classesAfterLunch  = d.settings.classes_after_lunch  || 2;
-      const classDay           = d.settings.class_day;
-
-      // class_day is stored as "Sunday-Thursday" — derive the actual day list
-      const activeDays = getWorkingDays(classDay);
-      const slotCount  = classesBeforeLunch + classesAfterLunch;
-      const slotIds    = Array.from({ length: slotCount }, (_, i) => `s${i + 1}`);
-
-      const selCourses = filterCoursesBySemesters(d.courses, d.selectedSemesters)
-        .filter(c => !c.is_exceptional);
-
-      // weeklyMap = weekly_classes (how many times/week to schedule); falls back to duration_periods
-      const durMap    = {};
-      const weeklyMap = {};
-      d.durations.forEach(x => {
-        durMap[x.course_id]    = x.duration_periods;
-        weeklyMap[x.course_id] = x.weekly_classes ?? x.duration_periods;
-      });
-
-      const ctMap = {};
-      d.courseTeacherChoices.forEach(x => { ctMap[x.course_id] = x.teacher_assignments || []; });
-
-      const teacherMap = {};
-      d.teachers.forEach(t => { teacherMap[t.id] = t; });
-
-      const availMap = {};
-      d.availability.forEach(a => {
-        if (!availMap[a.teacher_id]) availMap[a.teacher_id] = new Set();
-        availMap[a.teacher_id].add(`${a.day_of_week}-${a.slot_id}`);
-      });
-
-      const theoryRooms         = d.rooms.theory_rooms         || [];
-      const labRooms            = d.rooms.lab_rooms            || [];
-      const semesterTheoryRooms = d.rooms.semester_theory_rooms || {};
-
-      // Schedule state: track what is busy
-      const teacherBusy  = new Set(); // "teacherId-day-slot"
-      const semesterBusy = new Set(); // "semester-day-slot"
-      const roomBusy     = new Set(); // "room-day-slot"
-
-      // Sort most-constrained courses first (fewest teacher available slots)
-      const sortedCourses = [...selCourses].sort((a, b) => {
-        const ta = ctMap[a.id]?.[0];
-        const tb = ctMap[b.id]?.[0];
-        return (availMap[ta]?.size || 0) - (availMap[tb]?.size || 0);
-      });
-
-      const entries  = [];
-      const warnings = [];
-
-      for (const course of sortedCourses) {
-        // weeklyMap gives how many time-slots to book per week
-        const periodsNeeded = weeklyMap[course.id] || 0;
-        if (periodsNeeded === 0) continue;
-
-        const teacherId = ctMap[course.id]?.[0];
-        if (!teacherId || !teacherMap[teacherId]) {
-          warnings.push(`Skipped "${course.code}" — no active teacher assigned.`);
-          continue;
-        }
-
-        const teacherSlots = availMap[teacherId] || new Set();
-        let placed = 0;
-
-        // Build candidate (day, slot) pairs where teacher is available
-        const candidates = [];
-        for (const day of activeDays) {
-          for (const slot of slotIds) {
-            if (teacherSlots.has(`${day}-${slot}`)) {
-              candidates.push({ day, slot });
-            }
-          }
-        }
-
-        for (const { day, slot } of candidates) {
-          if (placed >= periodsNeeded) break;
-
-          // Use compact ID (Y2-S1) as the semester key for busy-tracking and room lookup
-          const semId = courseToSemId(course) || `${course.year}|${course.semester}`;
-          const tk = `${teacherId}-${day}-${slot}`;
-          const sk = `${semId}-${day}-${slot}`;
-          if (teacherBusy.has(tk) || semesterBusy.has(sk)) continue;
-
-          // Determine room — semester_theory_rooms keys are compact IDs
-          let room = null;
-          if (course.course_type === 'lab') {
-            room = labRooms.find(r => !roomBusy.has(`${r}-${day}-${slot}`)) || null;
-            if (!room) continue; // no lab room free this slot
-          } else {
-            room = semesterTheoryRooms[semId] || theoryRooms[0] || null;
-            if (room && roomBusy.has(`${room}-${day}-${slot}`)) continue;
-          }
-
-          teacherBusy.add(tk);
-          semesterBusy.add(sk);
-          if (room) roomBusy.add(`${room}-${day}-${slot}`);
-          placed++;
-
-          entries.push({
-            semester:    semId,          // compact ID, e.g. "Y2-S1"
-            day_of_week: day,
-            slot_id:     slot,
-            course_id:   course.id,
-            teacher_id:  teacherId,
-            room,
-          });
-        }
-
-        if (placed < periodsNeeded) {
-          warnings.push(`"${course.code} – ${course.title}": scheduled ${placed}/${periodsNeeded} weekly classes.`);
-        }
+      if (!d.selectedSemesters.length) {
+        return { success: false, error: 'No semesters selected for routine generation.' };
       }
 
-      // Persist routine (single JSONB row, fixed UUID primary key)
-      const generatedAt = new Date().toISOString();
-      const { error: saveErr } = await supabase
-        .from(ROUTINE_TABLE)
-        .upsert({ id: ROUTINE_ROW_ID, entries, generated_at: generatedAt }, { onConflict: 'id' });
+      let { entries, report } = generateWithGA(d, { seed: options.seed });
 
-      if (saveErr) {
-        console.error('routineService: could not persist routine:', saveErr.message);
-        // Don't throw — return the entries so the UI still shows the routine,
-        // but log clearly so the operator knows persistence failed.
+      // Stochastic search: if an unseeded run still has hard violations,
+      // try once more and keep the better result. (Explicit seeds are never
+      // retried — reproducibility wins.)
+      if (!report.feasible && options.seed === undefined) {
+        const retry = generateWithGA(d, {});
+        const better =
+          retry.report.hardCount < report.hardCount ||
+          (retry.report.hardCount === report.hardCount && retry.report.softCost < report.softCost);
+        if (better) ({ entries, report } = retry);
       }
 
-      return { success: true, entries, warnings, generatedAt };
+      // Keep legacy warnings field so older UI pieces continue to work
+      const warnings = [
+        ...report.inputProblems,
+        ...report.hardViolations.map(v => v.message),
+      ];
+
+      return {
+        success: true,
+        entries,
+        warnings,
+        report,
+        generatedAt: new Date().toISOString(),
+        saved: false,
+      };
     } catch (err) {
       console.error('routineService.generateRoutine:', err);
+      return { success: false, error: err.message };
+    }
+  },
+
+  /** Persist a previewed routine (single JSONB row, fixed UUID primary key). */
+  async saveRoutine(entries, generatedAt) {
+    try {
+      if (!Array.isArray(entries) || entries.length === 0) {
+        return { success: false, error: 'No routine entries to save.' };
+      }
+      const ts = generatedAt || new Date().toISOString();
+      const { error } = await supabase
+        .from(ROUTINE_TABLE)
+        .upsert({ id: ROUTINE_ROW_ID, entries, generated_at: ts }, { onConflict: 'id' });
+      if (error) throw error;
+      return { success: true, generatedAt: ts };
+    } catch (err) {
+      console.error('routineService.saveRoutine:', err);
       return { success: false, error: err.message };
     }
   },

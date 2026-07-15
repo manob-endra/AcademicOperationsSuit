@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { studentAPI } from '../services/studentAPI';
 import AddStudentModal from './studentManagement/AddStudentModal';
 import EditStudentModal from './studentManagement/EditStudentModal';
@@ -7,6 +6,9 @@ import ImportModal from './studentManagement/ImportModal';
 import RemovedModal from './studentManagement/RemovedModal';
 import RemoveConfirmModal from './studentManagement/RemoveConfirmModal';
 import PromoteBatchModal from './studentManagement/PromoteBatchModal';
+import AdminHeader from './shared/layout/AdminHeader';
+import AppFooter from './shared/layout/AppFooter';
+import BackToDashboard from './shared/layout/BackToDashboard';
 import '../styles/StudentManagement.css';
 
 const YEAR_TABS = [
@@ -27,7 +29,6 @@ const formatDate = (d) => {
 };
 
 function StudentManagement() {
-  const navigate = useNavigate();
   const [students, setStudents]       = useState([]);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState('');
@@ -114,10 +115,11 @@ function StudentManagement() {
   };
 
   return (
-    <main className="sm-page">
+    <main className="sm-page page-shell">
+      <BackToDashboard />
+      <AdminHeader pageTitle="Student Management" />
       <header className="sm-header">
         <div className="sm-header-left">
-          <button className="sm-back-btn" onClick={() => navigate('/admin-dashboard')}>← Dashboard</button>
           <div>
             <h1 className="sm-title">Student Management</h1>
             <p className="sm-subtitle">{students.length} student{students.length !== 1 ? 's' : ''} registered</p>
@@ -245,6 +247,8 @@ function StudentManagement() {
       {showImport   && <ImportModal onClose={() => setShowImport(false)} onImport={handleImport} />}
       {showRemoved  && <RemovedModal onClose={() => setShowRemoved(false)} onRestored={load} />}
       {showPromote  && <PromoteBatchModal students={students} onClose={() => setShowPromote(false)} onPromote={handlePromote} />}
+
+      <AppFooter />
     </main>
   );
 }

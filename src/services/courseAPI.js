@@ -124,6 +124,48 @@ export const courseAPI = {
   },
 
   /**
+   * Get teaching history for a course (archived on semester rollover).
+   * Returns rows: { semester_label, teacher_ids, teacher_names, archived_at }
+   */
+  async getCourseHistory(courseId) {
+    try {
+      if (!backendAvailable) {
+        backendAvailable = await checkBackendConnection();
+      }
+
+      if (!backendAvailable) {
+        return { success: false, error: 'Backend server is not running.', offline: true };
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+      const response = await fetch(`${API_BASE_URL}/${courseId}/history`, {
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error || 'Failed to fetch course history');
+      }
+
+      const result = await response.json();
+      return { success: true, history: result.data || [] };
+    } catch (error) {
+      console.error('Get course history error:', error);
+
+      if (error.name === 'AbortError' || error.message.includes('Failed to fetch')) {
+        backendAvailable = false;
+        return { success: false, error: 'Cannot connect to backend server.', offline: true };
+      }
+
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
    * Get courses by semester
    */
   async getCoursesBySemester(semester) {

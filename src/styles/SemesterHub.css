@@ -40,37 +40,99 @@
   opacity: 0.88;
 }
 
-.sh-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 20px;
+.sh-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
+.sh-removed-btn {
+  background: white;
+  color: #374151;
+  border: 1.5px solid #d1d5db;
+  padding: 9px 18px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.18s, color 0.18s;
+}
+
+.sh-removed-btn:hover {
+  border-color: #2c5f8a;
+  color: #2c5f8a;
+}
+
+.sh-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 22px;
+}
+
+/* ── Semester card ── */
 .sh-card {
   background: white;
-  border-radius: 14px;
-  padding: 28px 24px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  border-radius: 16px;
+  padding: 22px 22px 18px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07);
   cursor: pointer;
-  transition: transform 0.18s, box-shadow 0.18s;
+  transition: transform 0.2s, box-shadow 0.2s;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  border: 2px solid transparent;
+  gap: 4px;
+  border: 1px solid #e2e8f0;
   position: relative;
+  overflow: hidden;
+}
+
+/* season accent strip */
+.sh-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: var(--season-grad, linear-gradient(90deg, #1e3a5f, #2c5f8a));
 }
 
 .sh-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 28px rgba(30, 58, 95, 0.16);
-  border-color: #2c5f8a;
+  transform: translateY(-5px);
+  box-shadow: 0 16px 36px rgba(30, 58, 95, 0.18);
 }
 
-.sh-card-year {
-  font-size: 13px;
-  font-weight: 600;
-  color: #6b7280;
-  text-transform: uppercase;
+.season-spring  { --season-grad: linear-gradient(90deg, #f472b6, #fb7185); --season-soft: #fdf2f8; }
+.season-summer  { --season-grad: linear-gradient(90deg, #f59e0b, #fbbf24); --season-soft: #fffbeb; }
+.season-fall    { --season-grad: linear-gradient(90deg, #ea580c, #d97706); --season-soft: #fff7ed; }
+.season-winter  { --season-grad: linear-gradient(90deg, #38bdf8, #6366f1); --season-soft: #f0f9ff; }
+.season-default { --season-grad: linear-gradient(90deg, #1e3a5f, #2c5f8a); --season-soft: #eff6ff; }
+
+.sh-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.sh-card-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--season-soft, #eff6ff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
+
+.sh-card-year-chip {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #1e3a5f;
+  background: #e8f0fe;
+  border-radius: 20px;
+  padding: 4px 12px;
   letter-spacing: 0.5px;
 }
 
@@ -80,19 +142,61 @@
   color: #1a2a4a;
 }
 
+.sh-card-meta {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-bottom: 14px;
+}
+
+.sh-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2c5f8a;
+}
+
 .sh-card-arrow {
-  position: absolute;
-  right: 20px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 20px;
+  font-size: 17px;
   color: #9ca3af;
-  transition: color 0.18s, right 0.18s;
+  transition: color 0.18s, transform 0.18s;
 }
 
 .sh-card:hover .sh-card-arrow {
   color: #2c5f8a;
-  right: 16px;
+  transform: translateX(4px);
+}
+
+/* remove button — appears on hover */
+.sh-card-remove {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  font-size: 14px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.18s, background 0.15s;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sh-card:hover .sh-card-remove,
+.sh-card-remove:focus-visible {
+  opacity: 1;
+}
+
+.sh-card-remove:hover {
+  background: #fee2e2;
 }
 
 .sh-loading {
@@ -253,6 +357,198 @@
 
 .sh-confirm-btn:disabled,
 .sh-cancel-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Success notice banner ── */
+.sh-notice-banner {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13.5px;
+}
+
+.sh-notice-close {
+  background: none;
+  border: none;
+  color: #166534;
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+/* ── Rollover option in create modal ── */
+.sh-rollover-box {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 16px;
+  padding: 12px 14px;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.sh-rollover-box input[type='checkbox'] {
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  accent-color: #2c5f8a;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.sh-rollover-title {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1a2a4a;
+  margin-bottom: 3px;
+}
+
+.sh-rollover-desc {
+  display: block;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #64748b;
+}
+
+.sh-rollover-warning {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 9px 12px;
+}
+
+/* ── Remove confirmation ── */
+.sh-remove-text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #475569;
+  margin: 0;
+}
+
+.sh-danger-btn {
+  background: linear-gradient(135deg, #b91c1c, #dc2626);
+  color: white;
+  border: none;
+  padding: 10px 22px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.18s;
+}
+
+.sh-danger-btn:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.sh-danger-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Removed semesters modal ── */
+.sh-modal-wide {
+  max-width: 560px;
+}
+
+.sh-removed-empty {
+  color: #6b7280;
+  font-size: 14px;
+  text-align: center;
+  padding: 24px 0;
+  margin: 0;
+}
+
+.sh-removed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.sh-removed-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.sh-removed-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.sh-removed-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sh-removed-name {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #1a2a4a;
+}
+
+.sh-removed-date {
+  font-size: 11.5px;
+  color: #94a3b8;
+}
+
+.sh-restore-btn {
+  background: linear-gradient(135deg, #166534, #16a34a);
+  color: white;
+  border: none;
+  padding: 7px 16px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+
+.sh-restore-btn:hover:not(:disabled) { opacity: 0.88; }
+
+.sh-delete-forever-btn {
+  background: white;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  padding: 7px 12px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.sh-delete-forever-btn:hover:not(:disabled) { background: #fef2f2; }
+
+.sh-restore-btn:disabled,
+.sh-delete-forever-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

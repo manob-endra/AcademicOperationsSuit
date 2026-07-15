@@ -2,7 +2,9 @@ import { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../contexts/AuthContext';
 import NoticeManagement from './admin/NoticeManagement';
-import AdminNotifications from './admin/AdminNotifications';
+import AdminHeader from './shared/layout/AdminHeader';
+import AppFooter from './shared/layout/AppFooter';
+import BackToDashboard from './shared/layout/BackToDashboard';
 import '../styles/AdminDashboard.css';
 
 const moduleOptions = [
@@ -64,9 +66,15 @@ const moduleOptions = [
   }
 ];
 
+function getUserDisplayName(email) {
+  if (!email) return 'Admin';
+  return email.split('@')[0].split(/[._-]/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+}
+
 function AdminDashboard() {
   const navigate = useNavigate();
-  const { user, logout } = useContext(AuthContext);
+  const { user } = useContext(AuthContext);
   const [showNotices, setShowNotices] = useState(false);
 
   const handleModuleClick = (moduleKey) => {
@@ -77,78 +85,29 @@ function AdminDashboard() {
     navigate(`/admin-dashboard/${moduleKey}`);
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
-  const getUserInitials = (email) => {
-    if (!email) return 'A';
-    const parts = email.split('@')[0].split(/[._-]/);
-    return parts.map(p => p[0]?.toUpperCase() || '').join('').slice(0, 2) || 'A';
-  };
-
-  const getUserDisplayName = (email) => {
-    if (!email) return 'Admin User';
-    const emailPrefix = email.split('@')[0];
-    return emailPrefix.split(/[._-]/).map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-  };
-
   if (showNotices) {
     return (
-      <main className="admin-dashboard-page">
-        <header className="admin-dashboard-header">
-          <div className="header-left">
-            <img src="/favicon.svg" alt="Academic Operation Suit logo" className="brand-logo" />
-            <h1>Academic Operation Suit</h1>
-          </div>
-          <div className="header-right" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <AdminNotifications />
-            <button
-              onClick={() => setShowNotices(false)}
-              style={{ padding: '7px 16px', background: 'rgba(255,255,255,0.12)', color: 'white', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}
-            >
-              ← Back to Dashboard
-            </button>
-            <div className="user-profile">
-              <div className="user-avatar">{getUserInitials(user?.email)}</div>
-              <span className="user-name">{getUserDisplayName(user?.email)}</span>
-            </div>
-          </div>
-        </header>
-        <div style={{ padding: '28px 32px', maxWidth: 900, margin: '0 auto' }}>
+      <main className="admin-dashboard-page page-shell">
+        <BackToDashboard onClick={() => setShowNotices(false)} />
+        <AdminHeader pageTitle="Notice Management" />
+        <div style={{ padding: '28px 32px', maxWidth: 900, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
           <NoticeManagement user={user} />
         </div>
+        <AppFooter />
       </main>
     );
   }
 
   return (
-    <main className="admin-dashboard-page">
-      {/* Header */}
-      <header className="admin-dashboard-header">
-        <div className="header-left">
-          <img src="/favicon.svg" alt="Academic Operation Suit logo" className="brand-logo" />
-          <h1>Academic Operation Suit</h1>
-        </div>
-        <div className="header-right" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <AdminNotifications />
-          <div className="user-profile">
-            <div className="user-avatar">{getUserInitials(user?.email)}</div>
-            <span className="user-name">{getUserDisplayName(user?.email)}</span>
-          </div>
-          <button
-            onClick={handleLogout}
-            style={{ padding: '7px 14px', background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.85)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 7, cursor: 'pointer', fontSize: 12.5, fontWeight: 500 }}
-          >
-            Sign Out
-          </button>
-        </div>
-      </header>
+    <main className="admin-dashboard-page page-shell">
+      <AdminHeader />
 
       {/* Welcome */}
       <section className="welcome-section">
-        <p className="welcome-message">Welcome to the administrative operation dashboard.</p>
+        <h2 className="welcome-title">Welcome back, {getUserDisplayName(user?.email)} 👋</h2>
+        <p className="welcome-message">
+          Manage routines, exams, people and notifications — all from one place.
+        </p>
       </section>
 
       {/* Module Grid */}
@@ -157,20 +116,24 @@ function AdminDashboard() {
           {moduleOptions.map((module) => (
             <div
               key={module.key}
-              className={`module-card ${module.color}`}
+              className={`module-card-v2 ${module.color}`}
               onClick={() => handleModuleClick(module.key)}
               role="button"
               tabIndex={0}
               onKeyPress={(e) => e.key === 'Enter' && handleModuleClick(module.key)}
             >
-              <div className="module-icon">{module.icon}</div>
-              <h2 className="module-title">{module.title}</h2>
-              <p className="module-description">{module.description}</p>
-              <div className="module-arrow">→</div>
+              <div className="mc-icon">{module.icon}</div>
+              <h2 className="mc-title">{module.title}</h2>
+              <p className="mc-desc">{module.description}</p>
+              <div className="mc-open">
+                Open module <span className="mc-arrow">→</span>
+              </div>
             </div>
           ))}
         </div>
       </section>
+
+      <AppFooter />
     </main>
   );
 }

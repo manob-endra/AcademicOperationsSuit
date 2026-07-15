@@ -8,6 +8,9 @@ import {
   CELL_TYPES, TOOLBAR_TYPES,
   generateWeeks, getAllDates, calculateSummary, toDateStr,
 } from './academicCalendar/calendarUtils';
+import AdminHeader from './shared/layout/AdminHeader';
+import AppFooter from './shared/layout/AppFooter';
+import BackToDashboard from './shared/layout/BackToDashboard';
 import '../styles/AcademicCalendar.css';
 import '../styles/ModulePages.css';
 
@@ -215,13 +218,12 @@ export default function AcademicCalendar() {
   // ── Render ────────────────────────────────────────────────────────────────
   if (loadingCal) {
     return (
-      <main className="module-page">
-        <header className="module-header">
-          <button className="back-button" onClick={() => navigate(`/admin-dashboard/routine-management/${semesterId}`)}>
-            ← Back
-          </button>
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700 }}>Loading…</h1>
-        </header>
+      <main className="module-page page-shell">
+        <BackToDashboard />
+        <AdminHeader pageTitle="Academic Calendar" />
+        <div className="module-title-bar">
+          <h1>Loading…</h1>
+        </div>
       </main>
     );
   }
@@ -229,15 +231,11 @@ export default function AcademicCalendar() {
   const semTitle = semester ? `${semester.name} ${semester.year}` : 'Academic Calendar';
 
   return (
-    <main className="ac-page">
+    <main className="ac-page page-shell">
+      <BackToDashboard />
+      <AdminHeader pageTitle="Academic Calendar" />
       {/* ── Header ── */}
       <header className="ac-header">
-        <button
-          className="ac-back-btn"
-          onClick={() => navigate(`/admin-dashboard/routine-management/${semesterId}`)}
-        >
-          ← Back
-        </button>
         <div className="ac-header-info">
           <h1 className="ac-header-title">Academic Calendar</h1>
           <span className="ac-header-sem">{semTitle}</span>
@@ -537,6 +535,8 @@ export default function AcademicCalendar() {
           onCancel={() => setShowPublish(false)}
         />
       )}
+
+      <AppFooter />
     </main>
   );
 }

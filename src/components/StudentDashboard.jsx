@@ -6,6 +6,7 @@ import StudentRoutine          from './student/StudentRoutine';
 import StudentCourses          from './student/StudentCourses';
 import StudentAcademicCalendar from './student/StudentAcademicCalendar';
 import StudentExamRoutine from './student/StudentExamRoutine';
+import AppFooter from './shared/layout/AppFooter';
 import '../styles/StudentDashboard.css';
 
 const ALL_NAV = [
@@ -50,7 +51,7 @@ function StudentDashboard() {
   };
 
   return (
-    <div className="student-dashboard">
+    <div className="student-dashboard page-shell">
       {/* ── Header ── */}
       <header className="sd-header">
         {/* Brand */}
@@ -92,6 +93,8 @@ function StudentDashboard() {
       <main className="sd-content">
         {renderContent()}
       </main>
+
+      <AppFooter />
     </div>
   );
 }

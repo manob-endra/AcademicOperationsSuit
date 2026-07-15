@@ -1,5 +1,4 @@
 import { useState, useContext, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
 import { AuthContext } from '../contexts/AuthContext';
 import { semesterSelectionAPI } from '../services/semesterSelectionAPI';
 import Home from './routineManagement/Home';
@@ -9,6 +8,9 @@ import TimeSlot from './routineManagement/TimeSlot';
 import Routine from './routineManagement/Routine';
 import Courses from './routineManagement/Courses/Courses';
 import RoutineSection from './routineManagement/RoutineSection';
+import AdminHeader from './shared/layout/AdminHeader';
+import AppFooter from './shared/layout/AppFooter';
+import BackToDashboard from './shared/layout/BackToDashboard';
 import '../styles/ModulePages.css';
 import '../styles/RoutineManagement.css';
 
@@ -22,8 +24,6 @@ const sections = [
 ];
 
 function RoutineManagement() {
-  const navigate = useNavigate();
-  const { semesterId } = useParams();
   const { user } = useContext(AuthContext);
   const [activeSection, setActiveSection]       = useState('home');
   const [selectedSemesters, setSelectedSemesters] = useState([]);
@@ -91,38 +91,27 @@ function RoutineManagement() {
   };
 
   return (
-    <main className="routine-management-page">
-      <header className="routine-module-header">
-        <div className="header-top">
-          <div className="header-left">
+    <main className="routine-management-page page-shell">
+      <BackToDashboard />
+      <AdminHeader pageTitle="Routine Manager">
+        <nav className="routine-navigation">
+          {sections.map((section) => (
             <button
-              className="back-button"
-              onClick={() => semesterId
-                ? navigate(`/admin-dashboard/routine-management/${semesterId}`)
-                : navigate('/admin-dashboard/routine-management')}
+              key={section.key}
+              className={`nav-option ${activeSection === section.key ? 'active' : ''}`}
+              onClick={() => setActiveSection(section.key)}
             >
-              ←
+              {section.label}
             </button>
-            <h1>Routine Manager</h1>
-          </div>
-
-          <nav className="routine-navigation">
-            {sections.map((section) => (
-              <button
-                key={section.key}
-                className={`nav-option ${activeSection === section.key ? 'active' : ''}`}
-                onClick={() => setActiveSection(section.key)}
-              >
-                {section.label}
-              </button>
-            ))}
-          </nav>
-        </div>
-      </header>
+          ))}
+        </nav>
+      </AdminHeader>
 
       <section className="routine-content">
         {renderSection()}
       </section>
+
+      <AppFooter />
     </main>
   );
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authAPI, validateEmail } from '../services/authAPI';
+import AuthLayout from './shared/layout/AuthLayout';
 import '../styles/Auth.css';
 
 function SignUp() {
@@ -49,20 +50,12 @@ function SignUp() {
   };
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <div className="auth-card-header">
-          <div className="auth-logo">
-            <img src="/favicon.svg" alt="logo" />
-          </div>
-          <h1 className="auth-title">Academic Operation Suite</h1>
-          <p className="auth-subtitle">Department of CSE, University of Dhaka</p>
-        </div>
+    <AuthLayout>
+      <div className="auth-card-simple">
+        <h2 className="auth-form-title">Create Account</h2>
+        <p className="auth-form-sub">Join with your university email address</p>
 
-        <div className="auth-card-body">
-          <h2 className="auth-form-title">Create Account</h2>
-
-          {error && <div className="auth-error">{error}</div>}
+        {error && <div className="auth-error">{error}</div>}
 
           <form onSubmit={handleSignUp} className="auth-form">
             <div className="auth-field">
@@ -131,12 +124,11 @@ function SignUp() {
             <span className="auth-role-chip student">@cs.du.ac.bd → Student</span>
           </div>
 
-          <p className="auth-footer-text">
-            Already have an account? <Link to="/login">Sign in here</Link>
-          </p>
-        </div>
+        <p className="auth-footer-text">
+          Already have an account? <Link to="/login">Sign in here</Link>
+        </p>
       </div>
-    </div>
+    </AuthLayout>
   );
 }
 

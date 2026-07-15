@@ -272,6 +272,33 @@ export const courseService = {
   },
 
   /**
+   * Get teaching history for a course (archived on semester rollover).
+   * Rows: { semester_label, teacher_ids, teacher_names, archived_at }
+   * @param {string} courseId - Course ID
+   */
+  async getCourseHistory(courseId) {
+    try {
+      const { data, error } = await supabase
+        .from('course_history')
+        .select('semester_label, teacher_ids, teacher_names, archived_at')
+        .eq('course_id', String(courseId))
+        .order('archived_at', { ascending: false });
+
+      if (error) {
+        // Table missing until the semester_rollover.sql migration runs
+        if (/course_history/.test(error.message) && /does not exist|not find/i.test(error.message)) {
+          return { success: true, history: [] };
+        }
+        throw error;
+      }
+      return { success: true, history: data || [] };
+    } catch (error) {
+      console.error('Get course history error:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
    * Search courses by code or title
    * @param {string} searchTerm - Search term
    * @returns {Promise<{success: boolean, courses?: array, error?: string}>}
