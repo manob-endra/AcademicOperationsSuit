@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { noticeAPI } from '../../services/noticeAPI';
+import DocumentAttachment from '../shared/DocumentAttachment';
 
 const PRIORITY_LABEL = { normal: 'Normal', important: 'Important', urgent: 'Urgent' };
 
@@ -68,6 +69,9 @@ function StudentNotice() {
               </span>
             </div>
             <p className="sd-notice-content">{notice.content}</p>
+            {notice.document_url && (
+              <DocumentAttachment url={notice.document_url} name={notice.document_name} size={notice.document_size} />
+            )}
             <div className="sd-notice-footer">
               Posted on {formatDate(notice.created_at)}
             </div>

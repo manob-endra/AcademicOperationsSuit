@@ -102,9 +102,11 @@ export function buildContext(data, cfg) {
     (availMap[t.id]?.size || 0) > 0;
 
   // ── select courses ──
+  // routineService already pre-filters to in_routine courses, but keep the
+  // gate here too so the GA never schedules a course that wasn't opted in.
   const pairs = (data.selectedSemesters || []).map(id => SEMESTER_MAP[id]).filter(Boolean);
   const selCourses = (data.courses || []).filter(c =>
-    !c.is_exceptional &&
+    c.in_routine &&
     pairs.some(p => c.year === p.year && c.semester === p.semester)
   );
 

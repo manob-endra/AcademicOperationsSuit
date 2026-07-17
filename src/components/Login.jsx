@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { authAPI, validateEmail } from '../services/authAPI';
 import { AuthContext } from '../contexts/AuthContext';
 import AuthLayout from './shared/layout/AuthLayout';
+import DemoCredentials from './shared/DemoCredentials';
 import '../styles/Auth.css';
 
 function Login() {
@@ -79,6 +80,11 @@ function Login() {
 
   return (
     <AuthLayout>
+      <DemoCredentials onUse={(email, password) => {
+        setFormData({ email, password });
+        setError('');
+        setUnverifiedEmail('');
+      }} />
       <div className="auth-card-simple">
         <h2 className="auth-form-title">Sign In</h2>
         <p className="auth-form-sub">Use your university email to continue</p>

@@ -35,14 +35,12 @@ function courseToSemId(course) {
   return REVERSE_SEMESTER_MAP[`${course.year}|${course.semester}`] || null;
 }
 
-// Course types that never appear in the class routine — they stay in the
-// catalog for credits/results but have no weekly classes to schedule.
-const NON_CLASS_TYPES = new Set(['project', 'internship', 'viva']);
-
 /**
  * Filter courses that belong to the given selected semester IDs, honouring
- * the syllabus catalog:
- *   • non-class types (project/internship/viva) are always skipped
+ * routine participation and the syllabus catalog:
+ *   • only courses explicitly opted into the routine (in_routine = true) take
+ *     part — this is the "Routine Courses" selection, an opt-in that replaced
+ *     the old is_exceptional exclusion
  *   • when a batch level has a syllabus assigned (semester_batch_syllabus),
  *     only that syllabus's courses count for it — this is how an old batch
  *     runs 4-1 from the old syllabus while a new batch runs 1-1 from the new
@@ -60,7 +58,8 @@ function filterCoursesBySemesters(courses, selectedSemesterIds, syllabusByBatch 
   if (pairs.length === 0) return [];
 
   return courses.filter(c => {
-    if (NON_CLASS_TYPES.has(c.course_type)) return false;
+    // Opt-in: a course participates only when explicitly added to the routine.
+    if (!c.in_routine) return false;
 
     const pair = pairs.find(p => c.year === p.year && c.semester === p.semester);
     if (!pair) return false;
@@ -114,7 +113,7 @@ export const routineService = {
     ] = await Promise.all([
       supabase.from('class_time_settings').select('*').eq('semester_id', semesterId).eq('is_active', true).maybeSingle(),
       supabase.from('semester_selection').select('selected_semesters').eq('semester_id', semesterId).maybeSingle(),
-      supabase.from('courses').select('id,code,title,course_type,year,semester,credit_hours,is_exceptional,syllabus_id,option_group_id,weekly_classes').eq('is_active', true),
+      supabase.from('courses').select('id,code,title,course_type,year,semester,credit_hours,in_routine,syllabus_id,option_group_id,weekly_classes').eq('is_active', true),
       supabase.from('course_durations').select('course_id,duration_periods,weekly_classes').eq('semester_id', semesterId),
       supabase.from('room_allocation').select('theory_rooms,lab_rooms,semester_theory_rooms').eq('semester_id', semesterId).maybeSingle(),
       supabase.from('teachers').select('id,name,initials,designation,load_limit').eq('is_active', true),
@@ -215,9 +214,8 @@ export const routineService = {
         });
       }
 
-      // Match courses by year+semester text, excluding exceptional courses
-      const selCourses = filterCoursesBySemesters(d.courses, d.selectedSemesters, d.syllabusByBatch, d.offeredSet)
-        .filter(c => !c.is_exceptional);
+      // Match courses by year+semester text; only routine-opted courses count.
+      const selCourses = filterCoursesBySemesters(d.courses, d.selectedSemesters, d.syllabusByBatch, d.offeredSet);
 
       if (d.selectedSemesters.length > 0 && selCourses.length === 0) {
         const labels = d.selectedSemesters.map(id => {
@@ -227,8 +225,8 @@ export const routineService = {
         conflicts.push({
           id: 'no_courses',
           severity: 'error',
-          message: `No active courses found for: ${labels.join(', ')}.`,
-          hint: 'Add courses in Course Management and mark them active. Course year/semester must match the selection.',
+          message: `No routine courses selected for: ${labels.join(', ')}.`,
+          hint: 'Go to Courses → Routine Courses and check the courses that should take part in the routine for these semesters.',
           navigateTo: 'courses',
         });
       }

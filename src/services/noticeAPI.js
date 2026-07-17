@@ -1,4 +1,9 @@
+import { supabase } from '../supabaseClient';
+
 const API_BASE_URL = `${import.meta.env.VITE_API_URL}/notices`;
+
+const NOTICE_BUCKET = 'notice-documents';
+export const MAX_DOCUMENT_BYTES = 15 * 1024 * 1024; // 15 MB
 
 const makeRequest = async (url, options = {}) => {
   try {
@@ -28,11 +33,43 @@ export const noticeAPI = {
     return result;
   },
 
-  async createNotice({ title, content, priority, created_by }) {
+  /**
+   * Upload an optional notice document straight to Supabase Storage from the
+   * browser. Returns { url, name, size } to pass into createNotice, or an
+   * error. Enforces the 15 MB cap client-side (the bucket enforces it too).
+   */
+  async uploadDocument(file) {
+    if (!file) return { success: false, error: 'No file selected.' };
+    if (file.size > MAX_DOCUMENT_BYTES) {
+      return { success: false, error: 'Document exceeds the 15 MB limit.' };
+    }
+    // Unique object path so two files with the same name never collide.
+    const safeName = file.name.replace(/[^\w.\-]+/g, '_');
+    const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`;
+
+    const { error } = await supabase
+      .storage
+      .from(NOTICE_BUCKET)
+      .upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type || undefined });
+
+    if (error) {
+      return { success: false, error: error.message || 'Failed to upload document.' };
+    }
+
+    const { data } = supabase.storage.from(NOTICE_BUCKET).getPublicUrl(path);
+    return { success: true, url: data.publicUrl, name: file.name, size: file.size };
+  },
+
+  async createNotice({ title, content, priority, created_by, document_url, document_name, document_size }) {
     return makeRequest(API_BASE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, content, priority, created_by }),
+      body: JSON.stringify({
+        title, content, priority, created_by,
+        document_url: document_url || null,
+        document_name: document_name || null,
+        document_size: document_size ?? null,
+      }),
     });
   },
 

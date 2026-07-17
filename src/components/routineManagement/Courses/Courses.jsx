@@ -7,6 +7,8 @@ import CourseHistoryModal from './components/CourseHistoryModal';
 import EditCourseModal from './components/EditCourseModal';
 import SyllabusManager from './components/SyllabusManager';
 import BatchSyllabusPanel from './components/BatchSyllabusPanel';
+import GroupActionBar from './components/GroupActionBar';
+import RoutineCoursesPanel from './components/RoutineCoursesPanel';
 import { courseAPI } from '../../../services/courseAPI';
 import { syllabusAPI } from '../../../services/syllabusAPI';
 import '../../../styles/Courses.css';
@@ -152,6 +154,7 @@ const transformDBCourse = (dbCourse) => {
     description: dbCourse.description,
     is_active: dbCourse.is_active,
     isExceptional: dbCourse.is_exceptional || false,
+    inRoutine: dbCourse.in_routine || false,
     syllabusId: dbCourse.syllabus_id || null,
     optionGroupId: dbCourse.option_group_id || null,
     weeklyClasses: dbCourse.weekly_classes ?? null,
@@ -185,13 +188,12 @@ function Courses({ semesterId, selectedSemesters = [] }) {
     return selectedSemesters.map(id => extractYearAndSemester(id)).filter(s => s.year && s.semester);
   }, [selectedSemesters]);
 
-  // Page tabs: course catalog / syllabus manager / batch syllabus assignment
+  // Page tabs: course catalog / syllabus manager / batch syllabus assignment / routine courses
   const [pageTab, setPageTab] = useState('courses');
 
   // State for courses
   const [courses, setCourses] = useState([]);
   const [removedCourses, setRemovedCourses] = useState([]);
-  const [exceptionalCourses, setExceptionalCourses] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -200,9 +202,10 @@ function Courses({ semesterId, selectedSemesters = [] }) {
   const [optionGroups, setOptionGroups] = useState([]);
   const [syllabusFilter, setSyllabusFilter] = useState('all'); // 'all' | syllabus id | 'none'
 
-  // Selection state for exceptional feature (Set of course IDs)
+  // Selection state for group actions (Set of course IDs)
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [exceptionalSaving, setExceptionalSaving] = useState(false);
+  const [groupSaving, setGroupSaving] = useState(false);
+  const [groupActionOpen, setGroupActionOpen] = useState(null); // null | 'create' | 'existing'
 
   // State for filters
   const [yearFilter, setYearFilter] = useState('All year');
@@ -227,7 +230,6 @@ function Courses({ semesterId, selectedSemesters = [] }) {
   useEffect(() => {
     loadCourses();
     loadRemovedCourses();
-    loadExceptionalCourses();
     loadSyllabusData();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -267,17 +269,6 @@ function Courses({ semesterId, selectedSemesters = [] }) {
       setCourses([]);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const loadExceptionalCourses = async () => {
-    try {
-      const result = await courseAPI.getExceptionalCourses();
-      if (result.success) {
-        setExceptionalCourses(result.courses.map(transformDBCourse));
-      }
-    } catch (err) {
-      console.error('Error loading exceptional courses:', err);
     }
   };
 
@@ -559,6 +550,7 @@ function Courses({ semesterId, selectedSemesters = [] }) {
   const handleViewModeChange = (mode) => {
     setViewMode(mode);
     setSelectedIds(new Set());
+    setGroupActionOpen(null);
     if (mode === 'selected' && selectedCourseSemesters.length === 0) {
       setError('Please select semesters in the Home page first to view selected semester courses.');
     } else {
@@ -582,36 +574,63 @@ function Courses({ semesterId, selectedSemesters = [] }) {
     setSelectedIds(allSelected ? new Set() : new Set(allIds));
   };
 
-  // Mark selected courses as exceptional
-  const handleMarkExceptional = async () => {
-    if (selectedIds.size === 0) return;
-    setExceptionalSaving(true);
-    const ids = [...selectedIds];
-    const result = await courseAPI.setExceptional(ids, true);
-    if (result.success) {
-      setCourses(prev => prev.map(c => ids.includes(c.id) ? { ...c, isExceptional: true } : c));
-      await loadExceptionalCourses();
-      setSelectedIds(new Set());
-    } else {
-      setError(result.error || 'Failed to mark courses as exceptional');
-    }
-    setExceptionalSaving(false);
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+    setGroupActionOpen(null);
   };
 
-  // Unmark selected courses (remove exceptional status)
-  const handleUnmarkExceptional = async () => {
-    if (selectedIds.size === 0) return;
-    setExceptionalSaving(true);
+  // Assign the selected courses to an existing option group.
+  const handleAddSelectedToGroup = async (groupId) => {
+    if (selectedIds.size === 0 || !groupId) return;
+    setGroupSaving(true);
     const ids = [...selectedIds];
-    const result = await courseAPI.setExceptional(ids, false);
+    const result = await courseAPI.assignToGroup(ids, groupId);
     if (result.success) {
-      setCourses(prev => prev.map(c => ids.includes(c.id) ? { ...c, isExceptional: false } : c));
-      setExceptionalCourses(prev => prev.filter(c => !ids.includes(c.id)));
-      setSelectedIds(new Set());
+      setCourses(prev => prev.map(c => ids.includes(c.id) ? { ...c, optionGroupId: groupId } : c));
+      clearSelection();
     } else {
-      setError(result.error || 'Failed to remove exceptional status');
+      setError(result.error || 'Failed to add courses to group');
     }
-    setExceptionalSaving(false);
+    setGroupSaving(false);
+  };
+
+  // Create a new option group from the given details, then assign the
+  // selected courses to it.
+  const handleCreateGroupWithSelected = async (details) => {
+    if (selectedIds.size === 0) return;
+    setGroupSaving(true);
+    const ids = [...selectedIds];
+    const created = await syllabusAPI.createOptionGroup(details);
+    if (!created.success) {
+      setError(created.error || 'Failed to create group');
+      setGroupSaving(false);
+      return;
+    }
+    const groupId = created.data.id;
+    const assigned = await courseAPI.assignToGroup(ids, groupId);
+    if (assigned.success) {
+      setCourses(prev => prev.map(c => ids.includes(c.id) ? { ...c, optionGroupId: groupId } : c));
+      await loadSyllabusData();
+      clearSelection();
+    } else {
+      setError(assigned.error || 'Group created, but failed to add courses');
+    }
+    setGroupSaving(false);
+  };
+
+  // Remove the selected courses from whatever option group they're in.
+  const handleRemoveSelectedFromGroup = async () => {
+    if (selectedIds.size === 0) return;
+    setGroupSaving(true);
+    const ids = [...selectedIds];
+    const result = await courseAPI.assignToGroup(ids, null);
+    if (result.success) {
+      setCourses(prev => prev.map(c => ids.includes(c.id) ? { ...c, optionGroupId: null } : c));
+      clearSelection();
+    } else {
+      setError(result.error || 'Failed to remove courses from group');
+    }
+    setGroupSaving(false);
   };
 
   // Handle Show History — teachers who taught the course in past semesters
@@ -651,6 +670,13 @@ function Courses({ semesterId, selectedSemesters = [] }) {
         >
           Semester Syllabus
         </button>
+        <button
+          className={`toggle-btn ${pageTab === 'routine' ? 'active' : ''}`}
+          onClick={() => setPageTab('routine')}
+          title="Pick which courses take part in routine generation, by type"
+        >
+          Routine Courses
+        </button>
       </div>
 
       {pageTab === 'syllabi' && (
@@ -669,6 +695,13 @@ function Courses({ semesterId, selectedSemesters = [] }) {
           syllabi={syllabi}
           optionGroups={optionGroups}
           courses={courses}
+        />
+      )}
+
+      {pageTab === 'routine' && (
+        <RoutineCoursesPanel
+          courses={courses}
+          onCoursesChanged={setCourses}
         />
       )}
 
@@ -774,13 +807,6 @@ function Courses({ semesterId, selectedSemesters = [] }) {
             >
               Selected Semester {selectedCourseSemesters.length > 0 && `(${selectedCourseSemesters.length})`}
             </button>
-            <button
-              className={`toggle-btn exceptional-toggle-btn ${viewMode === 'exceptional' ? 'active' : ''}`}
-              onClick={() => handleViewModeChange('exceptional')}
-              title="View all courses marked as exceptional"
-            >
-              Exceptional {exceptionalCourses.length > 0 && `(${exceptionalCourses.length})`}
-            </button>
           </div>
 
           {/* Filter and View Block */}
@@ -866,25 +892,26 @@ function Courses({ semesterId, selectedSemesters = [] }) {
             </div>
           </div>
 
-          {/* Exceptional view — separate table, no filters */}
-          {viewMode === 'exceptional' ? (
-            <>
-              <div className="exceptional-section-header">
-                <div className="exceptional-header-info">
-                  <span className="exceptional-header-icon">⚠</span>
-                  <span>These courses are excluded from routine generation and conflict checks.</span>
-                </div>
-                {selectedIds.size > 0 && (
-                  <button
-                    className="action-btn unmark-exceptional-btn"
-                    disabled={exceptionalSaving}
-                    onClick={handleUnmarkExceptional}
-                  >
-                    {exceptionalSaving ? 'Saving…' : `Remove Exception (${selectedIds.size})`}
-                  </button>
-                )}
-              </div>
+          {/* Group action bar — appears when one or more courses are selected */}
+          {selectedIds.size > 0 && (
+            <GroupActionBar
+              count={selectedIds.size}
+              optionGroups={optionGroups}
+              syllabi={syllabi}
+              saving={groupSaving}
+              actionOpen={groupActionOpen}
+              setActionOpen={setGroupActionOpen}
+              onAddToGroup={handleAddSelectedToGroup}
+              onCreateGroup={handleCreateGroupWithSelected}
+              onRemoveFromGroup={handleRemoveSelectedFromGroup}
+              onClear={clearSelection}
+            />
+          )}
 
+          {/* full block wrapper kept for consistent spacing */}
+          {(
+            <>
+              {/* Courses Table */}
               <div className="courses-table-wrapper">
                 <table className="courses-table">
                   <thead>
@@ -892,9 +919,9 @@ function Courses({ semesterId, selectedSemesters = [] }) {
                       <th className="col-checkbox">
                         <input
                           type="checkbox"
-                          checked={exceptionalCourses.length > 0 && exceptionalCourses.every(c => selectedIds.has(c.id))}
-                          onChange={() => toggleSelectAll(exceptionalCourses)}
-                          title="Select all"
+                          checked={filteredCourses.length > 0 && filteredCourses.every(c => selectedIds.has(c.id))}
+                          onChange={() => toggleSelectAll(filteredCourses)}
+                          title="Select all visible"
                         />
                       </th>
                       <th>Course Code</th>
@@ -903,102 +930,8 @@ function Courses({ semesterId, selectedSemesters = [] }) {
                       <th>Year</th>
                       <th>Semester</th>
                       <th>Credit</th>
-                      <th>History</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {exceptionalCourses.length > 0 ? (
-                      exceptionalCourses.map((course, index) => (
-                        <tr
-                          key={course.id}
-                          className={`exceptional-row ${selectedIds.has(course.id) ? 'row-selected' : index % 2 === 0 ? 'row-light' : 'row-dark'}`}
-                        >
-                          <td className="col-checkbox">
-                            <input
-                              type="checkbox"
-                              checked={selectedIds.has(course.id)}
-                              onChange={() => toggleSelect(course.id)}
-                            />
-                          </td>
-                          <td>
-                            <span className="exceptional-badge">Exception</span>
-                            {' '}{course.code}
-                          </td>
-                          <td>{course.title}</td>
-                          <td>{course.type}</td>
-                          <td>{course.year}</td>
-                          <td>{course.semester}</td>
-                          <td>{course.credit}</td>
-                          <td>
-                            <button className="history-btn" onClick={() => handleShowHistory(course)}>View</button>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan="8" className="no-results">No exceptional courses. Mark courses as exceptional from the Selected Semester view.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              <div className="table-info">
-                {exceptionalCourses.length} exceptional course{exceptionalCourses.length !== 1 ? 's' : ''}
-              </div>
-            </>
-          ) : (
-            <>
-              {/* Exceptional action bar — shown only in Selected Semester view */}
-              {viewMode === 'selected' && (
-                <div className="exceptional-action-bar">
-                  <span className="exceptional-action-hint">
-                    {selectedIds.size === 0
-                      ? 'Select courses to mark as exceptional (excluded from routine).'
-                      : `${selectedIds.size} course${selectedIds.size !== 1 ? 's' : ''} selected.`}
-                  </span>
-                  <div className="exceptional-action-btns">
-                    <button
-                      className="action-btn mark-exceptional-btn"
-                      disabled={exceptionalSaving || [...selectedIds].every(id => filteredCourses.find(c => c.id === id)?.isExceptional)}
-                      onClick={handleMarkExceptional}
-                      title="Mark selected courses as exceptional (excluded from routine)"
-                    >
-                      {exceptionalSaving ? 'Saving…' : 'Mark as Exceptional'}
-                    </button>
-                    <button
-                      className="action-btn unmark-exceptional-btn"
-                      disabled={exceptionalSaving || [...selectedIds].every(id => !filteredCourses.find(c => c.id === id)?.isExceptional)}
-                      onClick={handleUnmarkExceptional}
-                      title="Remove exceptional status from selected courses"
-                    >
-                      {exceptionalSaving ? 'Saving…' : 'Remove Exception'}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Courses Table */}
-              <div className="courses-table-wrapper">
-                <table className="courses-table">
-                  <thead>
-                    <tr>
-                      {viewMode === 'selected' && (
-                        <th className="col-checkbox">
-                          <input
-                            type="checkbox"
-                            checked={filteredCourses.length > 0 && filteredCourses.every(c => selectedIds.has(c.id))}
-                            onChange={() => toggleSelectAll(filteredCourses)}
-                            title="Select all visible"
-                          />
-                        </th>
-                      )}
-                      <th>Course Code</th>
-                      <th>Title</th>
-                      <th>Type</th>
-                      <th>Year</th>
-                      <th>Semester</th>
-                      <th>Credit</th>
                       <th>Weekly</th>
+                      <th>Routine</th>
                       <th>Syllabus</th>
                       <th>History</th>
                     </tr>
@@ -1008,23 +941,20 @@ function Courses({ semesterId, selectedSemesters = [] }) {
                       filteredCourses.map((course, index) => (
                         <tr
                           key={course.id}
-                          className={`${course.isExceptional ? 'exceptional-row' : ''} ${selectedIds.has(course.id) ? 'row-selected' : index % 2 === 0 ? 'row-light' : 'row-dark'}`}
+                          className={`${selectedIds.has(course.id) ? 'row-selected' : index % 2 === 0 ? 'row-light' : 'row-dark'}`}
                         >
-                          {viewMode === 'selected' && (
-                            <td className="col-checkbox">
-                              <input
-                                type="checkbox"
-                                checked={selectedIds.has(course.id)}
-                                onChange={() => toggleSelect(course.id)}
-                              />
-                            </td>
-                          )}
+                          <td className="col-checkbox">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(course.id)}
+                              onChange={() => toggleSelect(course.id)}
+                            />
+                          </td>
                           <td>
-                            {course.isExceptional && <span className="exceptional-badge">Exception</span>}{' '}
                             {course.code}
                             {course.optionGroupId && (
-                              <span className="optional-chip" title={`Optional — ${groupName(course.optionGroupId) || 'option group'}`}>
-                                {groupName(course.optionGroupId) || 'Optional'}
+                              <span className="optional-chip" title={`Group — ${groupName(course.optionGroupId) || 'option group'}`}>
+                                {groupName(course.optionGroupId) || 'Group'}
                               </span>
                             )}
                           </td>
@@ -1036,6 +966,11 @@ function Courses({ semesterId, selectedSemesters = [] }) {
                           <td>{course.semester}</td>
                           <td>{course.credit}</td>
                           <td>{course.weeklyClasses != null ? course.weeklyClasses : '—'}</td>
+                          <td>
+                            {course.inRoutine
+                              ? <span className="routine-badge in">In routine</span>
+                              : <span className="routine-badge out">—</span>}
+                          </td>
                           <td style={{ fontSize: 12, color: '#6b7280' }}>
                             {syllabusTitle(course.syllabusId) || '—'}
                           </td>
@@ -1051,7 +986,7 @@ function Courses({ semesterId, selectedSemesters = [] }) {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={viewMode === 'selected' ? '10' : '9'} className="no-results">
+                        <td colSpan="11" className="no-results">
                           {viewMode === 'selected' && selectedCourseSemesters.length > 0
                             ? 'No courses found for the selected semesters.'
                             : viewMode === 'selected' && selectedCourseSemesters.length === 0

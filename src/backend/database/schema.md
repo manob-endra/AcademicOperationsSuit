@@ -721,6 +721,9 @@ CREATE TABLE IF NOT EXISTS notices (
   priority VARCHAR(20) CHECK (priority IN ('normal', 'important', 'urgent')) DEFAULT 'normal',
   created_by UUID REFERENCES users(id) ON DELETE SET NULL,
   is_active BOOLEAN DEFAULT true,
+  document_url  TEXT,    -- optional attachment (Supabase Storage public URL); see migrations/notice_documents.sql
+  document_name TEXT,    -- original filename
+  document_size BIGINT,  -- bytes (≤ 15 MB)
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
