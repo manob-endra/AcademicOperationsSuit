@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { syllabusAPI } from '../../../../services/syllabusAPI';
+import { courseAPI } from '../../../../services/courseAPI';
 import '../styles/Modal.css';
 import '../styles/SyllabusManager.css';
 
@@ -25,6 +26,11 @@ function SyllabusManager({ syllabi, optionGroups, courses, onChanged }) {
   // Option-group form (inside an expanded syllabus)
   const [groupForm, setGroupForm] = useState({ name: '', year: '', semester: '', choose_count: 1 });
   const [groupBusy, setGroupBusy] = useState(false);
+
+  // Membership editor: which group is open, and the course-picker search text
+  const [membersFor, setMembersFor] = useState(null); // group id whose members are being edited
+  const [memberSearch, setMemberSearch] = useState('');
+  const [memberBusyId, setMemberBusyId] = useState(null);
 
   const openAdd = () => {
     setForm({ title: '', effective_session: '', starting_year: '', notes: '' });
@@ -100,6 +106,28 @@ function SyllabusManager({ syllabi, optionGroups, courses, onChanged }) {
   const groupsFor = (syllabusId) => optionGroups.filter(g => g.syllabus_id === syllabusId);
   const coursesFor = (syllabusId) => courses.filter(c => c.syllabusId === syllabusId);
 
+  // Add or remove one course from a group (option_group_id set / cleared).
+  const setCourseGroup = async (courseId, groupId) => {
+    setMemberBusyId(courseId);
+    const r = await courseAPI.assignToGroup([courseId], groupId);
+    setMemberBusyId(null);
+    if (r.success) onChanged();
+    else alert(r.error || 'Failed to update course group.');
+  };
+
+  // Courses eligible to be added to a group: same syllabus + year + semester,
+  // not already in this group.
+  const eligibleForGroup = (group) => {
+    const q = memberSearch.trim().toLowerCase();
+    return courses.filter(c =>
+      c.syllabusId === group.syllabus_id &&
+      c.year === group.year &&
+      c.semester === group.semester &&
+      c.optionGroupId !== group.id &&
+      (!q || `${c.code} ${c.title}`.toLowerCase().includes(q))
+    );
+  };
+
   return (
     <div className="sylm-wrap">
       <div className="sylm-toolbar">
@@ -144,8 +172,9 @@ function SyllabusManager({ syllabi, optionGroups, courses, onChanged }) {
                     <h4 className="sylm-section-title">Option Groups</h4>
                     <p className="sylm-hint">
                       Optional-course containers (e.g. “Option-A” in 4th Year 1st Semester, choose 1).
-                      Assign courses to a group from the Add/Edit Course forms; which option actually
-                      runs each semester is decided in the Offered Options panel of the Courses tab.
+                      Use “Manage courses” to add or remove courses from a group. You can also select
+                      courses in the Course Catalog and group them there. Which option actually runs
+                      each semester is decided in the Semester Syllabus tab.
                     </p>
 
                     {groups.length > 0 && (
@@ -154,18 +183,81 @@ function SyllabusManager({ syllabi, optionGroups, courses, onChanged }) {
                           <tr><th>Name</th><th>Year</th><th>Semester</th><th>Choose</th><th>Courses</th><th></th></tr>
                         </thead>
                         <tbody>
-                          {groups.map(g => (
-                            <tr key={g.id}>
-                              <td>{g.name}</td>
-                              <td>{g.year}</td>
-                              <td>{g.semester}</td>
-                              <td>{g.choose_count}</td>
-                              <td>{courses.filter(c => c.optionGroupId === g.id).map(c => c.code).join(', ') || '—'}</td>
-                              <td>
-                                <button className="sylm-mini-btn danger" onClick={() => handleDeleteGroup(g)}>🗑</button>
-                              </td>
-                            </tr>
-                          ))}
+                          {groups.map(g => {
+                            const members = courses.filter(c => c.optionGroupId === g.id);
+                            const editing = membersFor === g.id;
+                            return (
+                              <Fragment key={g.id}>
+                                <tr>
+                                  <td>{g.name}</td>
+                                  <td>{g.year}</td>
+                                  <td>{g.semester}</td>
+                                  <td>{g.choose_count}</td>
+                                  <td>{members.map(c => c.code).join(', ') || '—'}</td>
+                                  <td style={{ whiteSpace: 'nowrap' }}>
+                                    <button
+                                      className="sylm-mini-btn"
+                                      onClick={() => { setMembersFor(editing ? null : g.id); setMemberSearch(''); }}
+                                    >
+                                      {editing ? 'Close' : 'Manage courses'}
+                                    </button>
+                                    <button className="sylm-mini-btn danger" onClick={() => handleDeleteGroup(g)}>🗑</button>
+                                  </td>
+                                </tr>
+                                {editing && (
+                                  <tr className="sylm-members-row">
+                                    <td colSpan={6}>
+                                      <div className="sylm-members-editor">
+                                        <div className="sylm-members-col">
+                                          <h5>In this group ({members.length})</h5>
+                                          {members.length === 0 ? (
+                                            <p className="sylm-hint">No courses yet.</p>
+                                          ) : members.map(c => (
+                                            <div key={c.id} className="sylm-member-chip">
+                                              <span><strong>{c.code}</strong> {c.title}</span>
+                                              <button
+                                                className="sylm-mini-btn danger"
+                                                disabled={memberBusyId === c.id}
+                                                onClick={() => setCourseGroup(c.id, null)}
+                                                title="Remove from group"
+                                              >
+                                                ✕
+                                              </button>
+                                            </div>
+                                          ))}
+                                        </div>
+                                        <div className="sylm-members-col">
+                                          <h5>Add a course</h5>
+                                          <input
+                                            type="text"
+                                            className="sylm-member-search"
+                                            placeholder="Search this syllabus/year/semester…"
+                                            value={memberSearch}
+                                            onChange={e => setMemberSearch(e.target.value)}
+                                          />
+                                          <div className="sylm-member-pick-list">
+                                            {eligibleForGroup(g).length === 0 ? (
+                                              <p className="sylm-hint">No eligible courses. They must be in the same syllabus, year and semester as the group.</p>
+                                            ) : eligibleForGroup(g).slice(0, 40).map(c => (
+                                              <button
+                                                key={c.id}
+                                                className="sylm-member-add-btn"
+                                                disabled={memberBusyId === c.id}
+                                                onClick={() => setCourseGroup(c.id, g.id)}
+                                              >
+                                                + <strong>{c.code}</strong> {c.title}
+                                                {c.optionGroupId && <span className="sylm-hint"> (moves from another group)</span>}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </Fragment>
+                            );
+                          })}
                         </tbody>
                       </table>
                     )}

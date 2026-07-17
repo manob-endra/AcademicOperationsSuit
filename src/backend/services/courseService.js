@@ -276,6 +276,53 @@ export const courseService = {
   },
 
   /**
+   * Batch set routine participation on a list of courses. Only courses with
+   * in_routine = true take part in routine generation / conflict checks.
+   * @param {string[]} courseIds
+   * @param {boolean} inRoutine
+   */
+  async setCoursesInRoutine(courseIds, inRoutine) {
+    try {
+      if (!Array.isArray(courseIds) || courseIds.length === 0) {
+        return { success: false, error: 'courseIds array is required' };
+      }
+      const { data, error } = await supabase
+        .from('courses')
+        .update({ in_routine: !!inRoutine })
+        .in('id', courseIds)
+        .select();
+      if (error) throw error;
+      return { success: true, courses: data };
+    } catch (error) {
+      console.error('Set courses in-routine error:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Assign a list of courses to an option group (or clear it with null).
+   * @param {string[]} courseIds
+   * @param {string|null} optionGroupId
+   */
+  async assignCoursesToGroup(courseIds, optionGroupId) {
+    try {
+      if (!Array.isArray(courseIds) || courseIds.length === 0) {
+        return { success: false, error: 'courseIds array is required' };
+      }
+      const { data, error } = await supabase
+        .from('courses')
+        .update({ option_group_id: optionGroupId || null })
+        .in('id', courseIds)
+        .select();
+      if (error) throw error;
+      return { success: true, courses: data };
+    } catch (error) {
+      console.error('Assign courses to group error:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
    * Get teaching history for a course (archived on semester rollover).
    * Rows: { semester_label, teacher_ids, teacher_names, archived_at }
    * @param {string} courseId - Course ID

@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { noticeAPI } from '../../services/noticeAPI';
+import { useState, useEffect, useRef } from 'react';
+import { noticeAPI, MAX_DOCUMENT_BYTES } from '../../services/noticeAPI';
+import DocumentAttachment from '../shared/DocumentAttachment';
 import '../../styles/TeacherDashboard.css';
 
 const PRIORITY_LABEL = { normal: 'Normal', important: 'Important', urgent: 'Urgent' };
@@ -11,6 +12,12 @@ function formatDate(ts) {
   return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+function formatSize(bytes) {
+  if (bytes == null) return '';
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function NoticeManagement({ user }) {
   const [notices, setNotices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -18,8 +25,27 @@ function NoticeManagement({ user }) {
   const [form, setForm]       = useState(EMPTY_FORM);
   const [error, setError]     = useState('');
   const [success, setSuccess] = useState('');
+  const [docFile, setDocFile] = useState(null); // optional attachment
+  const fileInputRef = useRef(null);
 
   useEffect(() => { load(); }, []);
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0] || null;
+    setError('');
+    if (file && file.size > MAX_DOCUMENT_BYTES) {
+      setError('Document exceeds the 15 MB limit. Please choose a smaller file.');
+      setDocFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+    setDocFile(file);
+  };
+
+  const clearFile = () => {
+    setDocFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   const load = async () => {
     setLoading(true);
@@ -39,16 +65,32 @@ function NoticeManagement({ user }) {
     setError('');
     setSuccess('');
 
+    // Upload the optional document first; only attach it if that succeeds.
+    let doc = { url: null, name: null, size: null };
+    if (docFile) {
+      const up = await noticeAPI.uploadDocument(docFile);
+      if (!up.success) {
+        setError(up.error || 'Failed to upload the document.');
+        setSaving(false);
+        return;
+      }
+      doc = { url: up.url, name: up.name, size: up.size };
+    }
+
     const result = await noticeAPI.createNotice({
       title: form.title.trim(),
       content: form.content.trim(),
       priority: form.priority,
       created_by: user?.id || null,
+      document_url: doc.url,
+      document_name: doc.name,
+      document_size: doc.size,
     });
 
     if (result.success) {
       setSuccess('Notice posted successfully.');
       setForm(EMPTY_FORM);
+      clearFile();
       await load();
     } else {
       setError(result.error || 'Failed to post notice.');
@@ -107,8 +149,33 @@ function NoticeManagement({ user }) {
             </select>
           </div>
 
+          <div className="td-form-row">
+            <label>Attachment (optional)</label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.png,.jpg,.jpeg,.gif,.webp,.zip"
+              onChange={handleFileChange}
+            />
+            <small style={{ color: '#6b7280', fontSize: 12 }}>
+              PDF or document, up to 15 MB.
+            </small>
+            {docFile && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6, fontSize: 13 }}>
+                <span>📎 {docFile.name} <span style={{ color: '#6b7280' }}>({formatSize(docFile.size)})</span></span>
+                <button
+                  type="button"
+                  onClick={clearFile}
+                  style={{ border: 'none', background: 'none', color: '#dc2626', cursor: 'pointer', fontWeight: 600 }}
+                >
+                  Remove
+                </button>
+              </div>
+            )}
+          </div>
+
           <button type="submit" className="td-save-btn" disabled={saving}>
-            {saving ? 'Posting…' : 'Post Notice'}
+            {saving ? (docFile ? 'Uploading & posting…' : 'Posting…') : 'Post Notice'}
           </button>
         </form>
       </div>
@@ -142,6 +209,9 @@ function NoticeManagement({ user }) {
               </span>
             </div>
             <p className="td-notice-list-body">{n.content}</p>
+            {n.document_url && (
+              <DocumentAttachment url={n.document_url} name={n.document_name} size={n.document_size} />
+            )}
             <p className="td-notice-list-meta">Posted {formatDate(n.created_at)}</p>
           </div>
           <button className="td-delete-btn" onClick={() => handleDelete(n.id)}>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authAPI, validateEmail } from '../services/authAPI';
 import AuthLayout from './shared/layout/AuthLayout';
+import DemoCredentials from './shared/DemoCredentials';
 import '../styles/Auth.css';
 
 function SignUp() {
@@ -51,6 +52,7 @@ function SignUp() {
 
   return (
     <AuthLayout>
+      <DemoCredentials />
       <div className="auth-card-simple">
         <h2 className="auth-form-title">Create Account</h2>
         <p className="auth-form-sub">Join with your university email address</p>

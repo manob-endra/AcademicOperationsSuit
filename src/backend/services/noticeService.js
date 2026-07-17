@@ -11,10 +11,14 @@ export const noticeService = {
     return data || [];
   },
 
-  async createNotice({ title, content, priority = 'normal', created_by }) {
+  async createNotice({ title, content, priority = 'normal', created_by, document_url = null, document_name = null, document_size = null }) {
     const { data, error } = await supabase
       .from('notices')
-      .insert([{ title, content, priority, created_by, is_active: true }])
+      .insert([{
+        title, content, priority, created_by, is_active: true,
+        // Optional attachment — null when the notice has no document.
+        document_url, document_name, document_size,
+      }])
       .select()
       .single();
     if (error) throw error;

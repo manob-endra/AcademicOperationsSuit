@@ -739,6 +739,70 @@ export const courseAPI = {
   },
 
   /**
+   * Batch add/remove courses to the routine (opt-in participation).
+   * @param {string[]} courseIds
+   * @param {boolean} inRoutine
+   */
+  async setInRoutine(courseIds, inRoutine) {
+    try {
+      if (!backendAvailable) backendAvailable = await checkBackendConnection();
+      if (!backendAvailable) return { success: false, error: 'Backend server is not running.', offline: true };
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const response = await fetch(`${API_BASE_URL}/set-in-routine`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ courseIds, inRoutine }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) { const r = await response.json(); throw new Error(r.error || 'Failed to update courses'); }
+      const result = await response.json();
+      return { success: true, courses: result.data || [] };
+    } catch (error) {
+      if (error.name === 'AbortError' || error.message.includes('Failed to fetch')) {
+        backendAvailable = false;
+        return { success: false, error: 'Cannot connect to backend server.', offline: true };
+      }
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Batch assign courses to an option group (or clear with optionGroupId null).
+   * @param {string[]} courseIds
+   * @param {string|null} optionGroupId
+   */
+  async assignToGroup(courseIds, optionGroupId) {
+    try {
+      if (!backendAvailable) backendAvailable = await checkBackendConnection();
+      if (!backendAvailable) return { success: false, error: 'Backend server is not running.', offline: true };
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const response = await fetch(`${API_BASE_URL}/assign-group`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ courseIds, optionGroupId: optionGroupId || null }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) { const r = await response.json(); throw new Error(r.error || 'Failed to update courses'); }
+      const result = await response.json();
+      return { success: true, courses: result.data || [] };
+    } catch (error) {
+      if (error.name === 'AbortError' || error.message.includes('Failed to fetch')) {
+        backendAvailable = false;
+        return { success: false, error: 'Cannot connect to backend server.', offline: true };
+      }
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
    * Restore multiple courses (set is_active to true for multiple)
    */
   async restoreCourses(courseIds) {

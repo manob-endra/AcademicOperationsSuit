@@ -67,7 +67,7 @@ router.post('/import', async (req, res) => {
 
 /**
  * PUT /api/courses/set-exceptional
- * Batch mark/unmark courses as exceptional
+ * Batch mark/unmark courses as exceptional (legacy — kept for compatibility)
  */
 router.put('/set-exceptional', async (req, res) => {
   try {
@@ -80,6 +80,46 @@ router.put('/set-exceptional', async (req, res) => {
     res.status(500).json({ success: false, error: result.error });
   } catch (error) {
     console.error('Error setting exceptional courses:', error);
+    res.status(500).json({ success: false, error: 'Failed to update courses' });
+  }
+});
+
+/**
+ * PUT /api/courses/set-in-routine
+ * Batch add/remove courses to the routine (opt-in participation)
+ * Body: { courseIds: string[], inRoutine: boolean }
+ */
+router.put('/set-in-routine', async (req, res) => {
+  try {
+    const { courseIds, inRoutine } = req.body;
+    if (!Array.isArray(courseIds) || courseIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'courseIds array is required' });
+    }
+    const result = await courseService.setCoursesInRoutine(courseIds, !!inRoutine);
+    if (result.success) return res.json({ success: true, data: result.courses });
+    res.status(500).json({ success: false, error: result.error });
+  } catch (error) {
+    console.error('Error setting routine courses:', error);
+    res.status(500).json({ success: false, error: 'Failed to update courses' });
+  }
+});
+
+/**
+ * PUT /api/courses/assign-group
+ * Batch assign courses to an option group (or clear with optionGroupId: null)
+ * Body: { courseIds: string[], optionGroupId: string|null }
+ */
+router.put('/assign-group', async (req, res) => {
+  try {
+    const { courseIds, optionGroupId } = req.body;
+    if (!Array.isArray(courseIds) || courseIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'courseIds array is required' });
+    }
+    const result = await courseService.assignCoursesToGroup(courseIds, optionGroupId || null);
+    if (result.success) return res.json({ success: true, data: result.courses });
+    res.status(500).json({ success: false, error: result.error });
+  } catch (error) {
+    console.error('Error assigning courses to group:', error);
     res.status(500).json({ success: false, error: 'Failed to update courses' });
   }
 });
