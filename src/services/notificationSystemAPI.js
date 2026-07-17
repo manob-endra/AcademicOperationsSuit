@@ -29,10 +29,12 @@ export const notificationSystemAPI = {
     body:   JSON.stringify({ email }),
   }),
 
-  // Publish routine (triggers job creation); semesterId required, semesterLabel for display
-  publishRoutine: (semesterId, semesterLabel) => req('/routine/publish', {
+  // Publish routine (triggers job creation).
+  // semesterId = academic semester UUID (routine scope); batchId = student
+  // batch short code (e.g. 'Y4-S1') identifying which entries to publish.
+  publishRoutine: (semesterId, batchId, semesterLabel) => req('/routine/publish', {
     method: 'POST',
-    body:   JSON.stringify({ semesterId, semesterLabel }),
+    body:   JSON.stringify({ semesterId, batchId, semesterLabel }),
   }),
 
   // Public unsubscribe by token

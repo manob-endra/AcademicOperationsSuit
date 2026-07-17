@@ -371,14 +371,14 @@ function CourseDurationSection({
 
 /* ─── Main page component ───────────────────────────────────────────────── */
 
-function CourseTime() {
+function CourseTime({ semesterId }) {
   const [courses,      setCourses]      = useState([]);
   const [durations,    setDurations]    = useState({});      // { courseId: durationPeriods }
   const [weeklyClasses, setWeeklyClasses] = useState({});    // { courseId: weeklyClasses }
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState(null);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { if (semesterId) loadData(); }, [semesterId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadData = async () => {
     setLoading(true);
@@ -386,7 +386,7 @@ function CourseTime() {
 
     const [coursesResult, durationsResult] = await Promise.all([
       courseTimeAPI.getCourses(),
-      courseTimeAPI.getDurations(),
+      courseTimeAPI.getDurations(semesterId),
     ]);
 
     if (coursesResult.success) {
@@ -418,7 +418,7 @@ function CourseTime() {
   /* ── callbacks ── */
 
   const saveDuration = async (courseId, durationPeriods) => {
-    const result = await courseTimeAPI.saveDuration(courseId, durationPeriods);
+    const result = await courseTimeAPI.saveDuration(semesterId, courseId, durationPeriods);
     if (result.success) {
       setDurations((prev) => ({ ...prev, [courseId]: durationPeriods }));
       return { success: true };
@@ -428,7 +428,7 @@ function CourseTime() {
 
   const saveBulkDurations = async (courseIds, durationPeriods) => {
     const payload = courseIds.map((id) => ({ courseId: id, durationPeriods }));
-    const result = await courseTimeAPI.saveBulkDurations(payload);
+    const result = await courseTimeAPI.saveBulkDurations(semesterId, payload);
     if (result.success) {
       setDurations((prev) => {
         const updated = { ...prev };
@@ -441,7 +441,7 @@ function CourseTime() {
   };
 
   const saveWeeklyClasses = async (courseId, count) => {
-    const result = await courseTimeAPI.saveWeeklyClasses(courseId, count);
+    const result = await courseTimeAPI.saveWeeklyClasses(semesterId, courseId, count);
     if (result.success) {
       setWeeklyClasses((prev) => ({ ...prev, [courseId]: count }));
       return { success: true };
@@ -450,7 +450,7 @@ function CourseTime() {
   };
 
   const saveBulkWeeklyClasses = async (courseIds, count) => {
-    const result = await courseTimeAPI.saveBulkWeeklyClasses(courseIds, count);
+    const result = await courseTimeAPI.saveBulkWeeklyClasses(semesterId, courseIds, count);
     if (result.success) {
       setWeeklyClasses((prev) => {
         const updated = { ...prev };

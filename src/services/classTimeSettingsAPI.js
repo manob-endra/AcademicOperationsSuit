@@ -27,19 +27,21 @@ const checkBackendConnection = async () => {
   }
 };
 
+// Class time settings belong to one academic semester — semesterId is the
+// UUID from the /routine-management/:semesterId route.
 export const classTimeSettingsAPI = {
   /**
-   * Get the current class time settings
+   * Get the current class time settings for one semester
    */
-  async getSettings() {
+  async getSettings(semesterId) {
     try {
       if (!backendAvailable) {
         backendAvailable = await checkBackendConnection();
       }
 
       if (!backendAvailable) {
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: 'Backend server is not running. Please start it with: npm run dev',
           offline: true
         };
@@ -48,10 +50,10 @@ export const classTimeSettingsAPI = {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-      const response = await fetch(`${API_BASE_URL}`, {
+      const response = await fetch(`${API_BASE_URL}?semesterId=${semesterId}`, {
         signal: controller.signal
       });
-      
+
       clearTimeout(timeoutId);
 
       if (!response.ok) {
@@ -78,31 +80,30 @@ export const classTimeSettingsAPI = {
   },
 
   /**
-   * Save or create class time settings
+   * Save or create class time settings for one semester
    */
-  async saveSettings(settingsData) {
+  async saveSettings(semesterId, settingsData) {
     try {
       if (!backendAvailable) {
         backendAvailable = await checkBackendConnection();
       }
 
       if (!backendAvailable) {
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: 'Backend server is not running. Please start it with: npm run dev',
-          offline: true 
+          offline: true
         };
       }
 
       // Ensure skipTime is included and is a number
       const dataToSend = {
         ...settingsData,
-        skipTime: typeof settingsData.skipTime === 'string' 
-          ? parseInt(settingsData.skipTime) 
+        semesterId,
+        skipTime: typeof settingsData.skipTime === 'string'
+          ? parseInt(settingsData.skipTime)
           : settingsData.skipTime
       };
-
-      console.log('API: Sending save request with data:', dataToSend);
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -124,7 +125,6 @@ export const classTimeSettingsAPI = {
       }
 
       const result = await response.json();
-      console.log('API: Save response:', result);
       return { success: true, data: result.data };
     } catch (error) {
       console.error('Save class time settings error:', error);
@@ -167,8 +167,6 @@ export const classTimeSettingsAPI = {
           : updates.skipTime
       };
 
-      console.log('API: Sending update request with data:', dataToSend);
-
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
 
@@ -189,7 +187,6 @@ export const classTimeSettingsAPI = {
       }
 
       const result = await response.json();
-      console.log('API: Update response:', result);
       return { success: true, data: result.data };
     } catch (error) {
       console.error('Update class time settings error:', error);

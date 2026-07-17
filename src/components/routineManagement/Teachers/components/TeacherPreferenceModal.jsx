@@ -1,6 +1,6 @@
 import TeacherAvailabilityGrid from './TeacherAvailabilityGrid';
 
-function TeacherPreferenceModal({ isOpen, onClose, teacher, preferenceType, prefsMap, courseMap, onAvailabilitySaved }) {
+function TeacherPreferenceModal({ isOpen, onClose, teacher, preferenceType, semesterId, prefsMap, courseMap, onAvailabilitySaved }) {
   if (!isOpen || !teacher) return null;
 
   const prefs = (prefsMap || {})[teacher.id] || {};
@@ -52,7 +52,7 @@ function TeacherPreferenceModal({ isOpen, onClose, teacher, preferenceType, pref
 
         <div className="modal-body">
           {isTime ? (
-            <TeacherAvailabilityGrid teacherId={teacher.id} onSaved={onAvailabilitySaved} />
+            <TeacherAvailabilityGrid semesterId={semesterId} teacherId={teacher.id} onSaved={onAvailabilitySaved} />
           ) : (
             <>
               <div className="preference-count-section">

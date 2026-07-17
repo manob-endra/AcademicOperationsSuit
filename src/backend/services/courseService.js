@@ -13,14 +13,18 @@ export const courseService = {
 
   /**
    * Get all courses (returns both active and inactive for backward compatibility)
+   * @param {string|null} syllabusId - optional: restrict to one syllabus version
    * @returns {Promise<{success: boolean, courses?: array, error?: string}>}
    */
-  async getAllCourses() {
+  async getAllCourses(syllabusId = null) {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('courses')
         .select('*')
         .order('code', { ascending: true });
+      if (syllabusId) query = query.eq('syllabus_id', syllabusId);
+
+      const { data, error } = await query;
 
       if (error) throw error;
       return { success: true, courses: data };

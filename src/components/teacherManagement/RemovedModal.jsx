@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { teacherAPI } from '../../services/teacherAPI';
+import { sortTeachersByRank } from '../../utils/teacherRank';
 
 function RemovedModal({ onClose, onRestored }) {
   const [teachers, setTeachers] = useState([]);
@@ -9,7 +10,7 @@ function RemovedModal({ onClose, onRestored }) {
 
   useEffect(() => {
     teacherAPI.getRemovedTeachers().then(result => {
-      if (result.success) setTeachers(result.data);
+      if (result.success) setTeachers(sortTeachersByRank(result.data));
       else setError(result.error || 'Failed to load removed teachers.');
       setLoading(false);
     });

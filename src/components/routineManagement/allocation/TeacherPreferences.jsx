@@ -31,7 +31,7 @@ const FIELD_TO_DB = {
   assignedCourses:  'assigned_courses',
 };
 
-function TeacherPreferences() {
+function TeacherPreferences({ semesterId }) {
   const [teachers,       setTeachers]       = useState([]);
   const [allCourses,     setAllCourses]     = useState([]);
   const [preferencesMap, setPreferencesMap] = useState({}); // teacherId → DB row
@@ -47,11 +47,12 @@ function TeacherPreferences() {
 
   // Load all data on mount
   useEffect(() => {
+    if (!semesterId) return;
     Promise.all([
-      teacherAPI.getTeachers(),
+      teacherAPI.getTeachers(semesterId),
       courseAPI.getAllCourses(),
-      teacherPrefAPI.getAllPreferences(),
-      courseTeacherAPI.getAllAssignments(),
+      teacherPrefAPI.getAllPreferences(semesterId),
+      courseTeacherAPI.getAllAssignments(semesterId),
     ]).then(([tRes, cRes, pRes, aRes]) => {
       if (tRes.success) setTeachers(tRes.data || []);
       if (cRes.success) setAllCourses(cRes.courses || []);
@@ -72,7 +73,7 @@ function TeacherPreferences() {
       }
       setLoading(false);
     });
-  }, []);
+  }, [semesterId]);
 
   const courseMap = useMemo(() => {
     const map = {};
@@ -208,7 +209,7 @@ function TeacherPreferences() {
     };
 
     closeEditor();
-    teacherPrefAPI.savePreferences(teacherId, toSave);
+    teacherPrefAPI.savePreferences(semesterId, teacherId, toSave);
   };
 
   const handleEditorOk = () => {

@@ -45,18 +45,20 @@ const makeRequest = async (url, options = {}) => {
   }
 };
 
+// Preferences belong to one academic semester — semesterId is the UUID from
+// the /routine-management/:semesterId route.
 export const teacherPrefAPI = {
-  async getAllPreferences() {
-    const result = await makeRequest(API_BASE_URL);
+  async getAllPreferences(semesterId) {
+    const result = await makeRequest(`${API_BASE_URL}?semesterId=${semesterId}`);
     if (result.success) return { success: true, data: result.data };
     return result;
   },
 
-  async savePreferences(teacherId, prefs) {
+  async savePreferences(semesterId, teacherId, prefs) {
     const result = await makeRequest(`${API_BASE_URL}/${teacherId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(prefs),
+      body: JSON.stringify({ ...prefs, semesterId }),
     });
     if (result.success) return { success: true };
     return result;

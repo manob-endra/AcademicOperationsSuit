@@ -1,13 +1,14 @@
 import { useRef, useState } from 'react';
-import { parseCSVFile } from '../utils/courseUtils';
+import { parseCSVFile, parseExcelFile } from '../utils/courseUtils';
 import '../styles/Modal.css';
 
-function ImportCoursesModal({ isOpen, onClose, onImportCourses }) {
+function ImportCoursesModal({ isOpen, onClose, onImportCourses, syllabi = [], defaultSyllabusId = '' }) {
   const fileInputRef = useRef(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [error, setError] = useState('');
   const [previewCourses, setPreviewCourses] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [syllabusId, setSyllabusId] = useState(defaultSyllabusId);
 
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
@@ -17,7 +18,7 @@ function ImportCoursesModal({ isOpen, onClose, onImportCourses }) {
     const allowedTypes = ['csv', 'xlsx', 'xls'];
 
     if (!allowedTypes.includes(fileExtension)) {
-      setError('Please upload a CSV or Excel file');
+      setError('Please upload a CSV or Excel (.xlsx / .xls) file');
       setSelectedFile(null);
       setPreviewCourses([]);
       return;
@@ -26,23 +27,23 @@ function ImportCoursesModal({ isOpen, onClose, onImportCourses }) {
     setSelectedFile(file);
     setError('');
 
-    // Preview the file
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
-        if (fileExtension === 'csv') {
-          const courses = parseCSVFile(event.target.result);
-          setPreviewCourses(courses);
-        } else {
-          setError('Excel file parsing requires additional setup. Please use CSV format for now.');
-          setPreviewCourses([]);
+        const courses = fileExtension === 'csv'
+          ? parseCSVFile(event.target.result)
+          : await parseExcelFile(event.target.result);
+        if (courses.length === 0) {
+          setError('No valid course rows found. The first row must contain headers (Code, Title, Type, Year, Semester, Credit, Weekly Classes).');
         }
+        setPreviewCourses(courses);
       } catch (err) {
         setError('Error reading file: ' + err.message);
         setPreviewCourses([]);
       }
     };
-    reader.readAsText(file);
+    if (fileExtension === 'csv') reader.readAsText(file);
+    else reader.readAsArrayBuffer(file);
   };
 
   const handleConfirm = async () => {
@@ -53,7 +54,7 @@ function ImportCoursesModal({ isOpen, onClose, onImportCourses }) {
 
     setIsSubmitting(true);
     try {
-      await onImportCourses(previewCourses);
+      await onImportCourses(previewCourses, syllabusId || null);
       handleCancel();
     } catch (err) {
       setError(err.message || 'Failed to import courses');
@@ -90,8 +91,28 @@ function ImportCoursesModal({ isOpen, onClose, onImportCourses }) {
               Supported formats: CSV, Excel (.xlsx, .xls)
             </p>
             <p className="import-info">
-              CSV Format: Code, Title, Type, Year, Semester, Credit
+              Columns (first row = headers): Code, Title, Type (Theory / Lab / Mixed / Project /
+              Internship / Viva), Year, Semester, Credit, Weekly Classes (optional — defaults
+              3 theory · 1 lab · 0 project)
             </p>
+
+            {syllabi.length > 0 && (
+              <div className="form-group" style={{ maxWidth: 380 }}>
+                <label>Import into syllabus</label>
+                <select
+                  value={syllabusId}
+                  onChange={e => setSyllabusId(e.target.value)}
+                  disabled={isSubmitting}
+                >
+                  <option value="">No syllabus (legacy catalog)</option>
+                  {syllabi.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.title} ({s.effective_session})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <button
               className="file-input-btn"
@@ -128,6 +149,7 @@ function ImportCoursesModal({ isOpen, onClose, onImportCourses }) {
                         <th>Year</th>
                         <th>Semester</th>
                         <th>Credit</th>
+                        <th>Weekly</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -139,6 +161,7 @@ function ImportCoursesModal({ isOpen, onClose, onImportCourses }) {
                           <td>{course.year}</td>
                           <td>{course.semester}</td>
                           <td>{course.credit}</td>
+                          <td>{course.weeklyClasses}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -150,15 +173,15 @@ function ImportCoursesModal({ isOpen, onClose, onImportCourses }) {
         </div>
 
         <div className="modal-footer">
-          <button 
-            className="btn btn-cancel" 
+          <button
+            className="btn btn-cancel"
             onClick={handleCancel}
             disabled={isSubmitting}
           >
             Cancel
           </button>
-          <button 
-            className="btn btn-confirm" 
+          <button
+            className="btn btn-confirm"
             onClick={handleConfirm}
             disabled={previewCourses.length === 0 || isSubmitting}
           >

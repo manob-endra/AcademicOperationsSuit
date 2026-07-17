@@ -26,9 +26,11 @@ const makeRequest = async (url, options = {}, timeoutMs = 20000) => {
   }
 };
 
+// Every call works inside one academic semester — `semesterId` is the UUID
+// from the /routine-management/:semesterId route.
 export const routineAPI = {
-  async checkConflicts() {
-    const result = await makeRequest(`${API_BASE_URL}/conflicts`);
+  async checkConflicts(semesterId) {
+    const result = await makeRequest(`${API_BASE_URL}/conflicts?semesterId=${semesterId}`);
     if (result.success) return { success: true, conflicts: result.conflicts };
     return result;
   },
@@ -38,8 +40,9 @@ export const routineAPI = {
    * Optional `seed` reproduces a previous run exactly.
    * Generation can take a while on large inputs — generous timeout.
    */
-  async generateRoutine(seed) {
-    const body = seed !== undefined && seed !== null && seed !== '' ? { seed } : {};
+  async generateRoutine(semesterId, seed) {
+    const body = { semesterId };
+    if (seed !== undefined && seed !== null && seed !== '') body.seed = seed;
     const result = await makeRequest(`${API_BASE_URL}/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -58,31 +61,56 @@ export const routineAPI = {
   },
 
   /** Persist a previewed routine so it can be published. */
-  async saveRoutine(entries, generatedAt) {
+  async saveRoutine(semesterId, entries, generatedAt) {
     return makeRequest(`${API_BASE_URL}/save`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entries, generatedAt }),
+      body: JSON.stringify({ semesterId, entries, generatedAt }),
     });
   },
 
-  async getRoutine() {
-    const result = await makeRequest(API_BASE_URL);
+  async getRoutine(semesterId) {
+    const result = await makeRequest(`${API_BASE_URL}?semesterId=${semesterId}`);
     if (result.success) {
       return { success: true, entries: result.entries || [], generatedAt: result.generatedAt };
     }
     return result;
   },
 
-  async clearRoutine() {
-    return makeRequest(API_BASE_URL, { method: 'DELETE' });
+  /**
+   * The most recently published routine, for viewers with no semester
+   * context of their own (student "My Routine", teacher routine pages).
+   * Also returns which academic semester it belongs to, so the caller can
+   * fetch that semester's class time settings / teacher loads to match.
+   */
+  async getPublishedRoutine() {
+    const result = await makeRequest(`${API_BASE_URL}/published`);
+    if (result.success) {
+      return {
+        success: true,
+        entries: result.entries || [],
+        generatedAt: result.generatedAt,
+        semesterId: result.semesterId,
+        semesterLabel: result.semesterLabel,
+      };
+    }
+    return result;
   },
 
-  async publishRoutine(semesterId, semesterLabel) {
+  async clearRoutine(semesterId) {
+    return makeRequest(`${API_BASE_URL}?semesterId=${semesterId}`, { method: 'DELETE' });
+  },
+
+  /**
+   * Publish one student batch's routine.
+   * `semesterId` is the academic semester UUID; `batchId` is the batch short
+   * code (e.g. 'Y4-S1') identifying which entries to publish.
+   */
+  async publishRoutine(semesterId, batchId, semesterLabel) {
     return makeRequest(`${API_BASE_URL}/publish`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ semesterId, semesterLabel }),
+      body: JSON.stringify({ semesterId, batchId, semesterLabel }),
     });
   },
 };

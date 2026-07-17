@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { teacherAPI } from '../services/teacherAPI';
+import { compareTeachersByRank } from '../utils/teacherRank';
 import AddTeacherModal from './teacherManagement/AddTeacherModal';
 import EditTeacherModal from './teacherManagement/EditTeacherModal';
 import ImportModal from './teacherManagement/ImportModal';
@@ -69,7 +70,8 @@ function TeacherManagement() {
         t.contact_number?.includes(q)
       );
     }
-    return list;
+    // Seniority order: Dean → Chairman → Professor → Assoc. → Asst. → Lecturer
+    return [...list].sort(compareTeachersByRank);
   }, [teachers, search, filterStatus]);
 
   const handleAdd = async (data) => {

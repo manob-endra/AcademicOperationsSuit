@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { defaultLoadLimit } from '../../utils/teacherRank';
 
 const SPECIAL_POSITIONS = [
   'None',
@@ -36,6 +37,8 @@ const EMPTY_FORM = {
   contact_number: '',
   availability_status: 'available',
   department: '',
+  load_limit: '',        // blank = follow the rank default
+  loadLimitTouched: false, // becomes true once the admin edits the field by hand
 };
 
 function AddTeacherModal({ onClose, onAdd }) {
@@ -45,16 +48,40 @@ function AddTeacherModal({ onClose, onAdd }) {
 
   const set = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 
+  // Default max load implied by the current rank (Dean/Chairman 6, Professor
+  // 8, Assoc. 10, Asst. 12, Lecturer 16). Special post outranks designation.
+  const rankDefault = defaultLoadLimit({
+    designation: form.designation,
+    special_post: form.special_post,
+  });
+
+  // Picking a designation / special post refreshes the default unless the
+  // admin has already typed their own load limit.
+  const setRankField = (field, value) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.name.trim()) { setError('Name is required.'); return; }
     setSaving(true);
     setError('');
+    // Send the explicit limit only if the admin set one; otherwise let the
+    // backend apply the rank default.
+    const load_limit = form.loadLimitTouched && form.load_limit !== ''
+      ? Number(form.load_limit)
+      : undefined;
     const result = await onAdd({
-      ...form,
       name: form.name.trim(),
       initials: form.initials.trim(),
+      designation: form.designation,
+      email: form.email,
       joining_date: form.joining_date || null,
+      special_post: form.special_post,
+      contact_number: form.contact_number,
+      availability_status: form.availability_status,
+      department: form.department,
+      load_limit,
     });
     setSaving(false);
     if (!result.success) setError(result.error || 'Failed to add teacher.');
@@ -95,13 +122,29 @@ function AddTeacherModal({ onClose, onAdd }) {
               <select
                 className="tm-input"
                 value={form.designation}
-                onChange={e => set('designation', e.target.value)}
+                onChange={e => setRankField('designation', e.target.value)}
               >
                 <option value="">— Select —</option>
                 {DESIGNATIONS.map(d => (
                   <option key={d} value={d}>{d}</option>
                 ))}
               </select>
+            </div>
+
+            <div className="tm-form-group">
+              <label className="tm-label">Max Load (hrs/week)</label>
+              <input
+                className="tm-input"
+                type="number"
+                min="0"
+                value={form.loadLimitTouched ? form.load_limit : rankDefault}
+                onChange={e => setForm(prev => ({ ...prev, load_limit: e.target.value, loadLimitTouched: true }))}
+              />
+              <span className="tm-field-hint">
+                {form.loadLimitTouched
+                  ? `Rank default is ${rankDefault} hrs`
+                  : `Default for this rank (${rankDefault} hrs) — edit to override`}
+              </span>
             </div>
 
             <div className="tm-form-group tm-span-2">
@@ -151,7 +194,7 @@ function AddTeacherModal({ onClose, onAdd }) {
               <select
                 className="tm-input"
                 value={form.special_post}
-                onChange={e => set('special_post', e.target.value === 'None' ? '' : e.target.value)}
+                onChange={e => setRankField('special_post', e.target.value === 'None' ? '' : e.target.value)}
               >
                 {SPECIAL_POSITIONS.map(p => (
                   <option key={p} value={p === 'None' ? '' : p}>{p}</option>

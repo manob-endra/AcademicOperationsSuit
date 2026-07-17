@@ -1,15 +1,18 @@
 import { supabase } from '../config/supabaseClient.js';
 
-const ROW_ID = 1;
-
+// One row per academic semester. Which rooms a semester uses is a
+// scheduling decision, so it is scoped — unlike the classroom clusters
+// themselves, which stay global (the campus map doesn't change per semester).
 export const roomAllocationService = {
 
-  async getAllocation() {
+  async getAllocation(semesterId) {
     try {
+      if (!semesterId) return { success: false, error: 'semesterId is required.' };
+
       const { data, error } = await supabase
         .from('room_allocation')
         .select('theory_rooms, lab_rooms, semester_theory_rooms')
-        .eq('id', ROW_ID)
+        .eq('semester_id', semesterId)
         .maybeSingle();
 
       if (error) throw error;
@@ -23,18 +26,20 @@ export const roomAllocationService = {
     }
   },
 
-  async saveAllocation(theoryRooms, labRooms, semesterTheoryRooms) {
+  async saveAllocation(semesterId, theoryRooms, labRooms, semesterTheoryRooms) {
     try {
+      if (!semesterId) return { success: false, error: 'semesterId is required.' };
+
       const { error } = await supabase
         .from('room_allocation')
         .upsert(
           {
-            id: ROW_ID,
+            semester_id: semesterId,
             theory_rooms: theoryRooms,
             lab_rooms: labRooms,
             semester_theory_rooms: semesterTheoryRooms,
           },
-          { onConflict: 'id' }
+          { onConflict: 'semester_id' }
         );
 
       if (error) throw error;

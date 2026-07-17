@@ -3,7 +3,7 @@ import AllocateRoom from './allocation/AllocateRoom';
 import CourseWiseTeacher from './allocation/CourseWiseTeacher';
 import './allocation/styles/AllocationTabs.css';
 
-function Allocation({ selectedSemesters = [] }) {
+function Allocation({ semesterId, selectedSemesters = [] }) {
   const [activeSection, setActiveSection] = useState('allocateRoom');
 
   const sections = [
@@ -14,11 +14,11 @@ function Allocation({ selectedSemesters = [] }) {
   const renderSection = () => {
     switch (activeSection) {
       case 'allocateRoom':
-        return <AllocateRoom selectedSemesters={selectedSemesters} />;
+        return <AllocateRoom semesterId={semesterId} selectedSemesters={selectedSemesters} />;
       case 'courseWiseTeacher':
-        return <CourseWiseTeacher selectedSemesters={selectedSemesters} />;
+        return <CourseWiseTeacher semesterId={semesterId} selectedSemesters={selectedSemesters} />;
       default:
-        return <AllocateRoom selectedSemesters={selectedSemesters} />;
+        return <AllocateRoom semesterId={semesterId} selectedSemesters={selectedSemesters} />;
     }
   };
 

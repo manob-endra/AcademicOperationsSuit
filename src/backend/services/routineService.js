@@ -1,11 +1,11 @@
 import { supabase } from '../config/supabaseClient.js';
 import { generateWithGA } from './routineGA/index.js';
+import { getSemesterLoads } from './teacherLoadService.js';
 
-// Fixed UUID used as the single-row primary key for routine_storage.
-// routine_storage is a purpose-built single-row JSONB table (the original
-// `routines` table has a NOT NULL day_of_week constraint that blocks this pattern).
-const ROUTINE_ROW_ID = '00000000-0000-0000-0000-000000000001';
-const ROUTINE_TABLE  = 'routine_storage';
+// routine_storage holds one JSONB row per academic semester, keyed by
+// semester_id. (The original `routines` table has a NOT NULL day_of_week
+// constraint that blocks this row-per-semester pattern.)
+const ROUTINE_TABLE = 'routine_storage';
 
 const WEEK_DAYS = ['Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
@@ -35,13 +35,47 @@ function courseToSemId(course) {
   return REVERSE_SEMESTER_MAP[`${course.year}|${course.semester}`] || null;
 }
 
-// Filter courses that belong to the given selected semester IDs
-function filterCoursesBySemesters(courses, selectedSemesterIds) {
-  const pairs = selectedSemesterIds.map(id => SEMESTER_MAP[id]).filter(Boolean);
+// Course types that never appear in the class routine — they stay in the
+// catalog for credits/results but have no weekly classes to schedule.
+const NON_CLASS_TYPES = new Set(['project', 'internship', 'viva']);
+
+/**
+ * Filter courses that belong to the given selected semester IDs, honouring
+ * the syllabus catalog:
+ *   • non-class types (project/internship/viva) are always skipped
+ *   • when a batch level has a syllabus assigned (semester_batch_syllabus),
+ *     only that syllabus's courses count for it — this is how an old batch
+ *     runs 4-1 from the old syllabus while a new batch runs 1-1 from the new
+ *   • optional courses (option_group_id set) only run if offered this
+ *     semester (course_offerings); compulsory courses always run
+ *
+ * `syllabusByBatch` maps batch code → syllabus_id; `offeredSet` holds
+ * offered course ids. Both may be empty (legacy behaviour: match by
+ * year/semester text only, all options included).
+ */
+function filterCoursesBySemesters(courses, selectedSemesterIds, syllabusByBatch = {}, offeredSet = new Set()) {
+  const pairs = selectedSemesterIds
+    .map(id => ({ id, ...SEMESTER_MAP[id] }))
+    .filter(p => p.year);
   if (pairs.length === 0) return [];
-  return courses.filter(c =>
-    pairs.some(p => c.year === p.year && c.semester === p.semester)
-  );
+
+  return courses.filter(c => {
+    if (NON_CLASS_TYPES.has(c.course_type)) return false;
+
+    const pair = pairs.find(p => c.year === p.year && c.semester === p.semester);
+    if (!pair) return false;
+
+    // Syllabus scoping: if this batch level is pinned to a syllabus, only
+    // that syllabus's courses run for it. Courses without any syllabus
+    // (legacy rows) stay visible so pre-catalog data keeps working.
+    const assignedSyllabus = syllabusByBatch[pair.id];
+    if (assignedSyllabus && c.syllabus_id && c.syllabus_id !== assignedSyllabus) return false;
+
+    // Optional course: runs only when the department offered it
+    if (c.option_group_id && !offeredSet.has(c.id)) return false;
+
+    return true;
+  });
 }
 
 // Parse "Sunday-Thursday" → ["Sunday","Monday","Tuesday","Wednesday","Thursday"]
@@ -64,7 +98,9 @@ function getWorkingDays(classDayStr) {
 
 export const routineService = {
 
-  async _loadData() {
+  // Every routine input is read within one academic semester. Courses and
+  // teachers are the exception: those catalogs are shared campus-wide.
+  async _loadData(semesterId) {
     const [
       settingsRes,
       semRes,
@@ -74,16 +110,37 @@ export const routineService = {
       teachersRes,
       availRes,
       ctChoicesRes,
+      loadMap,
     ] = await Promise.all([
-      supabase.from('class_time_settings').select('*').eq('is_active', true).maybeSingle(),
-      supabase.from('semester_selection').select('selected_semesters').eq('id', 1).maybeSingle(),
-      supabase.from('courses').select('id,code,title,course_type,year,semester,credit_hours,is_exceptional').eq('is_active', true),
-      supabase.from('course_durations').select('course_id,duration_periods,weekly_classes'),
-      supabase.from('room_allocation').select('theory_rooms,lab_rooms,semester_theory_rooms').eq('id', 1).maybeSingle(),
-      supabase.from('teachers').select('id,name,initials,designation,load_limit,weekly_load_hours').eq('is_active', true),
-      supabase.from('teacher_availability').select('teacher_id,day_of_week,slot_id'),
-      supabase.from('course_teacher_choices').select('course_id,teacher_assignments'),
+      supabase.from('class_time_settings').select('*').eq('semester_id', semesterId).eq('is_active', true).maybeSingle(),
+      supabase.from('semester_selection').select('selected_semesters').eq('semester_id', semesterId).maybeSingle(),
+      supabase.from('courses').select('id,code,title,course_type,year,semester,credit_hours,is_exceptional,syllabus_id,option_group_id,weekly_classes').eq('is_active', true),
+      supabase.from('course_durations').select('course_id,duration_periods,weekly_classes').eq('semester_id', semesterId),
+      supabase.from('room_allocation').select('theory_rooms,lab_rooms,semester_theory_rooms').eq('semester_id', semesterId).maybeSingle(),
+      supabase.from('teachers').select('id,name,initials,designation,load_limit').eq('is_active', true),
+      supabase.from('teacher_availability').select('teacher_id,day_of_week,slot_id').eq('semester_id', semesterId),
+      supabase.from('course_teacher_choices').select('course_id,teacher_assignments').eq('semester_id', semesterId),
+      getSemesterLoads(semesterId),
     ]);
+
+    // Syllabus catalog context (tables may not exist until syllabus_catalog.sql runs)
+    let syllabusByBatch = {};
+    let offeredSet = new Set();
+    try {
+      const [sbsRes, offRes] = await Promise.all([
+        supabase.from('semester_batch_syllabus').select('batch_code,syllabus_id').eq('semester_id', semesterId),
+        supabase.from('course_offerings').select('course_id').eq('semester_id', semesterId),
+      ]);
+      (sbsRes.data || []).forEach(r => { syllabusByBatch[r.batch_code] = r.syllabus_id; });
+      offeredSet = new Set((offRes.data || []).map(r => r.course_id));
+    } catch { /* catalog migration not applied yet — legacy behaviour */ }
+
+    // Attach this semester's load to each teacher — the GA reads
+    // weekly_load_hours, which is no longer a column on teachers.
+    const teachers = (teachersRes.data || []).map(t => ({
+      ...t,
+      weekly_load_hours: loadMap[t.id] || 0,
+    }));
 
     return {
       settings: settingsRes.data || null,
@@ -91,15 +148,19 @@ export const routineService = {
       courses: coursesRes.data || [],
       durations: durRes.data || [],
       rooms: roomsRes.data || { theory_rooms: [], lab_rooms: [], semester_theory_rooms: {} },
-      teachers: teachersRes.data || [],
+      teachers,
       availability: availRes.data || [],
       courseTeacherChoices: ctChoicesRes.data || [],
+      syllabusByBatch,
+      offeredSet,
     };
   },
 
-  async checkConflicts() {
+  async checkConflicts(semesterId) {
     try {
-      const d = await this._loadData();
+      if (!semesterId) return { success: false, error: 'semesterId is required.' };
+
+      const d = await this._loadData(semesterId);
       const conflicts = [];
 
       // 1. No class time settings
@@ -155,7 +216,7 @@ export const routineService = {
       }
 
       // Match courses by year+semester text, excluding exceptional courses
-      const selCourses = filterCoursesBySemesters(d.courses, d.selectedSemesters)
+      const selCourses = filterCoursesBySemesters(d.courses, d.selectedSemesters, d.syllabusByBatch, d.offeredSet)
         .filter(c => !c.is_exceptional);
 
       if (d.selectedSemesters.length > 0 && selCourses.length === 0) {
@@ -173,12 +234,16 @@ export const routineService = {
       }
 
       // Build lookup maps
-      // weeklyMap = weekly_classes (how many times/week to schedule); falls back to duration_periods
+      // weeklyMap = weekly_classes (how many times/week to schedule); falls back
+      // to duration_periods, then to the syllabus catalog default on the course.
       const durMap     = {};
       const weeklyMap  = {};
       d.durations.forEach(x => {
         durMap[x.course_id]    = x.duration_periods;
         weeklyMap[x.course_id] = x.weekly_classes ?? x.duration_periods;
+      });
+      selCourses.forEach(c => {
+        if (weeklyMap[c.id] == null && c.weekly_classes) weeklyMap[c.id] = c.weekly_classes;
       });
 
       const ctMap = {};
@@ -360,9 +425,11 @@ export const routineService = {
    * the admin reviews the preview and saves it explicitly via saveRoutine).
    * `options.seed` makes a run reproducible.
    */
-  async generateRoutine(options = {}) {
+  async generateRoutine(semesterId, options = {}) {
     try {
-      const d = await this._loadData();
+      if (!semesterId) return { success: false, error: 'semesterId is required.' };
+
+      const d = await this._loadData(semesterId);
 
       if (!d.settings) {
         return { success: false, error: 'No class time settings configured.' };
@@ -370,6 +437,12 @@ export const routineService = {
       if (!d.selectedSemesters.length) {
         return { success: false, error: 'No semesters selected for routine generation.' };
       }
+
+      // Apply the syllabus catalog rules before the GA sees the courses:
+      // drop project/internship/viva, respect per-batch syllabus assignment,
+      // and include optional courses only when offered. The GA's own filter
+      // (year/semester + exceptional) then runs on this reduced list.
+      d.courses = filterCoursesBySemesters(d.courses, d.selectedSemesters, d.syllabusByBatch, d.offeredSet);
 
       let { entries, report } = generateWithGA(d, { seed: options.seed });
 
@@ -404,16 +477,17 @@ export const routineService = {
     }
   },
 
-  /** Persist a previewed routine (single JSONB row, fixed UUID primary key). */
-  async saveRoutine(entries, generatedAt) {
+  /** Persist a previewed routine (one JSONB row per semester). */
+  async saveRoutine(semesterId, entries, generatedAt) {
     try {
+      if (!semesterId) return { success: false, error: 'semesterId is required.' };
       if (!Array.isArray(entries) || entries.length === 0) {
         return { success: false, error: 'No routine entries to save.' };
       }
       const ts = generatedAt || new Date().toISOString();
       const { error } = await supabase
         .from(ROUTINE_TABLE)
-        .upsert({ id: ROUTINE_ROW_ID, entries, generated_at: ts }, { onConflict: 'id' });
+        .upsert({ semester_id: semesterId, entries, generated_at: ts }, { onConflict: 'semester_id' });
       if (error) throw error;
       return { success: true, generatedAt: ts };
     } catch (err) {
@@ -422,12 +496,14 @@ export const routineService = {
     }
   },
 
-  async getRoutine() {
+  async getRoutine(semesterId) {
     try {
+      if (!semesterId) return { success: true, entries: [], generatedAt: null };
+
       const { data, error } = await supabase
         .from(ROUTINE_TABLE)
         .select('entries,generated_at')
-        .eq('id', ROUTINE_ROW_ID)
+        .eq('semester_id', semesterId)
         .maybeSingle();
 
       if (error) throw error;
@@ -443,9 +519,41 @@ export const routineService = {
     }
   },
 
-  async clearRoutine() {
+  /**
+   * The routine shown to students/teachers who have no semester context of
+   * their own (StudentRoutine, MyRoutine, BatchWiseRoutine) — the semester
+   * whose routine was published most recently. Each academic semester keeps
+   * its own row now, so "the routine" is no longer a single global thing;
+   * this picks the one an outside viewer should reasonably see.
+   */
+  async getPublishedRoutine() {
     try {
-      await supabase.from(ROUTINE_TABLE).delete().eq('id', ROUTINE_ROW_ID);
+      const { data, error } = await supabase
+        .from(ROUTINE_TABLE)
+        .select('semester_id,entries,generated_at,published_at,published_label')
+        .not('published_at', 'is', null)
+        .order('published_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return { success: true, entries: [], generatedAt: null, semesterId: null, semesterLabel: null };
+      return {
+        success: true,
+        entries: data.entries || [],
+        generatedAt: data.generated_at || null,
+        semesterId: data.semester_id,
+        semesterLabel: data.published_label || null,
+      };
+    } catch (err) {
+      if (err?.code !== '42P01') console.error('routineService.getPublishedRoutine:', err);
+      return { success: true, entries: [], generatedAt: null, semesterId: null, semesterLabel: null };
+    }
+  },
+
+  async clearRoutine(semesterId) {
+    try {
+      if (!semesterId) return { success: true };
+      await supabase.from(ROUTINE_TABLE).delete().eq('semester_id', semesterId);
       return { success: true };
     } catch {
       return { success: true };

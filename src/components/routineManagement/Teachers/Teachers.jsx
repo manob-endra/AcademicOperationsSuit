@@ -3,6 +3,7 @@ import { teacherAPI } from '../../../services/teacherAPI';
 import { teacherPrefAPI } from '../../../services/teacherPrefAPI';
 import { courseAPI } from '../../../services/courseAPI';
 import { courseTeacherAPI } from '../../../services/courseTeacherAPI';
+import { compareTeachersByRank, defaultLoadLimit } from '../../../utils/teacherRank';
 import TeacherPreferences from '../allocation/TeacherPreferences';
 import './styles/Teachers.css';
 import './styles/Modal.css';
@@ -13,6 +14,8 @@ const mapTeacher = (row) => ({
   id: row.id,
   initials: row.initials || '',
   name: row.name || '',
+  designation: row.designation || '',   // kept for seniority sort
+  special_post: row.special_post || '',  // kept for seniority sort
   theoryPreferences: 0,   // handled later
   labPreferences: 0,      // handled later
   timePreferences: 0,     // handled later
@@ -30,7 +33,7 @@ const filterOptions = [
   'without preference',
 ];
 
-function Teachers() {
+function Teachers({ semesterId }) {
   const [activeTab, setActiveTab] = useState('details');
 
   // Teachers state
@@ -62,12 +65,14 @@ function Teachers() {
     const fromPrefs   = prefsMap[teacherId]?.assigned_courses || [];
     // Union of both sources (some courses may only be in one)
     const assignedIds = [...new Set([...fromChoices, ...fromPrefs])];
-    return assignedIds.reduce((sum, id) => {
+    const total = assignedIds.reduce((sum, id) => {
       const c = courseMap[id];
       if (!c) return sum;
-      const hrs = c.credit_hours || 0;
+      const hrs = Number(c.credit_hours) || 0;
       return sum + (c.course_type === 'lab' ? hrs * 4 : hrs);
     }, 0);
+    // credit_hours can be fractional; round up to whole hours (matches load limits)
+    return Math.ceil(total);
   }, [courseAssignMap, prefsMap, courseMap]);
 
   const teachersWithLoad = useMemo(
@@ -79,11 +84,11 @@ function Teachers() {
   const loadData = async (showSpinner = true) => {
     if (showSpinner) { setLoading(true); setError(null); }
     const [activeResult, prefResult, courseResult, availResult, assignResult] = await Promise.all([
-      teacherAPI.getTeachers(),
-      teacherPrefAPI.getAllPreferences(),
+      teacherAPI.getTeachers(semesterId),
+      teacherPrefAPI.getAllPreferences(semesterId),
       courseAPI.getAllCourses(),
-      teacherAPI.getAllAvailability(),
-      courseTeacherAPI.getAllAssignments(),
+      teacherAPI.getAllAvailability(semesterId),
+      courseTeacherAPI.getAllAssignments(semesterId),
     ]);
     if (activeResult.success) {
       setTeachers(
@@ -127,7 +132,7 @@ function Teachers() {
     if (showSpinner) setLoading(false);
   };
 
-  useEffect(() => { loadData(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadData(); }, [semesterId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When switching back to Details, silently refresh so load hours reflect any assignment changes
   const handleTabChange = (tab) => {
@@ -184,7 +189,7 @@ function Teachers() {
       }
 
       return searchMatch && filterMatch;
-    });
+    }).sort(compareTeachersByRank);
   }, [teachersWithLoad, searchTerm, selectedFilter]);
 
   const handleLoadLimitChange = useCallback(async (teacherId, newLimit, oldLimit) => {
@@ -411,17 +416,34 @@ function Teachers() {
                             </div>
                           </td>
 
-                          {/* Load Limit */}
+                          {/* Load Limit — default comes from the teacher's rank */}
                           <td>
-                            <select
-                              className="load-limit-select"
-                              value={teacher.loadLimit}
-                              onChange={(e) => handleLoadLimitChange(teacher.id, Number(e.target.value), teacher.loadLimit)}
-                            >
-                              {Array.from({ length: 26 }, (_, i) => (
-                                <option key={i} value={i}>{i} hrs</option>
-                              ))}
-                            </select>
+                            {(() => {
+                              const rankMax = defaultLoadLimit(teacher);
+                              return (
+                                <div className="load-limit-cell">
+                                  <select
+                                    className="load-limit-select"
+                                    value={teacher.loadLimit}
+                                    onChange={(e) => handleLoadLimitChange(teacher.id, Number(e.target.value), teacher.loadLimit)}
+                                  >
+                                    {Array.from({ length: 26 }, (_, i) => (
+                                      <option key={i} value={i}>{i} hrs</option>
+                                    ))}
+                                  </select>
+                                  {teacher.loadLimit !== rankMax && (
+                                    <button
+                                      type="button"
+                                      className="load-limit-default-btn"
+                                      title={`Reset to rank default (${rankMax} hrs)`}
+                                      onClick={() => handleLoadLimitChange(teacher.id, rankMax, teacher.loadLimit)}
+                                    >
+                                      ↺ {rankMax}
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </td>
 
                           {/* Status */}
@@ -482,6 +504,7 @@ function Teachers() {
                 onClose={handleClosePreferenceModal}
                 teacher={preferenceModal.teacher}
                 preferenceType={preferenceModal.type}
+                semesterId={semesterId}
                 prefsMap={prefsMap}
                 courseMap={courseMap}
                 onAvailabilitySaved={(teacherId, count) =>
@@ -494,7 +517,7 @@ function Teachers() {
       )}
 
       {/* Teacher's Preference tab */}
-      {activeTab === 'teacherPreference' && <TeacherPreferences />}
+      {activeTab === 'teacherPreference' && <TeacherPreferences semesterId={semesterId} />}
     </div>
   );
 }

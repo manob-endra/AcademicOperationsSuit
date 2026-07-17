@@ -47,18 +47,21 @@ const makeRequest = async (url, options = {}) => {
   }
 };
 
+// Which student batches (Y1-S1, …) a semester builds routines for.
+// `semesterId` is the academic semester UUID from the route; `semesters` are
+// the batch short codes selected on the Home page.
 export const semesterSelectionAPI = {
-  async getSelectedSemesters() {
-    const result = await makeRequest(API_BASE_URL);
+  async getSelectedSemesters(semesterId) {
+    const result = await makeRequest(`${API_BASE_URL}?semesterId=${semesterId}`);
     if (result.success) return { success: true, data: result.data };
     return result;
   },
 
-  async saveSelectedSemesters(semesters) {
+  async saveSelectedSemesters(semesterId, semesters) {
     const result = await makeRequest(API_BASE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ semesters }),
+      body: JSON.stringify({ semesterId, semesters }),
     });
     if (result.success) return { success: true };
     return result;

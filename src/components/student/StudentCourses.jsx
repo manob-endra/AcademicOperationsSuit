@@ -44,11 +44,12 @@ export default function StudentCourses() {
   async function load(email) {
     setLoading(true);
 
-    const [stuRes, routineRes, coursesRes, teachersRes] = await Promise.all([
+    // No semester context of our own — find it from the most recently
+    // published routine, then load that semester's teachers.
+    const [stuRes, routineRes, coursesRes] = await Promise.all([
       studentAPI.getStudentByEmail(email),
-      routineAPI.getRoutine(),
+      routineAPI.getPublishedRoutine(),
       courseAPI.getAllCourses(),
-      teacherAPI.getTeachers(),
     ]);
 
     const student = stuRes.success ? stuRes.data : null;
@@ -59,6 +60,10 @@ export default function StudentCourses() {
       for (const c of (coursesRes.courses || [])) cm[c.id] = c;
       setCourseMap(cm);
     }
+
+    const teachersRes = routineRes.success && routineRes.semesterId
+      ? await teacherAPI.getTeachers(routineRes.semesterId)
+      : { success: false };
 
     if (teachersRes.success) {
       const tm = {};
@@ -257,10 +262,10 @@ export default function StudentCourses() {
                 {course.title}
               </div>
 
-              {/* Credit hours */}
-              {course.credit_hours && (
+              {/* Credit hours (NUMERIC may arrive as "3.00" — Number() trims trailing zeros) */}
+              {course.credit_hours != null && course.credit_hours !== '' && (
                 <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 8 }}>
-                  Credit hours: <strong style={{ color: '#374151' }}>{course.credit_hours}</strong>
+                  Credit hours: <strong style={{ color: '#374151' }}>{Number(course.credit_hours)}</strong>
                 </div>
               )}
 

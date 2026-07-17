@@ -47,27 +47,29 @@ const makeRequest = async (url, options = {}) => {
   }
 };
 
+// Choices belong to one academic semester — semesterId is the UUID from
+// the /routine-management/:semesterId route.
 export const courseTeacherAPI = {
-  // Fetch all teacher assignments across every course (for Teachers page reverse-map)
-  async getAllAssignments() {
-    const result = await makeRequest(`${API_BASE_URL}/all`);
+  // Teacher assignments across every course in this semester (Teachers page reverse-map)
+  async getAllAssignments(semesterId) {
+    const result = await makeRequest(`${API_BASE_URL}/all?semesterId=${semesterId}`);
     if (result.success) return { success: true, data: result.data };
     return result;
   },
 
-  async getChoices(courseIds) {
+  async getChoices(semesterId, courseIds) {
     const result = await makeRequest(
-      `${API_BASE_URL}?courseIds=${courseIds.join(',')}`
+      `${API_BASE_URL}?semesterId=${semesterId}&courseIds=${courseIds.join(',')}`
     );
     if (result.success) return { success: true, data: result.data };
     return result;
   },
 
-  async saveChoices(courseId, choices) {
+  async saveChoices(semesterId, courseId, choices) {
     const result = await makeRequest(`${API_BASE_URL}/${courseId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(choices),
+      body: JSON.stringify({ ...choices, semesterId }),
     });
     if (result.success) return { success: true };
     return result;

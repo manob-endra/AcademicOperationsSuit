@@ -83,11 +83,15 @@ function MyRoutine({ teacherRecord }) {
   const load = async () => {
     setLoading(true);
     setError('');
-    const [settingsRes, routineRes, coursesRes] = await Promise.all([
-      classTimeSettingsAPI.getSettings(),
-      routineAPI.getRoutine(),
+    // No semester context of our own — find it from the most recently
+    // published routine, then load that semester's class time settings.
+    const [routineRes, coursesRes] = await Promise.all([
+      routineAPI.getPublishedRoutine(),
       courseAPI.getAllCourses(),
     ]);
+    const settingsRes = routineRes.success && routineRes.semesterId
+      ? await classTimeSettingsAPI.getSettings(routineRes.semesterId)
+      : { success: false };
     if (settingsRes.success) setSettings(settingsRes.data);
     if (coursesRes.success) {
       const cm = {};

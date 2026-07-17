@@ -68,6 +68,9 @@ const makeRequest = async (url, options = {}) => {
   }
 };
 
+// Durations belong to one academic semester — semesterId is the UUID from
+// the /routine-management/:semesterId route. (getCourses is the exception:
+// the course catalog is campus-wide.)
 export const courseTimeAPI = {
 
   /** Fetch all active courses from the database */
@@ -77,23 +80,24 @@ export const courseTimeAPI = {
     return result;
   },
 
-  /** Fetch all saved course durations */
-  async getDurations() {
-    const result = await makeRequest(`${API_BASE_URL}/durations`);
+  /** Fetch this semester's saved course durations */
+  async getDurations(semesterId) {
+    const result = await makeRequest(`${API_BASE_URL}/durations?semesterId=${semesterId}`);
     if (result.success) return { success: true, data: result.data };
     return result;
   },
 
   /**
    * Save (upsert) the duration for a single course.
+   * @param {string} semesterId
    * @param {string} courseId
    * @param {number} durationPeriods
    */
-  async saveDuration(courseId, durationPeriods) {
+  async saveDuration(semesterId, courseId, durationPeriods) {
     const result = await makeRequest(`${API_BASE_URL}/durations/${courseId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ durationPeriods }),
+      body: JSON.stringify({ semesterId, durationPeriods }),
     });
     if (result.success) return { success: true, data: result.data };
     return result;
@@ -101,13 +105,14 @@ export const courseTimeAPI = {
 
   /**
    * Save (upsert) durations for many courses at once.
+   * @param {string} semesterId
    * @param {Array<{courseId: string, durationPeriods: number}>} durations
    */
-  async saveBulkDurations(durations) {
+  async saveBulkDurations(semesterId, durations) {
     const result = await makeRequest(`${API_BASE_URL}/durations/bulk`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ durations }),
+      body: JSON.stringify({ semesterId, durations }),
     });
     if (result.success) return { success: true, data: result.data };
     return result;
@@ -115,14 +120,15 @@ export const courseTimeAPI = {
 
   /**
    * Save weekly_classes for a single course.
+   * @param {string} semesterId
    * @param {string} courseId
    * @param {number} weeklyClasses
    */
-  async saveWeeklyClasses(courseId, weeklyClasses) {
+  async saveWeeklyClasses(semesterId, courseId, weeklyClasses) {
     const result = await makeRequest(`${API_BASE_URL}/weekly-classes/${courseId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ weeklyClasses }),
+      body: JSON.stringify({ semesterId, weeklyClasses }),
     });
     if (result.success) return { success: true, data: result.data };
     return result;
@@ -130,14 +136,15 @@ export const courseTimeAPI = {
 
   /**
    * Bulk-set weekly_classes for many courses.
+   * @param {string} semesterId
    * @param {string[]} courseIds
    * @param {number} weeklyClasses
    */
-  async saveBulkWeeklyClasses(courseIds, weeklyClasses) {
+  async saveBulkWeeklyClasses(semesterId, courseIds, weeklyClasses) {
     const result = await makeRequest(`${API_BASE_URL}/weekly-classes/bulk`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ courseIds, weeklyClasses }),
+      body: JSON.stringify({ semesterId, courseIds, weeklyClasses }),
     });
     if (result.success) return { success: true };
     return result;

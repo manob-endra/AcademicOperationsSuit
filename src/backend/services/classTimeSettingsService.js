@@ -12,16 +12,19 @@ import { supabase } from '../config/supabaseClient.js';
 export const classTimeSettingsService = {
 
   /**
-   * Get the active class time settings
+   * Get the active class time settings for one semester
    * @returns {Promise<{success: boolean, settings?: object, error?: string}>}
    */
-  async getSettings() {
+  async getSettings(semesterId) {
     try {
+      if (!semesterId) return { success: false, error: 'semesterId is required.' };
+
       const { data, error } = await supabase
         .from('class_time_settings')
         .select('*')
+        .eq('semester_id', semesterId)
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
         throw error;
@@ -52,32 +55,32 @@ export const classTimeSettingsService = {
   },
 
   /**
-   * Create or update class time settings
+   * Create or update class time settings for one semester
    * @param {object} settingsData - Settings data
    * @returns {Promise<{success: boolean, settings?: object, error?: string}>}
    */
-  async saveSettings(settingsData) {
+  async saveSettings(semesterId, settingsData) {
     try {
+      if (!semesterId) return { success: false, error: 'semesterId is required.' };
+
       // Use skipTime value as-is
-      const skipTimeValue = typeof settingsData.skipTime === 'string' 
-        ? parseInt(settingsData.skipTime) 
+      const skipTimeValue = typeof settingsData.skipTime === 'string'
+        ? parseInt(settingsData.skipTime)
         : settingsData.skipTime;
 
-      console.log('Service: saveSettings received skipTime:', {
-        input: settingsData.skipTime,
-        saving: skipTimeValue
-      });
-
-      // First, deactivate all existing settings
+      // Deactivate this semester's previous settings only — other semesters
+      // keep their own active row.
       const { error: deactivateError } = await supabase
         .from('class_time_settings')
         .update({ is_active: false })
+        .eq('semester_id', semesterId)
         .eq('is_active', true);
 
       if (deactivateError) throw deactivateError;
 
       // Transform frontend format to database format
       const dbData = {
+        semester_id: semesterId,
         start_time: settingsData.startTime,
         duration: settingsData.duration,
         classes_before_lunch: settingsData.classesBeforeLunch,
@@ -88,8 +91,6 @@ export const classTimeSettingsService = {
         is_active: true
       };
 
-      console.log('Service: Saving class time settings with data:', dbData);
-
       // Insert new settings
       const { data, error } = await supabase
         .from('class_time_settings')
@@ -98,8 +99,6 @@ export const classTimeSettingsService = {
         .single();
 
       if (error) throw error;
-
-      console.log('Service: Settings saved successfully:', data);
 
       // Transform back to frontend format
       const settings = {
@@ -113,7 +112,6 @@ export const classTimeSettingsService = {
         id: data.id
       };
 
-      console.log('Service: Returning settings:', settings);
       return { success: true, settings };
     } catch (error) {
       console.error('Save class time settings error:', error);

@@ -1,15 +1,18 @@
 import express from 'express';
 import { classTimeSettingsService } from '../services/classTimeSettingsService.js';
+import { requireSemester } from './requireSemester.js';
 
 const router = express.Router();
 
+router.use(requireSemester);
+
 /**
- * GET /api/class-time-settings
- * Get the active class time settings
+ * GET /api/class-time-settings?semesterId=...
+ * Get the active class time settings for one semester
  */
 router.get('/', async (req, res) => {
   try {
-    const result = await classTimeSettingsService.getSettings();
+    const result = await classTimeSettingsService.getSettings(req.semesterId);
     if (result.success) {
       res.json({ success: true, data: result.settings });
     } else {
@@ -23,7 +26,8 @@ router.get('/', async (req, res) => {
 
 /**
  * POST /api/class-time-settings
- * Create new class time settings
+ * Create new class time settings for one semester
+ * Body: { semesterId, ...settings }
  */
 router.post('/', async (req, res) => {
   try {
@@ -40,7 +44,7 @@ router.post('/', async (req, res) => {
       });
     }
 
-    const result = await classTimeSettingsService.saveSettings(settingsData);
+    const result = await classTimeSettingsService.saveSettings(req.semesterId, settingsData);
     if (result.success) {
       res.status(201).json({ success: true, data: result.settings });
     } else {

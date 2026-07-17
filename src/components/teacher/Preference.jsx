@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { teacherAPI } from '../../services/teacherAPI';
 import { courseAPI } from '../../services/courseAPI';
 import { teacherPrefAPI } from '../../services/teacherPrefAPI';
+import { academicSemesterAPI } from '../../services/academicSemesterAPI';
 
 // ── Time-slot constants (matches admin availability grid) ──────────────────
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
@@ -71,6 +72,11 @@ function Preference({ teacherRecord }) {
   const [courseMsg,      setCourseMsg]      = useState({ type: '', text: '' });
 
   const teacherId = teacherRecord?.id;
+  // Teachers always submit preferences for whichever semester is currently
+  // being planned — the newest one (create-semester rollover keeps the
+  // routine-in-progress at the top of the list).
+  const [semesterId, setSemesterId] = useState(null);
+  const [semesterChecked, setSemesterChecked] = useState(false);
 
   useEffect(() => {
     if (teacherId) load();
@@ -78,10 +84,16 @@ function Preference({ teacherRecord }) {
   }, [teacherId]);
 
   const load = async () => {
+    const semRes = await academicSemesterAPI.getAllSemesters();
+    const currentSemesterId = semRes.success ? semRes.data?.[0]?.id : null;
+    setSemesterId(currentSemesterId);
+    setSemesterChecked(true);
+    if (!currentSemesterId) return;
+
     const [availRes, coursesRes, prefsRes] = await Promise.all([
-      teacherAPI.getAllAvailability(),
+      teacherAPI.getAllAvailability(currentSemesterId),
       courseAPI.getAllCourses(),
-      teacherPrefAPI.getAllPreferences(),
+      teacherPrefAPI.getAllPreferences(currentSemesterId),
     ]);
 
     if (availRes.success) {
@@ -115,7 +127,7 @@ function Preference({ teacherRecord }) {
     setTimeSaving(true);
     setTimeMsg({ type: '', text: '' });
     const slots = [...selectedSlots];
-    const r = await teacherAPI.saveAvailability(teacherId, slots);
+    const r = await teacherAPI.saveAvailability(semesterId, teacherId, slots);
     setTimeMsg(r.success
       ? { type: 'success', text: 'Time preferences saved.' }
       : { type: 'error',   text: r.error || 'Failed to save.' }
@@ -167,7 +179,7 @@ function Preference({ teacherRecord }) {
     setCourseSaving(true);
     setCourseMsg({ type: '', text: '' });
     const payload = buildPrefsPayload(rankedChoices, existingAssigned);
-    const r = await teacherPrefAPI.savePreferences(teacherId, payload);
+    const r = await teacherPrefAPI.savePreferences(semesterId, teacherId, payload);
     setCourseMsg(r.success
       ? { type: 'success', text: 'Course preferences saved.' }
       : { type: 'error',   text: r.error || 'Failed to save.' }
@@ -180,6 +192,15 @@ function Preference({ teacherRecord }) {
       <div className="td-empty-state">
         <div className="td-empty-icon">🔒</div>
         <p>Preferences will be available once the admin admits you as a teacher.</p>
+      </div>
+    );
+  }
+
+  if (semesterChecked && !semesterId) {
+    return (
+      <div className="td-empty-state">
+        <div className="td-empty-icon">📅</div>
+        <p>No academic semester has been created yet. Preferences will be available once the admin sets one up.</p>
       </div>
     );
   }

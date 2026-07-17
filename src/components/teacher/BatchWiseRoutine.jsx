@@ -87,20 +87,28 @@ function BatchWiseRoutine() {
     setLoading(true);
     setError('');
 
-    const [settingsRes, routineRes, coursesRes, teachersRes] = await Promise.all([
-      classTimeSettingsAPI.getSettings(),
-      routineAPI.getRoutine(),
+    // No semester context of our own — find it from the most recently
+    // published routine, then load that semester's settings/teachers.
+    const [routineRes, coursesRes] = await Promise.all([
+      routineAPI.getPublishedRoutine(),
       courseAPI.getAllCourses(),
-      teacherAPI.getTeachers(),
     ]);
-
-    if (settingsRes.success) setSettings(settingsRes.data);
 
     if (coursesRes.success) {
       const cm = {};
       for (const c of (coursesRes.courses || [])) cm[c.id] = c;
       setCourseMap(cm);
     }
+
+    const semesterId = routineRes.success ? routineRes.semesterId : null;
+    const [settingsRes, teachersRes] = semesterId
+      ? await Promise.all([
+          classTimeSettingsAPI.getSettings(semesterId),
+          teacherAPI.getTeachers(semesterId),
+        ])
+      : [{ success: false }, { success: false }];
+
+    if (settingsRes.success) setSettings(settingsRes.data);
 
     if (teachersRes.success) {
       const tm = {};

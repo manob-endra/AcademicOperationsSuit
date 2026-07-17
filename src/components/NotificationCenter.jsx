@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { notificationSystemAPI } from '../services/notificationSystemAPI';
+import { academicSemesterAPI } from '../services/academicSemesterAPI';
 import AdminHeader from './shared/layout/AdminHeader';
 import AppFooter from './shared/layout/AppFooter';
 import BackToDashboard from './shared/layout/BackToDashboard';
@@ -316,10 +317,19 @@ export default function NotificationCenter() {
     { id: 'MS-S1', label: 'Master – 1st Semester' },
     { id: 'MS-S2', label: 'Master – 2nd Semester' },
   ];
-  const [semId,      setSemId]      = useState('Y4-S1');
+  const [semId,      setSemId]      = useState('Y4-S1'); // batch short code
   const [semLabel,   setSemLabel]   = useState('4th Year – 1st Semester Routine');
   const [publishing, setPublishing] = useState(false);
   const [publishMsg, setPublishMsg] = useState(null);
+  // Academic semester UUID (routine data scope) — resolved to the current
+  // (newest) semester, since that is the one whose routine gets published.
+  const [academicSemesterId, setAcademicSemesterId] = useState(null);
+
+  useEffect(() => {
+    academicSemesterAPI.getAllSemesters().then(r => {
+      if (r.success) setAcademicSemesterId(r.data?.[0]?.id || null);
+    });
+  }, []);
 
   const handleSemChange = (e) => {
     const id  = e.target.value;
@@ -329,10 +339,10 @@ export default function NotificationCenter() {
   };
 
   const handlePublish = async () => {
-    if (!semId) return;
+    if (!semId || !academicSemesterId) return;
     setPublishing(true);
     setPublishMsg(null);
-    const r = await notificationSystemAPI.publishRoutine(semId, semLabel.trim() || semId);
+    const r = await notificationSystemAPI.publishRoutine(academicSemesterId, semId, semLabel.trim() || semId);
     if (r.success) {
       setPublishMsg({ ok: true, text: r.duplicate ? 'Already published recently (no duplicate job created).' : 'Routine published! Notification job queued.' });
     } else {
@@ -368,7 +378,7 @@ export default function NotificationCenter() {
           onChange={e => setSemLabel(e.target.value)}
           style={{ minWidth: 200 }}
         />
-        <button className="nc-publish-btn" disabled={publishing || !semId} onClick={handlePublish}>
+        <button className="nc-publish-btn" disabled={publishing || !semId || !academicSemesterId} onClick={handlePublish}>
           {publishing ? 'Publishing…' : '📢 Publish & Notify'}
         </button>
         {publishMsg && (

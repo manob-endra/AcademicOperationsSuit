@@ -9,7 +9,7 @@ const TABS = [
   { key: 'final',    label: 'Final Exam Routine'    },
 ];
 
-export default function RoutineSection({ selectedSemesters = [], onNavigate }) {
+export default function RoutineSection({ semesterId, selectedSemesters = [], onNavigate }) {
   const [tab, setTab] = useState('class');
 
   return (
@@ -31,7 +31,7 @@ export default function RoutineSection({ selectedSemesters = [], onNavigate }) {
         ))}
       </div>
 
-      {tab === 'class'    && <Routine onNavigate={onNavigate} />}
+      {tab === 'class'    && <Routine semesterId={semesterId} onNavigate={onNavigate} />}
       {tab === 'incourse' && <IncourseExamRoutine selectedSemesters={selectedSemesters} />}
       {tab === 'final'    && <FinalExamRoutine selectedSemesters={selectedSemesters} />}
     </div>

@@ -100,24 +100,32 @@ export default function StudentRoutine() {
     setLoading(true);
     setError('');
 
-    const [stuRes, settingsRes, routineRes, coursesRes, teachersRes] = await Promise.all([
+    // No semester context of our own — find it from the most recently
+    // published routine, then load that semester's settings/teachers.
+    const [stuRes, coursesRes, routineRes] = await Promise.all([
       studentAPI.getStudentByEmail(email),
-      classTimeSettingsAPI.getSettings(),
-      routineAPI.getRoutine(),
       courseAPI.getAllCourses(),
-      teacherAPI.getTeachers(),
+      routineAPI.getPublishedRoutine(),
     ]);
 
     // Student record
     setStudentRecord(stuRes.success ? (stuRes.data || null) : null);
-
-    if (settingsRes.success) setSettings(settingsRes.data);
 
     if (coursesRes.success) {
       const cm = {};
       for (const c of (coursesRes.courses || [])) cm[c.id] = c;
       setCourseMap(cm);
     }
+
+    const semesterId = routineRes.success ? routineRes.semesterId : null;
+    const [settingsRes, teachersRes] = semesterId
+      ? await Promise.all([
+          classTimeSettingsAPI.getSettings(semesterId),
+          teacherAPI.getTeachers(semesterId),
+        ])
+      : [{ success: false }, { success: false }];
+
+    if (settingsRes.success) setSettings(settingsRes.data);
 
     if (teachersRes.success) {
       const tm = {};

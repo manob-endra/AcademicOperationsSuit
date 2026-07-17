@@ -6,12 +6,12 @@ const router = express.Router();
 /**
  * GET /api/courses
  * Get courses (supports status filter: "active" or "removed")
- * Query params: status=active|removed
+ * Query params: status=active|removed, syllabusId=<uuid> (restrict to one syllabus)
  */
 router.get('/', async (req, res) => {
   try {
-    const { status } = req.query;
-    
+    const { status, syllabusId } = req.query;
+
     let result;
     if (status === 'removed') {
       result = await courseService.getRemovedCourses();
@@ -20,7 +20,7 @@ router.get('/', async (req, res) => {
     } else if (status === 'exceptional') {
       result = await courseService.getExceptionalCourses();
     } else {
-      result = await courseService.getAllCourses();
+      result = await courseService.getAllCourses(syllabusId || null);
     }
     
     if (result.success) {
