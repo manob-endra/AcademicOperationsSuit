@@ -447,7 +447,7 @@ function NumericDropdown({ isOpen, value, onSelect, onClose, buttonRef, parentRe
   );
 }
 
-function ClassTimeDetails() {
+function ClassTimeDetails({ semesterId }) {
   const [classTimeDetails, setClassTimeDetails] = useState(initialClassTimeDetails);
   const [appliedClassTimeDetails, setAppliedClassTimeDetails] = useState(initialClassTimeDetails);
   const [saveStatus, setSaveStatus] = useState('saved');
@@ -465,12 +465,13 @@ function ClassTimeDetails() {
 
   // Load settings from database on mount
   useEffect(() => {
+    if (!semesterId) return;
     const loadSettings = async () => {
       try {
         setLoading(true);
         setError(null);
-        
-        const result = await classTimeSettingsAPI.getSettings();
+
+        const result = await classTimeSettingsAPI.getSettings(semesterId);
         
         if (result.success && result.data) {
           // Transform database data to component format
@@ -484,9 +485,7 @@ function ClassTimeDetails() {
             classDay: result.data.classDay ?? initialClassTimeDetails.classDay,
             skipTime: result.data.skipTime ?? initialClassTimeDetails.skipTime,
           };
-          
-          console.log('Loaded settings from database:', transformedData);
-          
+
           setClassTimeDetails(transformedData);
           setAppliedClassTimeDetails(transformedData);
           setSettingsId(result.data.id);
@@ -495,8 +494,10 @@ function ClassTimeDetails() {
           setError('Backend server is not running. Using default settings.');
           // Continue with default settings
         } else {
-          // No settings exist yet, use defaults
-          console.log('No settings found, using defaults');
+          // No settings exist yet for this semester, use defaults
+          setClassTimeDetails(initialClassTimeDetails);
+          setAppliedClassTimeDetails(initialClassTimeDetails);
+          setSettingsId(null);
           setSaveStatus('saved');
         }
       } catch (err) {
@@ -506,9 +507,9 @@ function ClassTimeDetails() {
         setLoading(false);
       }
     };
-    
+
     loadSettings();
-  }, []);
+  }, [semesterId]);
 
   // Time Picker Modal Handlers
   const handleEditStartTime = () => setOpenModal('startTime');
@@ -567,19 +568,14 @@ function ClassTimeDetails() {
       let skipTimeValue = 5; // default fallback
       const skipTimeStr = String(classTimeDetails.skipTime || '5 mins');
       const skipMatch = skipTimeStr.match(/\d+/);
-      
+
       if (skipMatch) {
         const parsed = parseInt(skipMatch[0]);
         if (!isNaN(parsed) && parsed >= 0) {
           skipTimeValue = parsed;
         }
       }
-      
-      console.log('Extracting skipTime:', {
-        original: classTimeDetails.skipTime,
-        extracted: skipTimeValue
-      });
-      
+
       const settingsData = {
         startTime: classTimeDetails.startTime,
         duration: classTimeDetails.duration,
@@ -589,22 +585,16 @@ function ClassTimeDetails() {
         classDay: classTimeDetails.classDay,
         skipTime: skipTimeValue,
       };
-      
-      console.log('Sending complete settings to API:', settingsData);
-      
+
       let result;
       if (settingsId) {
-        // Update existing settings
-        console.log('Updating existing settings with ID:', settingsId);
+        // Update existing settings for this semester
         result = await classTimeSettingsAPI.updateSettings(settingsId, settingsData);
       } else {
-        // Create new settings
-        console.log('Creating new settings');
-        result = await classTimeSettingsAPI.saveSettings(settingsData);
+        // Create new settings for this semester
+        result = await classTimeSettingsAPI.saveSettings(semesterId, settingsData);
       }
-      
-      console.log('API response:', result);
-      
+
       if (result.success) {
         if (result.data?.id) {
           setSettingsId(result.data.id);

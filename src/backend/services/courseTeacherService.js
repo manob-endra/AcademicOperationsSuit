@@ -1,12 +1,14 @@
 import { supabase } from '../config/supabaseClient.js';
+import { computeWeeklyLoad, saveSemesterLoad } from './teacherLoadService.js';
 
-// Update a single teacher's assigned_courses list and recalculate weekly_load_hours.
-// isAdd=true → add courseId; isAdd=false → remove courseId.
-async function syncOneTeacher(teacherId, courseId, isAdd) {
-  // 1. Read current preferences row
+// Update a single teacher's assigned_courses list and recalculate their load
+// for this semester. isAdd=true → add courseId; isAdd=false → remove courseId.
+async function syncOneTeacher(semesterId, teacherId, courseId, isAdd) {
+  // 1. Read current preferences row for this semester
   const { data: pref } = await supabase
     .from('teacher_course_preferences')
     .select('*')
+    .eq('semester_id', semesterId)
     .eq('teacher_id', teacherId)
     .maybeSingle();
 
@@ -20,6 +22,7 @@ async function syncOneTeacher(teacherId, courseId, isAdd) {
     .from('teacher_course_preferences')
     .upsert(
       {
+        semester_id:       semesterId,
         teacher_id:        teacherId,
         first_preference:  pref?.first_preference  ?? null,
         second_preference: pref?.second_preference ?? null,
@@ -28,38 +31,26 @@ async function syncOneTeacher(teacherId, courseId, isAdd) {
         lab_preferences:   pref?.lab_preferences   ?? [],
         assigned_courses:  next,
       },
-      { onConflict: 'teacher_id' }
+      { onConflict: 'semester_id,teacher_id' }
     );
 
-  // 3. Recalculate weekly load from all assigned courses
-  let weeklyLoad = 0;
-  if (next.length > 0) {
-    const { data: courseData } = await supabase
-      .from('courses')
-      .select('id, credit_hours, course_type')
-      .in('id', next);
-    weeklyLoad = (courseData || []).reduce((sum, c) => {
-      const hrs = c.credit_hours || 0;
-      return sum + (c.course_type === 'lab' ? hrs * 4 : hrs);
-    }, 0);
-  }
-
-  // 4. Persist the computed load to teachers table
-  await supabase
-    .from('teachers')
-    .update({ weekly_load_hours: weeklyLoad })
-    .eq('id', teacherId);
+  // 3. Recalculate this semester's load
+  const weeklyLoad = await computeWeeklyLoad(next);
+  await saveSemesterLoad(semesterId, teacherId, weeklyLoad);
 }
 
 export const courseTeacherService = {
 
-  // Returns all rows that have at least one teacher assigned — used to build
-  // the teacher→courses reverse map in the Teachers page.
-  async getAllAssignments() {
+  // Returns all rows in this semester that have at least one teacher assigned —
+  // used to build the teacher→courses reverse map in the Teachers page.
+  async getAllAssignments(semesterId) {
     try {
+      if (!semesterId) return { success: false, error: 'semesterId is required.' };
+
       const { data, error } = await supabase
         .from('course_teacher_choices')
         .select('course_id, teacher_assignments')
+        .eq('semester_id', semesterId)
         .neq('teacher_assignments', '[]');
       if (error) throw error;
       return { success: true, data: data || [] };
@@ -69,14 +60,17 @@ export const courseTeacherService = {
     }
   },
 
-  async getChoicesForCourses(courseIds) {
+  async getChoicesForCourses(semesterId, courseIds) {
     try {
+      if (!semesterId) return { success: false, error: 'semesterId is required.' };
       if (!courseIds || courseIds.length === 0) {
         return { success: true, data: [] };
       }
+
       const { data, error } = await supabase
         .from('course_teacher_choices')
         .select('*')
+        .eq('semester_id', semesterId)
         .in('course_id', courseIds);
 
       if (error) throw error;
@@ -87,12 +81,15 @@ export const courseTeacherService = {
     }
   },
 
-  async saveChoices(courseId, choices) {
+  async saveChoices(semesterId, courseId, choices) {
     try {
+      if (!semesterId) return { success: false, error: 'semesterId is required.' };
+
       // 1. Read the current teacher_assignments before overwriting (needed to compute diff)
       const { data: current } = await supabase
         .from('course_teacher_choices')
         .select('teacher_assignments')
+        .eq('semester_id', semesterId)
         .eq('course_id', courseId)
         .maybeSingle();
 
@@ -104,6 +101,7 @@ export const courseTeacherService = {
         .from('course_teacher_choices')
         .upsert(
           {
+            semester_id:         semesterId,
             course_id:           courseId,
             history:             choices.history       || [],
             first_choice:        choices.firstChoice   || null,
@@ -112,7 +110,7 @@ export const courseTeacherService = {
             other_choices:       choices.otherChoices  || [],
             teacher_assignments: newTeachers,
           },
-          { onConflict: 'course_id' }
+          { onConflict: 'semester_id,course_id' }
         );
 
       if (error) throw error;
@@ -121,10 +119,10 @@ export const courseTeacherService = {
       const added   = newTeachers.filter(id => !oldTeachers.includes(id));
       const removed = oldTeachers.filter(id => !newTeachers.includes(id));
 
-      // 4. Sync teacher_course_preferences + weekly_load_hours for each changed teacher
+      // 4. Sync teacher_course_preferences + this semester's load for each changed teacher
       await Promise.all([
-        ...added.map(tid   => syncOneTeacher(tid, courseId, true)),
-        ...removed.map(tid => syncOneTeacher(tid, courseId, false)),
+        ...added.map(tid   => syncOneTeacher(semesterId, tid, courseId, true)),
+        ...removed.map(tid => syncOneTeacher(semesterId, tid, courseId, false)),
       ]);
 
       return { success: true };

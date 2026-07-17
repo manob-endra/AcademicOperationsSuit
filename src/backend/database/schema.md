@@ -259,7 +259,7 @@ CREATE TABLE IF NOT EXISTS courses (
   title VARCHAR(255) NOT NULL,
   year TEXT,
   semester VARCHAR(50) NOT NULL,
-  credit_hours INT,
+  credit_hours NUMERIC(4,2),  -- supports fractional credits (0.75, 1.5 …); see migrations/fractional_credits.sql
   course_type VARCHAR(50) CHECK (course_type IN ('theory', 'lab', 'mixed')),
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

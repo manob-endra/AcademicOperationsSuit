@@ -149,8 +149,10 @@ export function buildContext(data, cfg) {
         pushEvent({ ...base, type: 'lab', group: 'alt', periods: cfg.labPeriods, fixedRoom: null });
       }
     } else {
-      // theory / mixed → weekly single-period classes in the fixed semester room
-      const weekly = weeklyMap[course.id] || cfg.defaultTheoryWeekly;
+      // theory / mixed → weekly single-period classes in the fixed semester room.
+      // Per-semester setting wins; the syllabus catalog default (courses.
+      // weekly_classes) fills in when the admin hasn't set one yet.
+      const weekly = weeklyMap[course.id] || course.weekly_classes || cfg.defaultTheoryWeekly;
       const room = semesterTheoryRooms[semId] || null;
       if (!room) {
         problems.push(`"${course.code}": semester ${semId} has no fixed theory room assigned (Room Allocation).`);

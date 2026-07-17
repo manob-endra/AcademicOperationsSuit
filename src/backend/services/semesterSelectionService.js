@@ -1,16 +1,17 @@
 import { supabase } from '../config/supabaseClient.js';
 
-// The table always holds exactly one row with id = 1.
-const ROW_ID = 1;
-
+// One row per academic semester. (This table used to hold a single global
+// row with id = 1, which is why creating a semester had to clear it.)
 export const semesterSelectionService = {
 
-  async getSelectedSemesters() {
+  async getSelectedSemesters(semesterId) {
     try {
+      if (!semesterId) return { success: false, error: 'semesterId is required.' };
+
       const { data, error } = await supabase
         .from('semester_selection')
         .select('selected_semesters')
-        .eq('id', ROW_ID)
+        .eq('semester_id', semesterId)
         .maybeSingle();
 
       if (error) throw error;
@@ -21,11 +22,16 @@ export const semesterSelectionService = {
     }
   },
 
-  async saveSelectedSemesters(semesters) {
+  async saveSelectedSemesters(semesterId, semesters) {
     try {
+      if (!semesterId) return { success: false, error: 'semesterId is required.' };
+
       const { error } = await supabase
         .from('semester_selection')
-        .upsert({ id: ROW_ID, selected_semesters: semesters }, { onConflict: 'id' });
+        .upsert(
+          { semester_id: semesterId, selected_semesters: semesters },
+          { onConflict: 'semester_id' }
+        );
 
       if (error) throw error;
       return { success: true };

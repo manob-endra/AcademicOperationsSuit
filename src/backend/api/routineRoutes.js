@@ -1,21 +1,40 @@
 import express from 'express';
 import { routineService } from '../services/routineService.js';
 import { notificationCoreService } from '../services/notificationCoreService.js';
+import { requireSemester } from './requireSemester.js';
 import { supabase } from '../config/supabaseClient.js';
 
 const router = express.Router();
-const ROUTINE_ROW_ID = '00000000-0000-0000-0000-000000000001';
 
-// GET /api/routine/conflicts  — pre-generation conflict check (must come before GET /)
+// GET /api/routine/published  — the most recently published routine, for
+// viewers with no semester context of their own (student/teacher routine
+// pages). Must come before requireSemester and before GET /.
+router.get('/published', async (req, res) => {
+  const result = await routineService.getPublishedRoutine();
+  if (result.success) {
+    return res.json({
+      success: true,
+      entries: result.entries,
+      generatedAt: result.generatedAt,
+      semesterId: result.semesterId,
+      semesterLabel: result.semesterLabel,
+    });
+  }
+  res.status(500).json({ success: false, error: result.error });
+});
+
+router.use(requireSemester);
+
+// GET /api/routine/conflicts?semesterId=...  — pre-generation conflict check (must come before GET /)
 router.get('/conflicts', async (req, res) => {
-  const result = await routineService.checkConflicts();
+  const result = await routineService.checkConflicts(req.semesterId);
   if (result.success) return res.json({ success: true, conflicts: result.conflicts });
   res.status(500).json({ success: false, error: result.error });
 });
 
-// GET /api/routine  — retrieve saved routine
+// GET /api/routine?semesterId=...  — retrieve saved routine
 router.get('/', async (req, res) => {
-  const result = await routineService.getRoutine();
+  const result = await routineService.getRoutine(req.semesterId);
   if (result.success) {
     return res.json({ success: true, entries: result.entries, generatedAt: result.generatedAt });
   }
@@ -23,12 +42,12 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/routine/generate  — run the memetic GA and return a PREVIEW
-// Body (optional): { seed: number } for a reproducible run
+// Body: { semesterId, seed?: number }  (seed makes a run reproducible)
 router.post('/generate', async (req, res) => {
   const seed = Number.isFinite(Number(req.body?.seed)) && req.body.seed !== ''
     ? Number(req.body.seed)
     : undefined;
-  const result = await routineService.generateRoutine({ seed });
+  const result = await routineService.generateRoutine(req.semesterId, { seed });
   if (result.success) {
     return res.json({
       success: true,
@@ -43,10 +62,10 @@ router.post('/generate', async (req, res) => {
 });
 
 // POST /api/routine/save  — persist a previewed routine
-// Body: { entries: [...], generatedAt?: ISO string }
+// Body: { semesterId, entries: [...], generatedAt?: ISO string }
 router.post('/save', async (req, res) => {
   const { entries, generatedAt } = req.body || {};
-  const result = await routineService.saveRoutine(entries, generatedAt);
+  const result = await routineService.saveRoutine(req.semesterId, entries, generatedAt);
   if (result.success) {
     return res.json({ success: true, generatedAt: result.generatedAt });
   }
@@ -54,38 +73,42 @@ router.post('/save', async (req, res) => {
 });
 
 // POST /api/routine/publish  — mark routine as published and enqueue notification job
-// Body: { semesterId: 'Y4-S1', semesterLabel: '4th Year 1st Semester Routine 2024-2025' }
+// Body: { semesterId, batchId: 'Y4-S1', semesterLabel: '4th Year 1st Semester Routine 2024-2025' }
+//
+// Two different ids are in play: `semesterId` is the academic semester (a
+// UUID from academic_semesters) that scopes the data, while `batchId` is the
+// student batch short code (Y4-S1) that identifies which entries to publish.
 router.post('/publish', async (req, res) => {
   try {
-    const { semesterId, semesterLabel } = req.body;
-    if (!semesterId) return res.status(400).json({ success: false, error: 'semesterId required' });
+    const { batchId, semesterLabel } = req.body;
+    if (!batchId) return res.status(400).json({ success: false, error: 'batchId required' });
 
-    const routineResult = await routineService.getRoutine();
+    const routineResult = await routineService.getRoutine(req.semesterId);
     if (!routineResult.success || !routineResult.entries?.length) {
       return res.status(400).json({ success: false, error: 'No routine to publish' });
     }
 
-    // Verify this semester actually has entries
-    const semEntries = routineResult.entries.filter(e => e.semester === semesterId);
-    if (!semEntries.length) {
-      return res.status(400).json({ success: false, error: `No entries for semester ${semesterId}` });
+    // Verify this batch actually has entries
+    const batchEntries = routineResult.entries.filter(e => e.semester === batchId);
+    if (!batchEntries.length) {
+      return res.status(400).json({ success: false, error: `No entries for semester ${batchId}` });
     }
 
     const publishedAt = new Date().toISOString();
-    const label = semesterLabel || semesterId;
+    const label = semesterLabel || batchId;
 
-    // Stamp the routine row with publish metadata
+    // Stamp this semester's routine row with publish metadata
     await supabase
       .from('routine_storage')
       .update({ published_at: publishedAt, published_label: label })
-      .eq('id', ROUTINE_ROW_ID);
+      .eq('semester_id', req.semesterId);
 
-    // Idempotency key is per-semester per-minute so re-publishing same semester in same minute is blocked
-    const triggerId = `routine_published_${semesterId}_${publishedAt.slice(0, 16).replace(/[T:-]/g, '')}`;
+    // Idempotency key is per-batch per-minute so re-publishing the same batch in the same minute is blocked
+    const triggerId = `routine_published_${batchId}_${publishedAt.slice(0, 16).replace(/[T:-]/g, '')}`;
     const jobResult = await notificationCoreService.createJob(
       'routine_published',
       triggerId,
-      { label, semesterId, publishedAt, entryCount: semEntries.length }
+      { label, semesterId: batchId, publishedAt, entryCount: batchEntries.length }
     );
 
     if (jobResult.duplicate) {
@@ -99,9 +122,9 @@ router.post('/publish', async (req, res) => {
   }
 });
 
-// DELETE /api/routine  — clear saved routine
+// DELETE /api/routine?semesterId=...  — clear saved routine
 router.delete('/', async (req, res) => {
-  await routineService.clearRoutine();
+  await routineService.clearRoutine(req.semesterId);
   res.json({ success: true });
 });
 

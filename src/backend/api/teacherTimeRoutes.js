@@ -1,11 +1,18 @@
 import express from 'express';
 import { teacherTimeService } from '../services/teacherTimeService.js';
+import { requireSemester } from './requireSemester.js';
 
 const router = express.Router();
 
-// GET /api/teachers  — all active teachers
+// Teacher records are campus-wide, so most endpoints here are global. Only
+// weekly load and availability are routine work and take a semesterId.
+
+// GET /api/teachers[?semesterId=...]  — all active teachers.
+// semesterId is optional here (global teacher-management pages have no
+// semester context); when given, each teacher's weekly_load_hours reflects
+// that semester's assignments instead of defaulting to 0.
 router.get('/', async (req, res) => {
-  const result = await teacherTimeService.getActiveTeachers();
+  const result = await teacherTimeService.getActiveTeachers(req.query.semesterId || null);
   if (result.success) return res.json({ success: true, data: result.data });
   res.status(500).json({ success: false, error: result.error });
 });
@@ -17,9 +24,9 @@ router.get('/removed', async (req, res) => {
   res.status(500).json({ success: false, error: result.error });
 });
 
-// GET /api/teachers/availability  — all availability records (static before /:id)
-router.get('/availability', async (req, res) => {
-  const result = await teacherTimeService.getAllAvailability();
+// GET /api/teachers/availability?semesterId=...  — availability for one semester (static before /:id)
+router.get('/availability', requireSemester, async (req, res) => {
+  const result = await teacherTimeService.getAllAvailability(req.semesterId);
   if (result.success) return res.json({ success: true, data: result.data });
   res.status(500).json({ success: false, error: result.error });
 });
@@ -54,14 +61,15 @@ router.patch('/:id', async (req, res) => {
   res.status(500).json({ success: false, error: result.error });
 });
 
-// PUT /api/teachers/:id/availability  — save availability for one teacher
-router.put('/:id/availability', async (req, res) => {
+// PUT /api/teachers/:id/availability  — save availability for one teacher in one semester
+// Body: { semesterId, selectedSlots }
+router.put('/:id/availability', requireSemester, async (req, res) => {
   const { id } = req.params;
   const { selectedSlots } = req.body;
   if (!Array.isArray(selectedSlots)) {
     return res.status(400).json({ success: false, error: 'selectedSlots must be an array.' });
   }
-  const result = await teacherTimeService.saveTeacherAvailability(id, selectedSlots);
+  const result = await teacherTimeService.saveTeacherAvailability(req.semesterId, id, selectedSlots);
   if (result.success) return res.json({ success: true });
   res.status(500).json({ success: false, error: result.error });
 });

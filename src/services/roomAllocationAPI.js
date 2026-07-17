@@ -47,18 +47,20 @@ const makeRequest = async (url, options = {}) => {
   }
 };
 
+// Room allocation belongs to one academic semester — semesterId is the UUID
+// from the /routine-management/:semesterId route.
 export const roomAllocationAPI = {
-  async getAllocation() {
-    const result = await makeRequest(API_BASE_URL);
+  async getAllocation(semesterId) {
+    const result = await makeRequest(`${API_BASE_URL}?semesterId=${semesterId}`);
     if (result.success) return { success: true, data: result.data };
     return result;
   },
 
-  async saveAllocation(theoryRooms, labRooms, semesterTheoryRooms) {
+  async saveAllocation(semesterId, theoryRooms, labRooms, semesterTheoryRooms) {
     const result = await makeRequest(API_BASE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ theoryRooms, labRooms, semesterTheoryRooms }),
+      body: JSON.stringify({ semesterId, theoryRooms, labRooms, semesterTheoryRooms }),
     });
     if (result.success) return { success: true };
     return result;

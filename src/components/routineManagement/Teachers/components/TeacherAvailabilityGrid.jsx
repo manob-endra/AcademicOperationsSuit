@@ -15,7 +15,7 @@ const timeSlots = [
 
 const totalSelectableSlots = workingDays.length * timeSlots.filter(s => !s.isBreak).length;
 
-function TeacherAvailabilityGrid({ teacherId, onSaved }) {
+function TeacherAvailabilityGrid({ semesterId, teacherId, onSaved }) {
   const [savedSlots, setSavedSlots] = useState([]);
   const [draftSlots, setDraftSlots] = useState([]);
   const [isEditing, setIsEditing]   = useState(false);
@@ -23,9 +23,9 @@ function TeacherAvailabilityGrid({ teacherId, onSaved }) {
   const [loading, setLoading]       = useState(true);
 
   useEffect(() => {
-    if (!teacherId) return;
+    if (!teacherId || !semesterId) return;
     setLoading(true);
-    teacherAPI.getAllAvailability().then(result => {
+    teacherAPI.getAllAvailability(semesterId).then(result => {
       if (result.success) {
         const slots = (result.data || [])
           .filter(r => r.teacher_id === teacherId)
@@ -36,7 +36,7 @@ function TeacherAvailabilityGrid({ teacherId, onSaved }) {
       }
       setLoading(false);
     });
-  }, [teacherId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [teacherId, semesterId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const currentSlots  = isEditing ? draftSlots : savedSlots;
   const selectedCount = currentSlots.length;
@@ -61,7 +61,7 @@ function TeacherAvailabilityGrid({ teacherId, onSaved }) {
 
   const handleSave = async () => {
     setSaving(true);
-    const result = await teacherAPI.saveAvailability(teacherId, draftSlots);
+    const result = await teacherAPI.saveAvailability(semesterId, teacherId, draftSlots);
     setSaving(false);
     if (result.success) {
       setSavedSlots(draftSlots);

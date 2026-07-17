@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { teacherAPI } from '../../../services/teacherAPI';
+import { compareTeachersByRank } from '../../../utils/teacherRank';
 import './styles/TeachersTime.css';
 
 /* ─── constants ─────────────────────────────────────────────────────────── */
@@ -229,7 +230,7 @@ function AddTeacherModal({ open, onClose, onAdd }) {
 
 /* ─── Main component ─────────────────────────────────────────────────────── */
 
-function TeachersTime() {
+function TeachersTime({ semesterId }) {
   const [teachers, setTeachers]         = useState([]);
   const [availability, setAvailability] = useState({});  // { [teacherId]: string[] }
   const [editingTeacherId, setEditing]  = useState(null);
@@ -254,7 +255,7 @@ function TeachersTime() {
   handleOKRef.current = async () => {
     if (!editingTeacherId || saving) return;
     setSaving(true);
-    const result = await teacherAPI.saveAvailability(editingTeacherId, draftSlots);
+    const result = await teacherAPI.saveAvailability(semesterId, editingTeacherId, draftSlots);
     setSaving(false);
     if (result.success) {
       setAvailability((prev) => ({ ...prev, [editingTeacherId]: draftSlots }));
@@ -279,12 +280,13 @@ function TeachersTime() {
 
   /* ── load data ── */
   const loadData = async () => {
+    if (!semesterId) return;
     setLoading(true);
     setError(null);
 
     const [teachersResult, availResult] = await Promise.all([
-      teacherAPI.getTeachers(),
-      teacherAPI.getAllAvailability(),
+      teacherAPI.getTeachers(semesterId),
+      teacherAPI.getAllAvailability(semesterId),
     ]);
 
     if (!teachersResult.success) {
@@ -311,7 +313,7 @@ function TeachersTime() {
     setLoading(false);
   };
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); }, [semesterId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── helpers ── */
 
@@ -424,8 +426,9 @@ function TeachersTime() {
 
   const filteredTeachers = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
-    if (!q) return teachers;
-    return teachers.filter((t) => t.name.toLowerCase().includes(q));
+    const list = q ? teachers.filter((t) => t.name.toLowerCase().includes(q)) : teachers;
+    // Seniority order: Dean → Chairman → Professor → Assoc. → Asst. → Lecturer
+    return [...list].sort(compareTeachersByRank);
   }, [teachers, searchTerm]);
 
   /* ── loading / error states ── */

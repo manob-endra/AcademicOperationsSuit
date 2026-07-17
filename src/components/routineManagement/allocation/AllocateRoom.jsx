@@ -35,7 +35,7 @@ function ConfirmModal({ message, onConfirm, onCancel }) {
   );
 }
 
-function AllocateRoom({ selectedSemesters = [] }) {
+function AllocateRoom({ semesterId, selectedSemesters = [] }) {
   const [clusters, setClusters] = useState([]);
   const [theoryRooms, setTheoryRooms] = useState([]);
   const [labRooms, setLabRooms] = useState([]);
@@ -56,9 +56,12 @@ function AllocateRoom({ selectedSemesters = [] }) {
 
   // Load clusters and saved allocation on mount
   useEffect(() => {
+    if (!semesterId) return;
+    initialLoadDone.current = false;
+    setLoading(true);
     Promise.all([
       classroomClustersAPI.getClusters(),
-      roomAllocationAPI.getAllocation(),
+      roomAllocationAPI.getAllocation(semesterId),
     ]).then(([clustersResult, allocResult]) => {
       if (clustersResult.success) {
         setClusters(clustersResult.data || []);
@@ -68,21 +71,25 @@ function AllocateRoom({ selectedSemesters = [] }) {
         setTheoryRooms(d.theory_rooms || []);
         setLabRooms(d.lab_rooms || []);
         setSemesterTheoryRooms(d.semester_theory_rooms || {});
+      } else {
+        setTheoryRooms([]);
+        setLabRooms([]);
+        setSemesterTheoryRooms({});
       }
       setLoading(false);
       initialLoadDone.current = true;
     });
-  }, []);
+  }, [semesterId]);
 
   // Auto-save 400ms after any allocation state change
   useEffect(() => {
     if (!initialLoadDone.current) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      roomAllocationAPI.saveAllocation(theoryRooms, labRooms, semesterTheoryRooms);
+      roomAllocationAPI.saveAllocation(semesterId, theoryRooms, labRooms, semesterTheoryRooms);
     }, 400);
     return () => clearTimeout(saveTimer.current);
-  }, [theoryRooms, labRooms, semesterTheoryRooms]);
+  }, [theoryRooms, labRooms, semesterTheoryRooms, semesterId]);
 
   // Clear semester assignments whose room was removed from theory list
   useEffect(() => {

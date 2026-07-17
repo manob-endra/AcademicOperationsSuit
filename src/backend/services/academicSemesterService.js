@@ -71,35 +71,56 @@ export const academicSemesterService = {
   },
 
   /**
-   * Create a semester. When `rollover` is true, the current working data
-   * (assignments, preferences, loads, time slots, rooms, selections,
-   * generated routine) is archived/refreshed first — past teachers are
-   * preserved in course_history under the outgoing semester's label.
+   * Create a semester.
+   *
+   * The new semester always starts with empty routine data — every routine
+   * table is scoped by semester_id, so nothing exists for a brand-new id.
+   * Previous semesters are never modified: an admin can start next
+   * semester's routine while the current one is still live.
+   *
+   * When `rollover` is true, the previous semester's information is carried
+   * forward into the new one: assignments are snapshotted to course_history,
+   * past teachers appear as History tags, and the settings (class times,
+   * course durations, room allocation) are copied as a starting point.
    */
   async createSemester(year, name, rollover = false) {
     try {
-      let rolloverSummary = null;
+      // The previous semester — read before inserting, so the new row
+      // itself is not mistaken for it.
+      const existing = await this.getAllSemesters();
+      const previous = existing.success ? existing.data[0] : null;
 
-      if (rollover) {
-        // Label the archive with the most recent existing semester
-        const existing = await this.getAllSemesters();
-        const latest = existing.success ? existing.data[0] : null;
-        const label = latest ? `${latest.name} ${latest.year}` : 'Previous semester';
-
-        const r = await semesterRolloverService.performRollover(label);
-        if (!r.success) {
-          return { success: false, error: `Rollover failed: ${r.error}` };
-        }
-        rolloverSummary = { archivedCourses: r.archivedCourses, archivedLabel: label };
-      }
-
+      // Insert first: rollover seeds rows that reference the new id.
       const { data, error } = await supabase
         .from('academic_semesters')
         .insert({ year, name })
         .select()
         .single();
-
       if (error) throw error;
+
+      let rolloverSummary = null;
+
+      if (rollover) {
+        const label = previous ? `${previous.name} ${previous.year}` : 'Previous semester';
+        const r = await semesterRolloverService.performRollover(data.id, previous?.id ?? null, label);
+
+        if (!r.success) {
+          // Roll back the semester row so a failed rollover doesn't leave a
+          // half-seeded semester behind. Previous semesters are untouched
+          // either way — rollover only ever writes to the new one.
+          await supabase.from('academic_semesters').delete().eq('id', data.id);
+          return { success: false, error: `Rollover failed: ${r.error}` };
+        }
+
+        rolloverSummary = {
+          archivedCourses: r.archivedCourses,
+          seededCourses:   r.seededCourses,
+          copiedSettings:  r.copiedSettings,
+          archivedLabel:   label,
+          hadPrevious:     Boolean(previous),
+        };
+      }
+
       return { success: true, data, rollover: rolloverSummary };
     } catch (err) {
       console.error('academicSemesterService.createSemester:', err);

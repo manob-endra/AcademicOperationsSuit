@@ -1,22 +1,34 @@
 import { supabase } from '../config/supabaseClient.js';
+import { saveSemesterLoad } from './teacherLoadService.js';
+import { defaultLoadLimit } from '../../utils/teacherRank.js';
 
 export const teacherTimeService = {
 
-  async getActiveTeachers() {
+  // Teacher records are global, but their weekly load is per-semester:
+  // it is computed from the courses assigned within `semesterId` and
+  // written to teacher_semester_load, never to the shared teachers row.
+  // semesterId is optional — global teacher-management pages that have no
+  // semester context get teacher records back with weekly_load_hours: 0.
+  async getActiveTeachers(semesterId) {
     try {
       const { data: teacherRows, error: teacherError } = await supabase
         .from('teachers')
-        .select('id, name, initials, department, email, load_limit, weekly_load_hours, designation, joining_date, special_post, contact_number, availability_status')
+        .select('id, name, initials, department, email, load_limit, designation, joining_date, special_post, contact_number, availability_status')
         .eq('is_active', true)
         .order('created_at', { ascending: true });
       if (teacherError) throw teacherError;
 
       if (!teacherRows || teacherRows.length === 0) return { success: true, data: [] };
 
-      // Fetch assigned_courses for every active teacher
+      if (!semesterId) {
+        return { success: true, data: teacherRows.map(t => ({ ...t, weekly_load_hours: 0 })) };
+      }
+
+      // Fetch this semester's assigned_courses for every active teacher
       const { data: prefRows, error: prefError } = await supabase
         .from('teacher_course_preferences')
         .select('teacher_id, assigned_courses')
+        .eq('semester_id', semesterId)
         .in('teacher_id', teacherRows.map(t => t.id));
       if (prefError) throw prefError;
 
@@ -39,23 +51,23 @@ export const teacherTimeService = {
         (courseRows || []).forEach(c => { courseMap[c.id] = c; });
       }
 
-      // Compute weekly load: theory → credit hrs, lab → credit hrs × 4
+      // Compute weekly load: theory → credit hrs, lab → credit hrs × 4.
+      // credit_hours is NUMERIC (may be fractional / string); round the
+      // per-teacher total up to whole hours to match load limits.
       const teachersWithLoad = teacherRows.map(t => {
         const assignedIds = prefMap[t.id] || [];
         const weeklyLoad = assignedIds.reduce((sum, id) => {
           const c = courseMap[id];
           if (!c) return sum;
-          const hrs = c.credit_hours || 0;
+          const hrs = Number(c.credit_hours) || 0;
           return sum + (c.course_type === 'lab' ? hrs * 4 : hrs);
         }, 0);
-        return { ...t, weekly_load_hours: weeklyLoad };
+        return { ...t, weekly_load_hours: Math.ceil(weeklyLoad) };
       });
 
-      // Persist computed loads back to the teachers table
+      // Cache the computed loads for this semester
       await Promise.allSettled(
-        teachersWithLoad.map(t =>
-          supabase.from('teachers').update({ weekly_load_hours: t.weekly_load_hours }).eq('id', t.id)
-        )
+        teachersWithLoad.map(t => saveSemesterLoad(semesterId, t.id, t.weekly_load_hours))
       );
 
       return { success: true, data: teachersWithLoad };
@@ -82,6 +94,12 @@ export const teacherTimeService = {
 
   async createTeacher({ name, initials, department, email, load_limit, weekly_load_hours, designation, joining_date, special_post, contact_number, availability_status }) {
     try {
+      // When no explicit limit is given, default it from the teacher's rank
+      // (Dean/Chairman 6, Professor 8, Assoc. 10, Asst. 12, Lecturer 16).
+      const resolvedLoadLimit = (load_limit === undefined || load_limit === null || load_limit === '')
+        ? defaultLoadLimit({ designation, special_post })
+        : Number(load_limit);
+
       const { data, error } = await supabase
         .from('teachers')
         .insert([{
@@ -89,7 +107,7 @@ export const teacherTimeService = {
           initials: (initials || '').trim(),
           department: department?.trim() || null,
           email: email?.trim() || null,
-          load_limit: Number(load_limit) || 20,
+          load_limit: resolvedLoadLimit || 20,
           weekly_load_hours: Number(weekly_load_hours) || 0,
           designation: designation?.trim() || null,
           joining_date: joining_date || null,
@@ -174,19 +192,25 @@ export const teacherTimeService = {
   async importTeachers(teachersArray) {
     try {
       const rows = teachersArray
-        .map(t => ({
-          name: String(t.name || '').trim(),
-          initials: String(t.initials || '').trim(),
-          department: String(t.department || '').trim() || null,
-          email: String(t.email || '').trim() || null,
-          load_limit: Number(t.load_limit) || 20,
-          designation: String(t.designation || '').trim() || null,
-          joining_date: t.joining_date || null,
-          special_post: String(t.special_post || '').trim() || null,
-          contact_number: String(t.contact_number || '').trim() || null,
-          availability_status: t.availability_status || 'available',
-          is_active: true,
-        }))
+        .map(t => {
+          const designation = String(t.designation || '').trim() || null;
+          const special_post = String(t.special_post || '').trim() || null;
+          // Explicit load_limit in the file wins; otherwise default from rank.
+          const hasExplicit = t.load_limit !== undefined && t.load_limit !== null && t.load_limit !== '';
+          return {
+            name: String(t.name || '').trim(),
+            initials: String(t.initials || '').trim(),
+            department: String(t.department || '').trim() || null,
+            email: String(t.email || '').trim() || null,
+            load_limit: hasExplicit ? Number(t.load_limit) : defaultLoadLimit({ designation, special_post }),
+            designation,
+            joining_date: t.joining_date || null,
+            special_post,
+            contact_number: String(t.contact_number || '').trim() || null,
+            availability_status: t.availability_status || 'available',
+            is_active: true,
+          };
+        })
         .filter(t => t.name);
 
       if (rows.length === 0) {
@@ -205,11 +229,14 @@ export const teacherTimeService = {
     }
   },
 
-  async getAllAvailability() {
+  async getAllAvailability(semesterId) {
     try {
+      if (!semesterId) return { success: false, error: 'semesterId is required.' };
+
       const { data, error } = await supabase
         .from('teacher_availability')
-        .select('teacher_id, day_of_week, slot_id');
+        .select('teacher_id, day_of_week, slot_id')
+        .eq('semester_id', semesterId);
       if (error) throw error;
       return { success: true, data: data || [] };
     } catch (err) {
@@ -218,11 +245,16 @@ export const teacherTimeService = {
     }
   },
 
-  async saveTeacherAvailability(teacherId, selectedSlots) {
+  async saveTeacherAvailability(semesterId, teacherId, selectedSlots) {
     try {
+      if (!semesterId) return { success: false, error: 'semesterId is required.' };
+
+      // Only this semester's rows are replaced — the same teacher's
+      // availability in other semesters is left alone.
       const { error: delErr } = await supabase
         .from('teacher_availability')
         .delete()
+        .eq('semester_id', semesterId)
         .eq('teacher_id', teacherId);
       if (delErr) throw delErr;
 
@@ -231,6 +263,7 @@ export const teacherTimeService = {
       const rows = selectedSlots.map(slotKey => {
         const dash = slotKey.indexOf('-');
         return {
+          semester_id: semesterId,
           teacher_id: teacherId,
           day_of_week: slotKey.slice(0, dash),
           slot_id: slotKey.slice(dash + 1),

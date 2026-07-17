@@ -93,14 +93,14 @@ function SemesterHub() {
       setSemesters(prev => [result.data, ...prev]);
       closeModal();
       if (result.rollover) {
-        const { archivedCourses, archivedLabel } = result.rollover;
+        const { archivedCourses, hadPrevious } = result.rollover;
         setNotice(
-          archivedCourses > 0
-            ? `Semester created. ${archivedCourses} course assignment${archivedCourses !== 1 ? 's' : ''} archived to course history under “${archivedLabel}”, and all routine data was refreshed.`
-            : 'Semester created with a fresh start — all routine data was refreshed.'
+          hadPrevious
+            ? `Semester created. ${archivedCourses} course assignment${archivedCourses !== 1 ? 's' : ''} archived to course history, and class time / room / duration settings were copied over as a starting point. The previous semester is untouched.`
+            : 'Semester created — first semester, nothing to carry forward.'
         );
       } else {
-        setNotice('Semester created (existing routine data kept).');
+        setNotice('Semester created with empty routine data (no settings copied).');
       }
     } else {
       setFormError(result.error || 'Failed to create semester.');
@@ -277,23 +277,17 @@ function SemesterHub() {
                 onChange={e => setRollover(e.target.checked)}
               />
               <div>
-                <span className="sh-rollover-title">Start fresh (semester rollover)</span>
+                <span className="sh-rollover-title">Carry forward from previous semester</span>
                 <span className="sh-rollover-desc">
-                  Current course–teacher assignments are saved to each course&apos;s
-                  history, then teacher loads, selected semesters, course times,
-                  teacher time slots &amp; preferences, classrooms, time slot settings
-                  and the generated routine are all refreshed for the new semester.
-                  The course catalog and teacher records are kept.
+                  The new semester starts with empty routine data (teacher choices,
+                  preferences, assignments, generated routine). Past course–teacher
+                  assignments are saved to each course&apos;s history, and class time
+                  settings, course durations and room allocation are copied over as a
+                  starting point. The previous semester&apos;s data is never changed —
+                  its own routine keeps working exactly as it did.
                 </span>
               </div>
             </label>
-
-            {rollover && (
-              <p className="sh-rollover-warning">
-                ⚠️ Routine working data will be cleared. Past teachers stay
-                visible in each course&apos;s History in the Courses section.
-              </p>
-            )}
 
             {formError && <p className="sh-form-error">{formError}</p>}
 

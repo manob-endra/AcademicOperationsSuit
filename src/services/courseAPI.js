@@ -229,10 +229,15 @@ export const courseAPI = {
         title: courseData.title,
         course_type: courseData.type.toLowerCase(),
         semester: courseData.semester,
-        credit_hours: parseInt(courseData.credit),
+        credit_hours: parseFloat(courseData.credit),
         year: courseData.year,
         is_active: true
       };
+      if (courseData.weeklyClasses !== undefined && courseData.weeklyClasses !== null) {
+        dbCourseData.weekly_classes = parseInt(courseData.weeklyClasses);
+      }
+      if (courseData.syllabusId !== undefined) dbCourseData.syllabus_id = courseData.syllabusId;
+      if (courseData.optionGroupId !== undefined) dbCourseData.option_group_id = courseData.optionGroupId;
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -291,8 +296,13 @@ export const courseAPI = {
       if (updates.title !== undefined) dbUpdates.title = updates.title;
       if (updates.type !== undefined) dbUpdates.course_type = updates.type.toLowerCase();
       if (updates.semester !== undefined) dbUpdates.semester = updates.semester;
-      if (updates.credit !== undefined) dbUpdates.credit_hours = parseInt(updates.credit);
+      if (updates.credit !== undefined) dbUpdates.credit_hours = parseFloat(updates.credit);
       if (updates.year !== undefined) dbUpdates.year = updates.year;
+      if (updates.weeklyClasses !== undefined) {
+        dbUpdates.weekly_classes = updates.weeklyClasses === null ? null : parseInt(updates.weeklyClasses);
+      }
+      if (updates.syllabusId !== undefined) dbUpdates.syllabus_id = updates.syllabusId;
+      if (updates.optionGroupId !== undefined) dbUpdates.option_group_id = updates.optionGroupId;
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -369,9 +379,10 @@ export const courseAPI = {
   },
 
   /**
-   * Import multiple courses
+   * Import multiple courses. `syllabusId` (optional) attaches every imported
+   * course to that syllabus version.
    */
-  async importCourses(coursesData) {
+  async importCourses(coursesData, syllabusId = null) {
     try {
       if (!backendAvailable) {
         backendAvailable = await checkBackendConnection();
@@ -386,15 +397,23 @@ export const courseAPI = {
       }
 
       // Map frontend field names to database field names
-      const dbCoursesData = coursesData.map(course => ({
-        code: course.code,
-        title: course.title,
-        course_type: course.type.toLowerCase(),
-        semester: course.semester,
-        credit_hours: parseInt(course.credit),
-        year: course.year,
-        is_active: true
-      }));
+      const dbCoursesData = coursesData.map(course => {
+        const row = {
+          code: course.code,
+          title: course.title,
+          course_type: course.type.toLowerCase(),
+          semester: course.semester,
+          credit_hours: parseFloat(course.credit),
+          year: course.year,
+          is_active: true
+        };
+        if (course.weeklyClasses !== undefined && course.weeklyClasses !== null) {
+          row.weekly_classes = parseInt(course.weeklyClasses);
+        }
+        const sid = course.syllabusId || syllabusId;
+        if (sid) row.syllabus_id = sid;
+        return row;
+      });
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);

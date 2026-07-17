@@ -32,7 +32,7 @@ const COURSE_TYPE_FILTERS = ['All Courses', 'Lab Only', 'Theory only'];
 
 const normalize = (value) => value.trim().toLowerCase();
 
-function CourseWiseTeacher({ selectedSemesters = [] }) {
+function CourseWiseTeacher({ semesterId, selectedSemesters = [] }) {
   const [allCourses, setAllCourses] = useState([]);
   const [teachers,   setTeachers]   = useState([]);
   const [choicesMap, setChoicesMap] = useState({}); // courseId → DB row
@@ -47,15 +47,16 @@ function CourseWiseTeacher({ selectedSemesters = [] }) {
 
   // Load teachers and all active courses once
   useEffect(() => {
+    if (!semesterId) return;
     Promise.all([
-      teacherAPI.getTeachers(),
+      teacherAPI.getTeachers(semesterId),
       courseAPI.getAllCourses(),
     ]).then(([tResult, cResult]) => {
       if (tResult.success) setTeachers(tResult.data || []);
       if (cResult.success) setAllCourses(cResult.courses || []);
       setLoading(false);
     });
-  }, []);
+  }, [semesterId]);
 
   // Stable string key: sorted IDs of courses in selected semesters
   const filteredCourseIdsKey = useMemo(() => {
@@ -73,16 +74,16 @@ function CourseWiseTeacher({ selectedSemesters = [] }) {
 
   // Load choices whenever the filtered course set changes
   useEffect(() => {
-    if (!filteredCourseIdsKey) { setChoicesMap({}); return; }
+    if (!filteredCourseIdsKey || !semesterId) { setChoicesMap({}); return; }
     const ids = filteredCourseIdsKey.split(',');
-    courseTeacherAPI.getChoices(ids).then(result => {
+    courseTeacherAPI.getChoices(semesterId, ids).then(result => {
       if (result.success) {
         const map = {};
         (result.data || []).forEach(row => { map[row.course_id] = row; });
         setChoicesMap(map);
       }
     });
-  }, [filteredCourseIdsKey]);
+  }, [filteredCourseIdsKey, semesterId]);
 
   const teacherMap = useMemo(() => {
     const map = {};
@@ -226,7 +227,7 @@ function CourseWiseTeacher({ selectedSemesters = [] }) {
     }));
 
     closeEditor();
-    courseTeacherAPI.saveChoices(courseId, toSave);
+    courseTeacherAPI.saveChoices(semesterId, courseId, toSave);
   };
 
   // Always-current ref so the keydown listener always calls the latest saveEditor

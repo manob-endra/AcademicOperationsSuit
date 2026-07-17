@@ -3,110 +3,134 @@ import { supabase } from '../config/supabaseClient.js';
 /**
  * Semester Rollover Service
  *
- * When the admin creates a new academic semester with rollover enabled,
- * the current working data is refreshed for the new semester:
- *   • course→teacher assignments are archived to course_history (so past
- *     teachers keep showing in each course's history) and merged into the
- *     allocation page's "History" tag list
- *   • teacher choices/preferences, teacher weekly loads, teacher time
- *     slots, course durations, class time settings, classroom clusters,
- *     room allocation, the home-page semester selection and the generated
- *     routine are all cleared
+ * Rollover prepares a NEW semester. It never modifies the semesters that
+ * came before it — routine generation runs for months (teachers submit
+ * choices, allocation is negotiated), so an admin must be able to start
+ * next semester's routine while the current one is still in use.
  *
- * The course catalog and teacher records themselves are kept.
+ * Every routine table is scoped by semester_id, so the new semester starts
+ * empty by construction: no rows carry its id yet. Rollover only ADDS rows:
+ *
+ *   • course_history        — a snapshot of who taught what in the previous
+ *                             semester (denormalized, survives deletions)
+ *   • course_teacher_choices— one row per course for the new semester, with
+ *                             past teachers carried in `history` (the tags
+ *                             the allocation page shows) and choices empty
+ *   • class_time_settings   — copied from the previous semester
+ *   • course_durations      — copied from the previous semester
+ *   • room_allocation       — copied from the previous semester
+ *
+ * Settings are copied because they rarely change between semesters and
+ * re-entering them every time is pure toil. Anything representing actual
+ * routine work — teacher preferences, availability, assignments, the
+ * generated routine — is deliberately NOT copied and starts empty.
  */
 
-// Archive current course→teacher assignments into course_history and
-// reset course_teacher_choices for the new semester.
-async function archiveCourseAssignments(semesterLabel) {
-  const { data: choices, error: choicesErr } = await supabase
+// Snapshot the previous semester's assignments into course_history.
+// Reads only; the source rows stay exactly as they are.
+async function archivePreviousAssignments(prevSemesterId, semesterLabel) {
+  const { data: choices, error } = await supabase
     .from('course_teacher_choices')
-    .select('course_id, history, teacher_assignments');
-  if (choicesErr) throw choicesErr;
+    .select('course_id, history, teacher_assignments')
+    .eq('semester_id', prevSemesterId);
+  if (error) throw error;
 
   const rows = choices || [];
   const assignedRows = rows.filter(
     r => Array.isArray(r.teacher_assignments) && r.teacher_assignments.length > 0
   );
+  if (assignedRows.length === 0) return { archived: 0, rows };
 
-  // Look up course + teacher display data for the archive (denormalized)
+  // Denormalize course + teacher display data so history survives deletions
   const courseIds  = assignedRows.map(r => r.course_id);
   const teacherIds = [...new Set(assignedRows.flatMap(r => r.teacher_assignments))];
 
   const [coursesRes, teachersRes] = await Promise.all([
-    courseIds.length
-      ? supabase.from('courses').select('id, code, title').in('id', courseIds)
-      : Promise.resolve({ data: [] }),
-    teacherIds.length
-      ? supabase.from('teachers').select('id, name, initials').in('id', teacherIds)
-      : Promise.resolve({ data: [] }),
+    supabase.from('courses').select('id, code, title').in('id', courseIds),
+    supabase.from('teachers').select('id, name, initials').in('id', teacherIds),
   ]);
 
   const courseMap  = new Map((coursesRes.data  || []).map(c => [c.id, c]));
   const teacherMap = new Map((teachersRes.data || []).map(t => [t.id, t]));
 
-  // 1. Write one history row per course that had assigned teachers
-  if (assignedRows.length > 0) {
-    const historyRows = assignedRows.map(r => ({
-      course_id:      String(r.course_id),
-      course_code:    courseMap.get(r.course_id)?.code  ?? null,
-      course_title:   courseMap.get(r.course_id)?.title ?? null,
-      semester_label: semesterLabel,
-      teacher_ids:    r.teacher_assignments,
-      teacher_names:  r.teacher_assignments.map(id => {
-        const t = teacherMap.get(id);
-        return t ? (t.name || t.initials || id) : id;
-      }),
-    }));
+  const historyRows = assignedRows.map(r => ({
+    course_id:      String(r.course_id),
+    course_code:    courseMap.get(r.course_id)?.code  ?? null,
+    course_title:   courseMap.get(r.course_id)?.title ?? null,
+    semester_label: semesterLabel,
+    teacher_ids:    r.teacher_assignments,
+    teacher_names:  r.teacher_assignments.map(id => {
+      const t = teacherMap.get(id);
+      return t ? (t.name || t.initials || id) : id;
+    }),
+  }));
 
-    const { error: histErr } = await supabase
-      .from('course_history')
-      .insert(historyRows);
-    if (histErr) throw histErr;
-  }
+  const { error: histErr } = await supabase.from('course_history').insert(historyRows);
+  if (histErr) throw histErr;
 
-  // 2. Reset every choices row: past teachers merge into the "History"
-  //    tag list, all choices and assignments are cleared
-  if (rows.length > 0) {
-    const resetRows = rows.map(r => ({
-      course_id:           r.course_id,
-      history:             [...new Set([...(r.history || []), ...(r.teacher_assignments || [])])],
-      first_choice:        null,
-      second_choice:       null,
-      third_choice:        null,
-      other_choices:       [],
-      teacher_assignments: [],
-    }));
-
-    const { error: resetErr } = await supabase
-      .from('course_teacher_choices')
-      .upsert(resetRows, { onConflict: 'course_id' });
-    if (resetErr) throw resetErr;
-  }
-
-  return assignedRows.length;
+  return { archived: historyRows.length, rows };
 }
 
-// Clear a whole table (supabase requires a filter on delete)
-async function clearTable(table, keyColumn) {
+// Seed the new semester's choices rows: teachers who taught the course
+// before are merged into `history` (shown as tags on the allocation page),
+// while the choices and assignments themselves start empty.
+async function seedChoices(newSemesterId, prevRows) {
+  if (!prevRows.length) return 0;
+
+  const seeded = prevRows.map(r => ({
+    semester_id:         newSemesterId,
+    course_id:           r.course_id,
+    history:             [...new Set([...(r.history || []), ...(r.teacher_assignments || [])])],
+    first_choice:        null,
+    second_choice:       null,
+    third_choice:        null,
+    other_choices:       [],
+    teacher_assignments: [],
+  }));
+
   const { error } = await supabase
-    .from(table)
-    .delete()
-    .not(keyColumn, 'is', null);
+    .from('course_teacher_choices')
+    .upsert(seeded, { onConflict: 'semester_id,course_id' });
+  if (error) throw error;
+  return seeded.length;
+}
+
+// Copy rows of `table` from one semester to another, dropping the primary
+// key so the database generates a fresh one. `onlyActive` restricts to
+// is_active rows — class_time_settings keeps deactivated history rows
+// around, and only the live one should carry forward.
+async function copyRows(table, prevSemesterId, newSemesterId, conflictKey, onlyActive = false) {
+  let query = supabase.from(table).select('*').eq('semester_id', prevSemesterId);
+  if (onlyActive) query = query.eq('is_active', true);
+  const { data, error } = await query;
   if (error) throw new Error(`${table}: ${error.message}`);
+  if (!data || data.length === 0) return 0;
+
+  const rows = data.map(({ id, created_at, updated_at, ...rest }) => ({
+    ...rest,
+    semester_id: newSemesterId,
+  }));
+
+  const { error: insErr } = await supabase
+    .from(table)
+    .upsert(rows, { onConflict: conflictKey });
+  if (insErr) throw new Error(`${table}: ${insErr.message}`);
+  return rows.length;
 }
 
 export const semesterRolloverService = {
 
   /**
-   * Perform the full rollover. `semesterLabel` names the period being
-   * archived (the outgoing semester), e.g. 'Spring 2026'.
-   * Returns a summary of what was archived/reset.
+   * Seed `newSemesterId` from `prevSemesterId`.
+   *
+   * `semesterLabel` names the semester being archived FROM (e.g. 'Spring 2026')
+   * and is what appears in each course's History.
+   *
+   * Nothing belonging to prevSemesterId is written to.
    */
-  async performRollover(semesterLabel) {
+  async performRollover(newSemesterId, prevSemesterId, semesterLabel) {
     try {
-      // Fail fast if the migration hasn't been applied — never start
-      // clearing data unless the archive table is available.
+      // Fail before writing anything if the archive table is missing.
       const { error: probeErr } = await supabase
         .from('course_history')
         .select('id')
@@ -114,36 +138,32 @@ export const semesterRolloverService = {
       if (probeErr) {
         return {
           success: false,
-          error: 'Database migration required: run migrations/semester_rollover.sql in the Supabase SQL editor first.',
+          error: 'Database migration required: run migrations/semester_rollover.sql and migrations/per_semester_routine.sql in the Supabase SQL editor first.',
         };
       }
 
-      const archivedCourses = await archiveCourseAssignments(semesterLabel);
+      // First semester ever — nothing to carry forward, and that is fine.
+      if (!prevSemesterId) {
+        return { success: true, archivedCourses: 0, seededCourses: 0, copiedSettings: false, semesterLabel };
+      }
 
-      // Teacher-side resets
-      await clearTable('teacher_course_preferences', 'teacher_id'); // teacher preferences
-      await clearTable('teacher_availability', 'teacher_id');       // teacher time slots
+      const { archived, rows } = await archivePreviousAssignments(prevSemesterId, semesterLabel);
+      const seededCourses = await seedChoices(newSemesterId, rows);
 
-      const { error: loadErr } = await supabase                     // teacher load
-        .from('teachers')
-        .update({ weekly_load_hours: 0 })
-        .not('id', 'is', null);
-      if (loadErr) throw new Error(`teachers: ${loadErr.message}`);
+      // Settings carried forward as a starting point (rarely change).
+      const copied = await Promise.all([
+        copyRows('class_time_settings', prevSemesterId, newSemesterId, 'id', true),
+        copyRows('course_durations',    prevSemesterId, newSemesterId, 'semester_id,course_id'),
+        copyRows('room_allocation',     prevSemesterId, newSemesterId, 'semester_id'),
+      ]);
 
-      // Course/timing resets
-      await clearTable('course_durations', 'course_id');            // course time
-      await clearTable('class_time_settings', 'id');                // time slot settings
-
-      // Room resets
-      await clearTable('cluster_distances', 'cluster1_id');         // classroom distances
-      await clearTable('classroom_clusters', 'id');                 // classrooms
-      await clearTable('room_allocation', 'id');                    // room allocation
-
-      // Workspace resets
-      await clearTable('semester_selection', 'id');                 // selected semesters
-      await clearTable('routine_storage', 'id');                    // generated routine
-
-      return { success: true, archivedCourses, semesterLabel };
+      return {
+        success: true,
+        archivedCourses: archived,
+        seededCourses,
+        copiedSettings: copied.some(n => n > 0),
+        semesterLabel,
+      };
     } catch (err) {
       console.error('semesterRolloverService.performRollover:', err);
       return { success: false, error: err.message };

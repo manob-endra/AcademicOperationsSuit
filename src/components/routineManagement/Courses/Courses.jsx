@@ -5,9 +5,13 @@ import RemoveCoursesModal from './components/RemoveCoursesModal';
 import RemovedCoursesModal from './components/RemovedCoursesModal';
 import CourseHistoryModal from './components/CourseHistoryModal';
 import EditCourseModal from './components/EditCourseModal';
+import SyllabusManager from './components/SyllabusManager';
+import BatchSyllabusPanel from './components/BatchSyllabusPanel';
 import { courseAPI } from '../../../services/courseAPI';
+import { syllabusAPI } from '../../../services/syllabusAPI';
 import '../../../styles/Courses.css';
 import './styles/Courses.css';
+import './styles/SyllabusManager.css';
 
 // Semester mapping - supports both capitalized and lowercase formats
 const SEMESTER_MAPPING = {
@@ -131,7 +135,10 @@ const transformDBCourse = (dbCourse) => {
   const typeMap = {
     'theory': 'Theory',
     'lab': 'Lab',
-    'mixed': 'Mixed'
+    'mixed': 'Mixed',
+    'project': 'Project',
+    'internship': 'Internship',
+    'viva': 'Viva',
   };
 
   return {
@@ -141,10 +148,13 @@ const transformDBCourse = (dbCourse) => {
     type: typeMap[dbCourse.course_type?.toLowerCase()] || dbCourse.course_type || 'Theory',
     year: normalizeYear(dbCourse.year) || 'Unknown',
     semester: normalizeSemester(dbCourse.semester) || 'Unknown',
-    credit: dbCourse.credit_hours || 0,
+    credit: Number(dbCourse.credit_hours) || 0,   // NUMERIC may arrive as a string ("3.00")
     description: dbCourse.description,
     is_active: dbCourse.is_active,
     isExceptional: dbCourse.is_exceptional || false,
+    syllabusId: dbCourse.syllabus_id || null,
+    optionGroupId: dbCourse.option_group_id || null,
+    weeklyClasses: dbCourse.weekly_classes ?? null,
   };
 };
 
@@ -169,11 +179,14 @@ const transformFrontendCourse = (frontendCourse) => {
   };
 };
 
-function Courses({ selectedSemesters = [] }) {
+function Courses({ semesterId, selectedSemesters = [] }) {
   // Convert Home.jsx semester IDs to year and semester info
   const selectedCourseSemesters = useMemo(() => {
     return selectedSemesters.map(id => extractYearAndSemester(id)).filter(s => s.year && s.semester);
   }, [selectedSemesters]);
+
+  // Page tabs: course catalog / syllabus manager / batch syllabus assignment
+  const [pageTab, setPageTab] = useState('courses');
 
   // State for courses
   const [courses, setCourses] = useState([]);
@@ -181,6 +194,11 @@ function Courses({ selectedSemesters = [] }) {
   const [exceptionalCourses, setExceptionalCourses] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Syllabus catalog state
+  const [syllabi, setSyllabi] = useState([]);
+  const [optionGroups, setOptionGroups] = useState([]);
+  const [syllabusFilter, setSyllabusFilter] = useState('all'); // 'all' | syllabus id | 'none'
 
   // Selection state for exceptional feature (Set of course IDs)
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -210,7 +228,22 @@ function Courses({ selectedSemesters = [] }) {
     loadCourses();
     loadRemovedCourses();
     loadExceptionalCourses();
-  }, []);
+    loadSyllabusData();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const loadSyllabusData = async () => {
+    const [sRes, gRes] = await Promise.all([
+      syllabusAPI.getAllSyllabi(),
+      syllabusAPI.getOptionGroups(),
+    ]);
+    if (sRes.success) setSyllabi(sRes.data || []);
+    if (gRes.success) setOptionGroups(gRes.data || []);
+  };
+
+  // After syllabus/group edits, refresh both the catalog and the courses
+  const handleSyllabusChanged = async () => {
+    await Promise.all([loadSyllabusData(), loadCourses()]);
+  };
 
   const loadCourses = async () => {
     try {
@@ -283,11 +316,18 @@ function Courses({ selectedSemesters = [] }) {
     return ['All credits', ...Array.from(credits).sort((a, b) => parseFloat(a) - parseFloat(b))];
   }, [courses]);
 
-  const typeOptions = ['All types', 'Theory', 'Lab', 'Mixed'];
+  const typeOptions = ['All types', 'Theory', 'Lab', 'Mixed', 'Project', 'Internship', 'Viva'];
 
   // Filter courses based on selected filters and search term
   const filteredCourses = useMemo(() => {
     let filtered = courses;
+
+    // Syllabus filter (from the syllabus selector above the table)
+    if (syllabusFilter === 'none') {
+      filtered = filtered.filter(c => !c.syllabusId);
+    } else if (syllabusFilter !== 'all') {
+      filtered = filtered.filter(c => c.syllabusId === syllabusFilter);
+    }
 
     // Apply view mode filter - match both year and semester
     if (viewMode === 'selected' && selectedCourseSemesters.length > 0) {
@@ -359,7 +399,7 @@ function Courses({ selectedSemesters = [] }) {
     });
 
     return filtered;
-  }, [courses, yearFilter, semesterFilter, creditFilter, typeFilter, searchTerm, viewMode, selectedCourseSemesters]);
+  }, [courses, yearFilter, semesterFilter, creditFilter, typeFilter, searchTerm, viewMode, selectedCourseSemesters, syllabusFilter]);
 
   // Handle Add Course
   const handleAddCourse = async (newCourse) => {
@@ -380,18 +420,18 @@ function Courses({ selectedSemesters = [] }) {
     }
   };
 
-  // Handle Import Courses
-  const handleImportCourses = async (importedCourses) => {
+  // Handle Import Courses (optionally into a syllabus version)
+  const handleImportCourses = async (importedCourses, syllabusId = null) => {
     try {
       setError(null);
-      const result = await courseAPI.importCourses(importedCourses);
-      
+      const result = await courseAPI.importCourses(importedCourses, syllabusId);
+
       if (result.success) {
+        // The backend returns exactly the rows it inserted. Course code is
+        // not unique (electives share placeholder codes like 'CSE-4XXX'), so
+        // we append every inserted row rather than deduping by code.
         const transformedCourses = result.courses.map(transformDBCourse);
-        const uniqueCourses = transformedCourses.filter(
-          importedCourse => !courses.some(existing => existing.code === importedCourse.code)
-        );
-        setCourses([...courses, ...uniqueCourses]);
+        setCourses([...courses, ...transformedCourses]);
         setShowImportModal(false);
       } else {
         setError(result.error || 'Failed to import courses');
@@ -405,12 +445,15 @@ function Courses({ selectedSemesters = [] }) {
   // Handle Edit Course
   const handleEditCourse = async (courseId, updatedFields) => {
     const result = await courseAPI.updateCourse(courseId, {
-      code:        updatedFields.code,
-      title:       updatedFields.title,
-      type:        updatedFields.type,
-      year:        updatedFields.year,
-      semester:    updatedFields.semester,
-      credit:      updatedFields.credit,
+      code:          updatedFields.code,
+      title:         updatedFields.title,
+      type:          updatedFields.type,
+      year:          updatedFields.year,
+      semester:      updatedFields.semester,
+      credit:        updatedFields.credit,
+      weeklyClasses: updatedFields.weeklyClasses,
+      syllabusId:    updatedFields.syllabusId,
+      optionGroupId: updatedFields.optionGroupId,
     });
     if (result.success) {
       const updated = transformDBCourse(result.course);
@@ -503,9 +546,14 @@ function Courses({ selectedSemesters = [] }) {
     setSemesterFilter('All semester');
     setCreditFilter('All credits');
     setTypeFilter('All types');
+    setSyllabusFilter('all');
     setSearchTerm('');
     setViewMode('all');
   };
+
+  // Small helpers for rendering catalog metadata in the table
+  const syllabusTitle = (id) => syllabi.find(s => s.id === id)?.title || null;
+  const groupName = (id) => optionGroups.find(g => g.id === id)?.name || null;
 
   // Handle View Mode Change
   const handleViewModeChange = (mode) => {
@@ -580,8 +628,52 @@ function Courses({ selectedSemesters = [] }) {
   return (
     <div className="routine-section-content courses-container">
       <h2>Courses</h2>
-      <p>Manage course information and course-related scheduling.</p>
-      
+      <p>Manage the course catalog, syllabus versions and per-semester syllabus assignments.</p>
+
+      {/* Page tabs */}
+      <div className="view-mode-toggle" style={{ marginBottom: 16 }}>
+        <button
+          className={`toggle-btn ${pageTab === 'courses' ? 'active' : ''}`}
+          onClick={() => setPageTab('courses')}
+        >
+          Course Catalog
+        </button>
+        <button
+          className={`toggle-btn ${pageTab === 'syllabi' ? 'active' : ''}`}
+          onClick={() => setPageTab('syllabi')}
+        >
+          Syllabi &amp; Options {syllabi.length > 0 && `(${syllabi.length})`}
+        </button>
+        <button
+          className={`toggle-btn ${pageTab === 'assignment' ? 'active' : ''}`}
+          onClick={() => setPageTab('assignment')}
+          title="Assign each running semester its syllabus and choose offered options"
+        >
+          Semester Syllabus
+        </button>
+      </div>
+
+      {pageTab === 'syllabi' && (
+        <SyllabusManager
+          syllabi={syllabi}
+          optionGroups={optionGroups}
+          courses={courses}
+          onChanged={handleSyllabusChanged}
+        />
+      )}
+
+      {pageTab === 'assignment' && (
+        <BatchSyllabusPanel
+          semesterId={semesterId}
+          selectedSemesters={selectedSemesters}
+          syllabi={syllabi}
+          optionGroups={optionGroups}
+          courses={courses}
+        />
+      )}
+
+      {pageTab !== 'courses' ? null : (
+      <>
       {/* Error Message Display */}
       {error && (
         <div style={{
@@ -753,6 +845,20 @@ function Courses({ selectedSemesters = [] }) {
                 </select>
               </div>
 
+              {/* Syllabus Filter */}
+              {syllabi.length > 0 && (
+                <div className="filter-dropdown">
+                  <label>Syllabus</label>
+                  <select value={syllabusFilter} onChange={(e) => setSyllabusFilter(e.target.value)}>
+                    <option value="all">All syllabi</option>
+                    {syllabi.map(s => (
+                      <option key={s.id} value={s.id}>{s.title}</option>
+                    ))}
+                    <option value="none">No syllabus (legacy)</option>
+                  </select>
+                </div>
+              )}
+
               {/* Clear Filters Button */}
               <button className="clear-filters-btn" onClick={handleViewAllCourses}>
                 Clear All
@@ -892,6 +998,8 @@ function Courses({ selectedSemesters = [] }) {
                       <th>Year</th>
                       <th>Semester</th>
                       <th>Credit</th>
+                      <th>Weekly</th>
+                      <th>Syllabus</th>
                       <th>History</th>
                     </tr>
                   </thead>
@@ -899,7 +1007,7 @@ function Courses({ selectedSemesters = [] }) {
                     {filteredCourses.length > 0 ? (
                       filteredCourses.map((course, index) => (
                         <tr
-                          key={course.code}
+                          key={course.id}
                           className={`${course.isExceptional ? 'exceptional-row' : ''} ${selectedIds.has(course.id) ? 'row-selected' : index % 2 === 0 ? 'row-light' : 'row-dark'}`}
                         >
                           {viewMode === 'selected' && (
@@ -914,12 +1022,23 @@ function Courses({ selectedSemesters = [] }) {
                           <td>
                             {course.isExceptional && <span className="exceptional-badge">Exception</span>}{' '}
                             {course.code}
+                            {course.optionGroupId && (
+                              <span className="optional-chip" title={`Optional — ${groupName(course.optionGroupId) || 'option group'}`}>
+                                {groupName(course.optionGroupId) || 'Optional'}
+                              </span>
+                            )}
                           </td>
                           <td>{course.title}</td>
-                          <td>{course.type}</td>
+                          <td>
+                            <span className={`course-type-chip ${course.type.toLowerCase()}`}>{course.type}</span>
+                          </td>
                           <td>{course.year}</td>
                           <td>{course.semester}</td>
                           <td>{course.credit}</td>
+                          <td>{course.weeklyClasses != null ? course.weeklyClasses : '—'}</td>
+                          <td style={{ fontSize: 12, color: '#6b7280' }}>
+                            {syllabusTitle(course.syllabusId) || '—'}
+                          </td>
                           <td>
                             <button
                               className="history-btn"
@@ -932,7 +1051,7 @@ function Courses({ selectedSemesters = [] }) {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={viewMode === 'selected' ? '8' : '7'} className="no-results">
+                        <td colSpan={viewMode === 'selected' ? '10' : '9'} className="no-results">
                           {viewMode === 'selected' && selectedCourseSemesters.length > 0
                             ? 'No courses found for the selected semesters.'
                             : viewMode === 'selected' && selectedCourseSemesters.length === 0
@@ -957,18 +1076,25 @@ function Courses({ selectedSemesters = [] }) {
           )}
         </>
       )}
+      </>
+      )}
 
       {/* Modals */}
       <AddCourseModal
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
         onAddCourse={handleAddCourse}
+        syllabi={syllabi}
+        optionGroups={optionGroups}
+        defaultSyllabusId={syllabusFilter !== 'all' && syllabusFilter !== 'none' ? syllabusFilter : ''}
       />
 
       <ImportCoursesModal
         isOpen={showImportModal}
         onClose={() => setShowImportModal(false)}
         onImportCourses={handleImportCourses}
+        syllabi={syllabi}
+        defaultSyllabusId={syllabusFilter !== 'all' && syllabusFilter !== 'none' ? syllabusFilter : ''}
       />
 
       <RemoveCoursesModal
@@ -999,6 +1125,8 @@ function Courses({ selectedSemesters = [] }) {
         onClose={() => setShowEditModal(false)}
         courses={courses}
         onEditCourse={handleEditCourse}
+        syllabi={syllabi}
+        optionGroups={optionGroups}
       />
     </div>
   );

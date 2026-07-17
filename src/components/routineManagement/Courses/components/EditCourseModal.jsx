@@ -1,13 +1,13 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { validateCourseFields } from '../utils/courseUtils';
+import { validateCourseFields, ALL_COURSE_TYPES, isNonClassType } from '../utils/courseUtils';
 import '../styles/Modal.css';
 import '../styles/EditCourseModal.css';
 
 const yearOptions     = ['1st Year', '2nd Year', '3rd Year', '4th Year', 'Master'];
 const semesterOptions = ['1st Semester', '2nd Semester', 'A1', 'A3', 'B2', 'B4'];
-const typeOptions     = ['Theory', 'Lab', 'Mixed'];
+const typeOptions     = ALL_COURSE_TYPES;
 
-function EditCourseModal({ isOpen, onClose, courses = [], onEditCourse }) {
+function EditCourseModal({ isOpen, onClose, courses = [], onEditCourse, syllabi = [], optionGroups = [] }) {
   const [search,          setSearch]          = useState('');
   const [selectedCourse,  setSelectedCourse]  = useState(null);
   const [formData,        setFormData]        = useState({});
@@ -44,12 +44,15 @@ function EditCourseModal({ isOpen, onClose, courses = [], onEditCourse }) {
   const handleSelectCourse = (course) => {
     setSelectedCourse(course);
     setFormData({
-      code:     course.code,
-      title:    course.title,
-      type:     course.type,
-      year:     course.year,
-      semester: course.semester,
-      credit:   String(course.credit),
+      code:          course.code,
+      title:         course.title,
+      type:          course.type,
+      year:          course.year,
+      semester:      course.semester,
+      credit:        String(course.credit),
+      weeklyClasses: course.weeklyClasses != null ? String(course.weeklyClasses) : '',
+      syllabusId:    course.syllabusId || '',
+      optionGroupId: course.optionGroupId || '',
     });
     setError('');
     setSaveSuccess(false);
@@ -64,7 +67,12 @@ function EditCourseModal({ isOpen, onClose, courses = [], onEditCourse }) {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => {
+      const next = { ...prev, [name]: value };
+      if (name === 'type' && isNonClassType(value)) next.weeklyClasses = '0';
+      if (name === 'syllabusId') next.optionGroupId = '';
+      return next;
+    });
     setError('');
     setSaveSuccess(false);
   };
@@ -76,9 +84,15 @@ function EditCourseModal({ isOpen, onClose, courses = [], onEditCourse }) {
     setIsSubmitting(true);
     setError('');
     try {
+      const nonClass = isNonClassType(formData.type);
       await onEditCourse(selectedCourse.id, {
         ...formData,
         credit: parseFloat(formData.credit),
+        weeklyClasses: nonClass
+          ? 0
+          : (formData.weeklyClasses === '' ? null : parseInt(formData.weeklyClasses)),
+        syllabusId: formData.syllabusId || null,
+        optionGroupId: formData.optionGroupId || null,
       });
       setSaveSuccess(true);
       // Update the local selectedCourse so the list reflects the new values
@@ -89,6 +103,16 @@ function EditCourseModal({ isOpen, onClose, courses = [], onEditCourse }) {
       setIsSubmitting(false);
     }
   };
+
+  // Option groups matching the chosen syllabus + year + semester
+  const availableGroups = useMemo(() => {
+    if (!formData.syllabusId) return [];
+    return optionGroups.filter(g =>
+      g.syllabus_id === formData.syllabusId &&
+      (!formData.year || g.year === formData.year) &&
+      (!formData.semester || g.semester === formData.semester)
+    );
+  }, [optionGroups, formData.syllabusId, formData.year, formData.semester]);
 
   const handleClose = () => {
     onClose();
@@ -218,12 +242,53 @@ function EditCourseModal({ isOpen, onClose, courses = [], onEditCourse }) {
                     name="credit"
                     value={formData.credit}
                     onChange={handleChange}
-                    placeholder="e.g., 3"
-                    step="0.5"
+                    placeholder="e.g., 3 or 0.75"
+                    step="0.25"
                     min="0"
                     disabled={isSubmitting}
                   />
                 </div>
+
+                {!isNonClassType(formData.type) && (
+                  <div className="form-group">
+                    <label>Weekly Classes</label>
+                    <input
+                      type="number"
+                      name="weeklyClasses"
+                      value={formData.weeklyClasses}
+                      onChange={handleChange}
+                      placeholder="3 theory · 1 lab"
+                      min="0"
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                )}
+
+                {syllabi.length > 0 && (
+                  <div className="form-group">
+                    <label>Syllabus</label>
+                    <select name="syllabusId" value={formData.syllabusId} onChange={handleChange} disabled={isSubmitting}>
+                      <option value="">No syllabus (legacy)</option>
+                      {syllabi.map(s => (
+                        <option key={s.id} value={s.id}>{s.title} ({s.effective_session})</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {formData.syllabusId && (
+                  <div className="form-group">
+                    <label>Option Group</label>
+                    <select name="optionGroupId" value={formData.optionGroupId} onChange={handleChange} disabled={isSubmitting}>
+                      <option value="">Compulsory (no group)</option>
+                      {availableGroups.map(g => (
+                        <option key={g.id} value={g.id}>
+                          {g.name} — {g.year} {g.semester} (choose {g.choose_count})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             </>
           )}

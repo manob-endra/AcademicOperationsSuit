@@ -23,14 +23,17 @@ export const courseTimeService = {
   },
 
   /**
-   * Get all rows from course_durations.
-   * Returns { course_id, duration_periods, weekly_classes } for every course that has one set.
+   * Get the durations set within one semester.
+   * Returns { course_id, duration_periods, weekly_classes } per course.
    */
-  async getDurations() {
+  async getDurations(semesterId) {
     try {
+      if (!semesterId) return { success: false, error: 'semesterId is required.' };
+
       const { data, error } = await supabase
         .from('course_durations')
-        .select('course_id, duration_periods, weekly_classes');
+        .select('course_id, duration_periods, weekly_classes')
+        .eq('semester_id', semesterId);
 
       if (error) throw error;
       return { success: true, durations: data || [] };
@@ -41,11 +44,15 @@ export const courseTimeService = {
   },
 
   /**
-   * Upsert the duration (and optionally weekly_classes) for a single course.
+   * Upsert the duration (and optionally weekly_classes) for a single course
+   * within one semester.
    */
-  async upsertDuration(courseId, durationPeriods, weeklyClasses = null) {
+  async upsertDuration(semesterId, courseId, durationPeriods, weeklyClasses = null) {
     try {
+      if (!semesterId) return { success: false, error: 'semesterId is required.' };
+
       const row = {
+        semester_id:      semesterId,
         course_id:        courseId,
         duration_periods: Number(durationPeriods),
       };
@@ -55,7 +62,7 @@ export const courseTimeService = {
 
       const { data, error } = await supabase
         .from('course_durations')
-        .upsert(row, { onConflict: 'course_id' })
+        .upsert(row, { onConflict: 'semester_id,course_id' })
         .select()
         .single();
 
@@ -70,13 +77,15 @@ export const courseTimeService = {
   /**
    * Upsert only the weekly_classes for a single course (duration_periods not changed).
    */
-  async upsertWeeklyClasses(courseId, weeklyClasses) {
+  async upsertWeeklyClasses(semesterId, courseId, weeklyClasses) {
     try {
+      if (!semesterId) return { success: false, error: 'semesterId is required.' };
+
       const { data, error } = await supabase
         .from('course_durations')
         .upsert(
-          { course_id: courseId, weekly_classes: Number(weeklyClasses) },
-          { onConflict: 'course_id' }
+          { semester_id: semesterId, course_id: courseId, weekly_classes: Number(weeklyClasses) },
+          { onConflict: 'semester_id,course_id' }
         )
         .select()
         .single();
@@ -90,13 +99,16 @@ export const courseTimeService = {
   },
 
   /**
-   * Upsert durations for many courses at once.
+   * Upsert durations for many courses at once within one semester.
    * @param {Array<{courseId: string, durationPeriods: number, weeklyClasses?: number}>} durations
    */
-  async upsertBulkDurations(durations) {
+  async upsertBulkDurations(semesterId, durations) {
     try {
+      if (!semesterId) return { success: false, error: 'semesterId is required.' };
+
       const rows = durations.map((d) => {
         const row = {
+          semester_id:      semesterId,
           course_id:        d.courseId,
           duration_periods: Number(d.durationPeriods),
         };
@@ -108,7 +120,7 @@ export const courseTimeService = {
 
       const { data, error } = await supabase
         .from('course_durations')
-        .upsert(rows, { onConflict: 'course_id' })
+        .upsert(rows, { onConflict: 'semester_id,course_id' })
         .select();
 
       if (error) throw error;

@@ -1,11 +1,13 @@
 import express from 'express';
 import { courseTimeService } from '../services/courseTimeService.js';
+import { requireSemester } from './requireSemester.js';
 
 const router = express.Router();
 
 /**
  * GET /api/course-time/courses
- * Returns all active courses (id, code, title, course_type, year, semester, credit_hours)
+ * Returns all active courses (id, code, title, course_type, year, semester, credit_hours).
+ * The course catalog is campus-wide, so this one is not semester-scoped.
  */
 router.get('/courses', async (req, res) => {
   try {
@@ -21,13 +23,16 @@ router.get('/courses', async (req, res) => {
   }
 });
 
+// Durations are routine work, so everything below is scoped to one semester.
+router.use(requireSemester);
+
 /**
- * GET /api/course-time/durations
+ * GET /api/course-time/durations?semesterId=...
  * Returns { course_id, duration_periods } for every course that has a duration set
  */
 router.get('/durations', async (req, res) => {
   try {
-    const result = await courseTimeService.getDurations();
+    const result = await courseTimeService.getDurations(req.semesterId);
     if (result.success) {
       res.json({ success: true, data: result.durations });
     } else {
@@ -62,7 +67,7 @@ router.post('/durations/bulk', async (req, res) => {
       });
     }
 
-    const result = await courseTimeService.upsertBulkDurations(durations);
+    const result = await courseTimeService.upsertBulkDurations(req.semesterId, durations);
     if (result.success) {
       res.json({ success: true, data: result.durations });
     } else {
@@ -89,7 +94,7 @@ router.post('/weekly-classes/bulk', async (req, res) => {
       return res.status(400).json({ success: false, error: 'weeklyClasses must be >= 1' });
     }
     const results = await Promise.allSettled(
-      courseIds.map(id => courseTimeService.upsertWeeklyClasses(id, Number(weeklyClasses)))
+      courseIds.map(id => courseTimeService.upsertWeeklyClasses(req.semesterId, id, Number(weeklyClasses)))
     );
     const failed = results.filter(r => r.status === 'rejected' || !r.value?.success);
     if (failed.length > 0) {
@@ -113,7 +118,7 @@ router.post('/weekly-classes/:courseId', async (req, res) => {
     if (!weeklyClasses || Number(weeklyClasses) < 1) {
       return res.status(400).json({ success: false, error: 'weeklyClasses must be a positive integer' });
     }
-    const result = await courseTimeService.upsertWeeklyClasses(courseId, weeklyClasses);
+    const result = await courseTimeService.upsertWeeklyClasses(req.semesterId, courseId, weeklyClasses);
     if (result.success) {
       res.json({ success: true, data: result.duration });
     } else {
@@ -141,7 +146,7 @@ router.post('/durations/:courseId', async (req, res) => {
       });
     }
 
-    const result = await courseTimeService.upsertDuration(courseId, durationPeriods, weeklyClasses ?? null);
+    const result = await courseTimeService.upsertDuration(req.semesterId, courseId, durationPeriods, weeklyClasses ?? null);
     if (result.success) {
       res.json({ success: true, data: result.duration });
     } else {

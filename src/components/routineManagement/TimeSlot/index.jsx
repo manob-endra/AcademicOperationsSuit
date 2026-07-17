@@ -5,7 +5,7 @@ import CourseTime from './CourseTime';
 import TeachersTime from './TeachersTime';
 import './styles/TimeSlot.css';
 
-function TimeSlot() {
+function TimeSlot({ semesterId }) {
   const [activeTab, setActiveTab] = useState('classTimeDetails');
 
   const tabs = [
@@ -18,15 +18,15 @@ function TimeSlot() {
   const renderTabContent = () => {
     switch (activeTab) {
       case 'classTimeDetails':
-        return <ClassTimeDetails />;
+        return <ClassTimeDetails semesterId={semesterId} />;
       case 'classroomClusters':
         return <ClassroomClusters />;
       case 'courseTime':
-        return <CourseTime />;
+        return <CourseTime semesterId={semesterId} />;
       case 'teachersTime':
-        return <TeachersTime />;
+        return <TeachersTime semesterId={semesterId} />;
       default:
-        return <ClassTimeDetails />;
+        return <ClassTimeDetails semesterId={semesterId} />;
     }
   };
 

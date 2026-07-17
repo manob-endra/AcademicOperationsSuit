@@ -6,13 +6,15 @@ import { teacherAPI } from '../../services/teacherAPI';
 import './Routine.css';
 
 // ── Publish Confirmation Modal ─────────────────────────────────────────────────
-function PublishModal({ semId, semLabel, onConfirm, onCancel }) {
+// semesterId = academic semester UUID (routine scope); batchId = student batch
+// short code (e.g. 'Y4-S1') identifying which entries within it to publish.
+function PublishModal({ semesterId, batchId, semLabel, onConfirm, onCancel }) {
   const [publishing, setPublishing] = useState(false);
   const [done, setDone]             = useState(null); // null | { ok, msg }
 
   const handleConfirm = async () => {
     setPublishing(true);
-    const r = await routineAPI.publishRoutine(semId, semLabel);
+    const r = await routineAPI.publishRoutine(semesterId, batchId, semLabel);
     setPublishing(false);
     if (r.success) {
       setDone({ ok: true, msg: r.duplicate ? 'Already published recently (no duplicate job created).' : 'Routine published! Emails are being sent.' });
@@ -210,7 +212,7 @@ function buildColumns(settings) {
 // Component
 // ---------------------------------------------------------------------------
 
-function Routine({ onNavigate }) {
+function Routine({ semesterId, onNavigate }) {
   const [view, setView] = useState('generation');
 
   // data
@@ -231,20 +233,21 @@ function Routine({ onNavigate }) {
 
   const [selectedSemester, setSelectedSemester] = useState(null);
   const [selectedTeacher,  setSelectedTeacher]  = useState(null);
-  const [publishModal,     setPublishModal]      = useState(null); // null | { semId, semLabel }
+  const [publishModal,     setPublishModal]      = useState(null); // null | { batchId, semLabel }
 
   // -------------------------------------------------------------------------
   useEffect(() => {
-    loadAll();
-  }, []);
+    if (semesterId) loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [semesterId]);
 
   const loadAll = async () => {
     setLoading(true);
     const [settingsRes, coursesRes, teachersRes, routineRes] = await Promise.all([
-      classTimeSettingsAPI.getSettings(),
+      classTimeSettingsAPI.getSettings(semesterId),
       courseAPI.getAllCourses(),
-      teacherAPI.getTeachers(),
-      routineAPI.getRoutine(),
+      teacherAPI.getTeachers(semesterId),
+      routineAPI.getRoutine(semesterId),
     ]);
     if (settingsRes.success) setSettings(settingsRes.data);
     if (coursesRes.success)  setCourses(coursesRes.courses || []);
@@ -334,7 +337,7 @@ function Routine({ onNavigate }) {
   // -------------------------------------------------------------------------
   const handleCheckConflicts = async () => {
     setChecking(true);
-    const result = await routineAPI.checkConflicts();
+    const result = await routineAPI.checkConflicts(semesterId);
     setChecking(false);
     if (result.success) {
       setConflicts(result.conflicts);
@@ -346,7 +349,7 @@ function Routine({ onNavigate }) {
   const handleGenerate = async () => {
     setGenerating(true);
     const seed = seedInput.trim() === '' ? undefined : Number(seedInput);
-    const result = await routineAPI.generateRoutine(seed);
+    const result = await routineAPI.generateRoutine(semesterId, seed);
     setGenerating(false);
     if (result.success) {
       // Preview only — the admin saves explicitly before publishing
@@ -363,7 +366,7 @@ function Routine({ onNavigate }) {
   const handleSave = async () => {
     if (!routine || routine.saved) return;
     setSaving(true);
-    const r = await routineAPI.saveRoutine(routine.entries, routine.generatedAt);
+    const r = await routineAPI.saveRoutine(semesterId, routine.entries, routine.generatedAt);
     setSaving(false);
     if (r.success) {
       setRoutine(prev => ({ ...prev, saved: true, generatedAt: r.generatedAt || prev.generatedAt }));
@@ -374,7 +377,7 @@ function Routine({ onNavigate }) {
 
   const handleClear = async () => {
     if (!window.confirm('Clear the generated routine?')) return;
-    if (routine?.saved) await routineAPI.clearRoutine();
+    if (routine?.saved) await routineAPI.clearRoutine(semesterId);
     setRoutine(null);
     setWarnings([]);
     setConflicts(null);
@@ -771,7 +774,8 @@ function Routine({ onNavigate }) {
       {/* Publish confirmation modal */}
       {publishModal && (
         <PublishModal
-          semId={publishModal.semId}
+          semesterId={semesterId}
+          batchId={publishModal.batchId}
           semLabel={publishModal.semLabel}
           onConfirm={() => {}}
           onCancel={() => setPublishModal(null)}
@@ -806,7 +810,7 @@ function Routine({ onNavigate }) {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 8 }}>
                     <h4 className="batch-title" style={{ margin: 0 }}>{semLabel(selectedSemester)}</h4>
                     <button
-                      onClick={() => setPublishModal({ semId: selectedSemester, semLabel: semLabel(selectedSemester) })}
+                      onClick={() => setPublishModal({ batchId: selectedSemester, semLabel: semLabel(selectedSemester) })}
                       disabled={!routine?.saved}
                       style={{
                         padding: '8px 20px',

@@ -23,6 +23,7 @@ import teacherLeaveRoutes from './src/backend/api/teacherLeaveRoutes.js';
 import notificationSystemRoutes from './src/backend/api/notificationSystemRoutes.js';
 import unsubscribeRoutes from './src/backend/api/unsubscribeRoutes.js';
 import examRoutineRoutes from './src/backend/api/examRoutineRoutes.js';
+import syllabusRoutes from './src/backend/api/syllabusRoutes.js';
 import { startNotificationWorker } from './src/backend/services/notificationWorker.js';
 
 dotenv.config();
@@ -47,6 +48,9 @@ app.get('/api/health', (req, res) => {
 
 // Course API routes
 app.use('/api/courses', courseRoutes);
+
+// Syllabus catalog API routes (syllabi, option groups, batches, offerings)
+app.use('/api/syllabus', syllabusRoutes);
 
 // Auth API routes
 app.use('/api/auth', authRoutes);

@@ -1,4 +1,5 @@
 import { useState, useContext, useEffect, useRef } from 'react';
+import { useParams } from 'react-router-dom';
 import { AuthContext } from '../contexts/AuthContext';
 import { semesterSelectionAPI } from '../services/semesterSelectionAPI';
 import Home from './routineManagement/Home';
@@ -25,6 +26,7 @@ const sections = [
 
 function RoutineManagement() {
   const { user } = useContext(AuthContext);
+  const { semesterId } = useParams();
   const [activeSection, setActiveSection]       = useState('home');
   const [selectedSemesters, setSelectedSemesters] = useState([]);
   const initialLoadDone = useRef(false);
@@ -32,23 +34,22 @@ function RoutineManagement() {
 
   // Load saved selection from DB on first mount
   useEffect(() => {
-    semesterSelectionAPI.getSelectedSemesters().then((result) => {
-      if (result.success && Array.isArray(result.data) && result.data.length > 0) {
-        setSelectedSemesters(result.data);
-      }
+    initialLoadDone.current = false;
+    semesterSelectionAPI.getSelectedSemesters(semesterId).then((result) => {
+      setSelectedSemesters(result.success && Array.isArray(result.data) ? result.data : []);
       initialLoadDone.current = true;
     });
-  }, []);
+  }, [semesterId]);
 
   // Auto-save to DB whenever selection changes (skip the initial load)
   useEffect(() => {
     if (!initialLoadDone.current) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      semesterSelectionAPI.saveSelectedSemesters(selectedSemesters);
+      semesterSelectionAPI.saveSelectedSemesters(semesterId, selectedSemesters);
     }, 400);
     return () => clearTimeout(saveTimer.current);
-  }, [selectedSemesters]);
+  }, [selectedSemesters, semesterId]);
 
   const handleHomeNavigate = (sectionKey) => {
     setActiveSection(sectionKey);
@@ -65,20 +66,21 @@ function RoutineManagement() {
           />
         );
       case 'teacher':
-        return <Teachers />;
+        return <Teachers semesterId={semesterId} />;
       case 'allocation':
-        return <Allocation selectedSemesters={selectedSemesters} />;
+        return <Allocation semesterId={semesterId} selectedSemesters={selectedSemesters} />;
       case 'timeslot':
-        return <TimeSlot />;
+        return <TimeSlot semesterId={semesterId} />;
       case 'routine':
         return (
           <RoutineSection
+            semesterId={semesterId}
             selectedSemesters={selectedSemesters}
             onNavigate={setActiveSection}
           />
         );
       case 'courses':
-        return <Courses selectedSemesters={selectedSemesters} />;
+        return <Courses semesterId={semesterId} selectedSemesters={selectedSemesters} />;
       default:
         return (
           <Home

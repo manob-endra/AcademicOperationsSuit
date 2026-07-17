@@ -60,9 +60,15 @@ const makeRequest = async (url, options = {}) => {
   }
 };
 
+// Teacher records themselves are campus-wide; weekly load and availability
+// are routine work scoped to one semester (semesterId — the UUID from the
+// /routine-management/:semesterId route).
 export const teacherAPI = {
-  async getTeachers() {
-    const result = await makeRequest(API_BASE_URL);
+  // semesterId is optional — omit it on pages with no semester context
+  // (weekly_load_hours will come back as 0 in that case).
+  async getTeachers(semesterId) {
+    const qs = semesterId ? `?semesterId=${semesterId}` : '';
+    const result = await makeRequest(`${API_BASE_URL}${qs}`);
     if (result.success) return { success: true, data: result.data };
     return result;
   },
@@ -125,17 +131,17 @@ export const teacherAPI = {
     return result;
   },
 
-  async getAllAvailability() {
-    const result = await makeRequest(`${API_BASE_URL}/availability`);
+  async getAllAvailability(semesterId) {
+    const result = await makeRequest(`${API_BASE_URL}/availability?semesterId=${semesterId}`);
     if (result.success) return { success: true, data: result.data };
     return result;
   },
 
-  async saveAvailability(teacherId, selectedSlots) {
+  async saveAvailability(semesterId, teacherId, selectedSlots) {
     const result = await makeRequest(`${API_BASE_URL}/${teacherId}/availability`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ selectedSlots }),
+      body: JSON.stringify({ semesterId, selectedSlots }),
     });
     if (result.success) return { success: true };
     return result;
