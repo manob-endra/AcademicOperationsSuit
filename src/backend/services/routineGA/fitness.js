@@ -72,12 +72,24 @@ export function evaluate(genes, ctx, cfg) {
       continue;
     }
 
-    // H5: labs on one side of lunch, consecutive by construction
-    if (ev.type === 'lab') {
+    // H5: multi-period sessions (labs, or theory with >1 period per class)
+    // must stay on one side of lunch.
+    if (ev.periods > 1) {
       const end = gene.start + ev.periods - 1;
       const sameSide = end <= ctx.before || gene.start > ctx.before;
       if (!sameSide) {
-        addHard('H5', `Lab "${ev.code}" (${ev.group}) spans the lunch break.`, [ev.idx]);
+        const label = ev.type === 'lab' ? `Lab "${ev.code}" (${ev.group})` : `"${ev.code}"`;
+        addHard('H5', `${label} spans the lunch break.`, [ev.idx]);
+      }
+    }
+
+    // H9: placed on a department-blocked (avoided) period
+    if (ctx.avoidedSet && ctx.avoidedSet.size > 0) {
+      for (let p = 0; p < ev.periods; p++) {
+        if (ctx.avoidedSet.has(`${day}-s${gene.start + p}`)) {
+          addHard('H9', `"${ev.code}" placed on an avoided period (${day}, period ${gene.start + p}).`, [ev.idx]);
+          break;
+        }
       }
     }
 

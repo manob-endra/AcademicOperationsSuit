@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useContext } from 'react';
 import { AuthContext }            from '../../contexts/AuthContext';
 import { studentAPI }             from '../../services/studentAPI';
@@ -6,6 +6,8 @@ import { routineAPI }             from '../../services/routineAPI';
 import { courseAPI }              from '../../services/courseAPI';
 import { teacherAPI }             from '../../services/teacherAPI';
 import { classTimeSettingsAPI }   from '../../services/classTimeSettingsAPI';
+import RoutineDocument            from '../routineManagement/RoutineDocument';
+import { printCalendarNode }      from '../academicCalendar/printCalendar';
 
 const WEEK_DAYS = ['Saturday','Sunday','Monday','Tuesday','Wednesday','Thursday','Friday'];
 
@@ -90,6 +92,7 @@ export default function StudentRoutine() {
   const [selectedSem,   setSelectedSem]   = useState('');
   const [loading,       setLoading]       = useState(true);
   const [error,         setError]         = useState('');
+  const printRef = useRef(null);
 
   useEffect(() => {
     if (user?.email) load(user.email);
@@ -282,9 +285,34 @@ export default function StudentRoutine() {
         </div>
       )}
 
-      <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 12 }}>
-        <strong>{SEM_LABEL[selectedSem] || selectedSem}</strong>
-        {' · '}{semEntries.length} class slot{semEntries.length !== 1 ? 's' : ''}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+        <div style={{ fontSize: 12, color: '#6b7280' }}>
+          <strong>{SEM_LABEL[selectedSem] || selectedSem}</strong>
+          {' · '}{semEntries.length} class slot{semEntries.length !== 1 ? 's' : ''}
+        </div>
+        <button
+          onClick={() => printRef.current && printCalendarNode(printRef.current, `Class Routine - ${SEM_LABEL[selectedSem] || selectedSem}`)}
+          style={{
+            padding: '7px 16px', border: '1.5px solid #1a3a52', background: '#1a3a52',
+            color: '#fff', borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
+          }}
+        >
+          ⬇ Download PDF
+        </button>
+      </div>
+
+      {/* Hidden official-format document used for the PDF download */}
+      <div style={{ position: 'absolute', left: -99999, top: 0, width: 1000 }} aria-hidden="true">
+        <div ref={printRef}>
+          <RoutineDocument
+            batchId={selectedSem}
+            entries={semEntries}
+            columns={cols.map(c => ({ ...c, timeLabel: c.time }))}
+            days={workDays}
+            courseMap={courseMap}
+            teacherMap={teacherMap}
+          />
+        </div>
       </div>
 
       <div style={{ overflowX: 'auto' }}>

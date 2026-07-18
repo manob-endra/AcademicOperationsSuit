@@ -62,6 +62,10 @@ export function buildContext(data, cfg) {
   const slotCount = before + after;
   const days = getWorkingDays(s.class_day);
 
+  // Periods the department blocks from scheduling (e.g. "Monday after lunch").
+  // Stored as "Day-sN" strings, matching the availability slot id format.
+  const avoidedSet = new Set(Array.isArray(s.avoid_periods) ? s.avoid_periods : []);
+
   // Valid start periods (1-based). A lab occupies [start, start+1] and must
   // stay on one side of lunch (H5).
   const theoryStarts = Array.from({ length: slotCount }, (_, i) => i + 1);
@@ -72,8 +76,12 @@ export function buildContext(data, cfg) {
 
   // ── lookup maps ──
   const weeklyMap = {};
+  const durPeriodsMap = {};   // periods per single class (theory)
+  const alternatingMap = {};  // course runs one class every other week
   (data.durations || []).forEach(x => {
     weeklyMap[x.course_id] = x.weekly_classes ?? x.duration_periods;
+    durPeriodsMap[x.course_id] = x.duration_periods;
+    alternatingMap[x.course_id] = !!x.alternating;
   });
 
   const ctMap = {};
@@ -151,10 +159,13 @@ export function buildContext(data, cfg) {
         pushEvent({ ...base, type: 'lab', group: 'alt', periods: cfg.labPeriods, fixedRoom: null });
       }
     } else {
-      // theory / mixed → weekly single-period classes in the fixed semester room.
+      // theory / mixed → weekly classes in the fixed semester room.
       // Per-semester setting wins; the syllabus catalog default (courses.
       // weekly_classes) fills in when the admin hasn't set one yet.
       const weekly = weeklyMap[course.id] || course.weekly_classes || cfg.defaultTheoryWeekly;
+      // Periods each class occupies (default 1). Kept within the week's slots.
+      const perClass = Math.max(1, Math.min(durPeriodsMap[course.id] || 1, slotCount));
+      const alternating = !!alternatingMap[course.id];
       const room = semesterTheoryRooms[semId] || null;
       if (!room) {
         problems.push(`"${course.code}": semester ${semId} has no fixed theory room assigned (Room Allocation).`);
@@ -164,7 +175,8 @@ export function buildContext(data, cfg) {
           ...base,
           type: 'theory',
           group: null,
-          periods: 1,
+          periods: perClass,
+          alternating,
           weeklyIndex: k,
           fixedRoom: room,
         });
@@ -183,6 +195,7 @@ export function buildContext(data, cfg) {
     labRooms,
     teacherById,
     availMap,
+    avoidedSet,
     rankWeight,
     isHardAvailTeacher,
   };
@@ -190,7 +203,23 @@ export function buildContext(data, cfg) {
   return { ctx, problems };
 }
 
-/** Valid start periods for an event. */
+/** Valid start periods for an event (day-independent). */
 export function validStarts(ev, ctx) {
-  return ev.type === 'lab' ? ctx.labStarts : ctx.theoryStarts;
+  if (ev.type === 'lab') return ctx.labStarts;
+  // Single-period theory can start anywhere; multi-period theory must fit on
+  // one side of lunch (same rule as labs), so reuse the block-fitting filter.
+  if ((ev.periods || 1) <= 1) return ctx.theoryStarts;
+  return ctx.theoryStarts.filter(p =>
+    (p + ev.periods - 1 <= ctx.before) ||
+    (p > ctx.before && p + ev.periods - 1 <= ctx.slotCount)
+  );
+}
+
+/** True if placing `ev` at (dayName, start) would touch an avoided period. */
+export function touchesAvoided(ev, dayName, start, ctx) {
+  if (!ctx.avoidedSet || ctx.avoidedSet.size === 0) return false;
+  for (let p = 0; p < ev.periods; p++) {
+    if (ctx.avoidedSet.has(`${dayName}-s${start + p}`)) return true;
+  }
+  return false;
 }

@@ -2,6 +2,7 @@ import express from 'express';
 import { routineService } from '../services/routineService.js';
 import { notificationCoreService } from '../services/notificationCoreService.js';
 import { requireSemester } from './requireSemester.js';
+import { batchFingerprint } from '../../utils/routineFingerprint.js';
 import { supabase } from '../config/supabaseClient.js';
 
 const router = express.Router();
@@ -36,7 +37,12 @@ router.get('/conflicts', async (req, res) => {
 router.get('/', async (req, res) => {
   const result = await routineService.getRoutine(req.semesterId);
   if (result.success) {
-    return res.json({ success: true, entries: result.entries, generatedAt: result.generatedAt });
+    return res.json({
+      success: true,
+      entries: result.entries,
+      generatedAt: result.generatedAt,
+      publishedBatches: result.publishedBatches || {},
+    });
   }
   res.status(500).json({ success: false, error: result.error });
 });
@@ -103,6 +109,15 @@ router.post('/publish', async (req, res) => {
       .update({ published_at: publishedAt, published_label: label })
       .eq('semester_id', req.semesterId);
 
+    // Record THIS batch's publish + a fingerprint of its entries, so the UI
+    // can distinguish "Published" from "Published, then edited".
+    const publishState = await routineService.markBatchPublished(
+      req.semesterId,
+      batchId,
+      batchFingerprint(batchEntries),
+      publishedAt
+    );
+
     // Idempotency key is per-batch per-minute so re-publishing the same batch in the same minute is blocked
     const triggerId = `routine_published_${batchId}_${publishedAt.slice(0, 16).replace(/[T:-]/g, '')}`;
     const jobResult = await notificationCoreService.createJob(
@@ -111,11 +126,13 @@ router.post('/publish', async (req, res) => {
       { label, semesterId: batchId, publishedAt, entryCount: batchEntries.length }
     );
 
+    const publishedBatches = publishState.success ? publishState.publishedBatches : undefined;
+
     if (jobResult.duplicate) {
-      return res.json({ success: true, published: true, duplicate: true, publishedAt });
+      return res.json({ success: true, published: true, duplicate: true, publishedAt, publishedBatches });
     }
 
-    res.json({ success: true, published: true, publishedAt, jobId: jobResult.job?.id });
+    res.json({ success: true, published: true, publishedAt, jobId: jobResult.job?.id, publishedBatches });
   } catch (err) {
     console.error('publish error:', err);
     res.status(500).json({ success: false, error: err.message });

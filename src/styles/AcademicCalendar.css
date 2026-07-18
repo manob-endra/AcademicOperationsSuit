@@ -800,10 +800,91 @@
 .ac-pm-confirm:hover:not(:disabled) { opacity: 0.88; }
 .ac-pm-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* ── Published state (admin landing + editor) ─────────────────────────────── */
+.ac-published-pill {
+  display: inline-block;
+  margin-left: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  vertical-align: middle;
+}
+
+.ac-published-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 18px;
+}
+.ac-published-note { font-size: 13px; color: #166534; }
+.ac-published-btns { display: flex; gap: 10px; }
+
+/* Solid, high-contrast buttons for the light-green published banner
+   (the shared .ac-btn--ghost is white-on-white and disappears here). */
+.ac-pub-btn { border: 1.5px solid transparent; }
+.ac-pub-btn--download {
+  background: #ffffff;
+  color: #166534;
+  border-color: #86efac;
+}
+.ac-pub-btn--download:not(:disabled):hover { background: #f0fdf4; }
+.ac-pub-btn--edit {
+  background: #166534;
+  color: #ffffff;
+}
+.ac-pub-btn--edit:not(:disabled):hover { background: #14532d; }
+
+/* Preview modal */
+.ac-preview-modal {
+  background: #f8fafc;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 1180px;
+  height: 92vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+.ac-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+}
+.ac-preview-title { font-weight: 700; font-size: 14px; color: #1a2a4a; }
+.ac-preview-actions { display: flex; gap: 8px; }
+.ac-preview-body { flex: 1; overflow: auto; padding: 20px; }
+
+/* New bottom-bar buttons */
+.ac-btn-bottom--preview,
+.ac-btn-bottom--download,
+.ac-btn-bottom--view {
+  background: #fff;
+  color: #1e3a5f;
+  border: 1.5px solid #cbd5e1;
+}
+.ac-btn-bottom--preview:hover:not(:disabled),
+.ac-btn-bottom--download:hover:not(:disabled),
+.ac-btn-bottom--view:hover:not(:disabled) { background: #f1f5f9; }
+
 /* ── Responsive tweaks ───────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .ac-header { padding: 12px 16px; }
   .ac-body   { padding: 16px; }
   .ac-pm-summary { grid-template-columns: repeat(3, 1fr); }
   .ac-summary { grid-template-columns: repeat(3, 1fr); }
+  .ac-preview-modal { height: 95vh; }
 }

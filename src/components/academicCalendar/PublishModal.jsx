@@ -1,7 +1,7 @@
 import CalendarGrid from './CalendarGrid';
 import { CELL_TYPES, TOOLBAR_TYPES, calculateSummary } from './calendarUtils';
 
-export default function PublishModal({ weeks, entries, semester, saving, onConfirm, onCancel }) {
+export default function PublishModal({ weeks, entries, semester, saving, alreadyPublished = false, onConfirm, onCancel }) {
   const summary = calculateSummary(weeks, entries);
 
   const title = semester
@@ -15,7 +15,11 @@ export default function PublishModal({ weeks, entries, semester, saving, onConfi
         <div className="ac-pm-header">
           <div>
             <h2 className="ac-pm-title">{title}</h2>
-            <p className="ac-pm-sub">Review before publishing. This will be visible to all users.</p>
+            <p className="ac-pm-sub">
+              {alreadyPublished
+                ? 'This calendar is already published. Republishing will update it everywhere and email all users again.'
+                : 'Review before publishing. This will be visible to all users and emailed to them.'}
+            </p>
           </div>
           <button className="ac-pm-close" onClick={onCancel} disabled={saving}>✕</button>
         </div>
@@ -87,7 +91,9 @@ export default function PublishModal({ weeks, entries, semester, saving, onConfi
               Cancel
             </button>
             <button className="ac-pm-confirm" onClick={onConfirm} disabled={saving}>
-              {saving ? 'Publishing…' : 'Confirm & Publish'}
+              {saving
+                ? (alreadyPublished ? 'Republishing…' : 'Publishing…')
+                : (alreadyPublished ? 'Confirm & Republish' : 'Confirm & Publish')}
             </button>
           </div>
         </div>

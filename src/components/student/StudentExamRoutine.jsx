@@ -1,7 +1,9 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useRef } from 'react';
 import { AuthContext }    from '../../contexts/AuthContext';
 import { studentAPI }     from '../../services/studentAPI';
 import { examRoutineAPI } from '../../services/examRoutineAPI';
+import IncourseDocument   from '../routineManagement/IncourseDocument';
+import { printCalendarNode } from '../academicCalendar/printCalendar';
 
 const YEAR_TO_SEMS = {
   '1st': ['Y1-S1','Y1-S2'], '2nd': ['Y2-S1','Y2-S2'],
@@ -38,6 +40,8 @@ export default function StudentExamRoutine() {
   const [sessionData,   setSessionData]   = useState(null);
   const [loading,       setLoading]       = useState(true);
   const [loadingExam,   setLoadingExam]   = useState(false);
+  const [teachers,      setTeachers]      = useState({});
+  const printRef = useRef(null);
 
   // ── Initial load: student record + courses + auto-select semester ─────────────
   useEffect(() => {
@@ -74,7 +78,12 @@ export default function StudentExamRoutine() {
     setLoadingExam(true);
     setSessionData(null);
     examRoutineAPI.getPublished(examType, selectedSem).then(res => {
-      setSessionData(res.success && res.data ? res.data : null);
+      const data = res.success && res.data ? res.data : null;
+      setSessionData(data);
+      // Teacher names come with the published session (invigilator column).
+      const tMap = {};
+      for (const t of (data?.teachers || [])) tMap[t.id] = t;
+      setTeachers(tMap);
       setLoadingExam(false);
     });
   }, [selectedSem, examType]);
@@ -148,7 +157,31 @@ export default function StudentExamRoutine() {
         {selectedSem && (
           <span style={{ fontSize: 12, color: '#6b7280' }}>{SEM_FULL[selectedSem] || selectedSem}</span>
         )}
+
+        {slots.length > 0 && (
+          <button
+            onClick={() => printRef.current && printCalendarNode(printRef.current, `${examType === 'final' ? 'Final' : 'Incourse'} Exam Routine - ${SEM_FULL[selectedSem] || selectedSem}`)}
+            style={{ marginLeft: 'auto', padding: '7px 16px', border: '1.5px solid #1a3a52', background: '#1a3a52', color: '#fff', borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}
+          >
+            ⬇ Download PDF
+          </button>
+        )}
       </div>
+
+      {/* Hidden official-format notice used for the PDF download */}
+      {slots.length > 0 && (
+        <div style={{ position: 'absolute', left: -99999, top: 0, width: 760 }} aria-hidden="true">
+          <div ref={printRef}>
+            <IncourseDocument
+              batchLabel={SEM_FULL[selectedSem] || selectedSem}
+              slots={slots}
+              courseMap={courses}
+              teacherMap={teachers}
+              noticeDate={sessionData?.published_at?.slice(0, 10)}
+            />
+          </div>
+        </div>
+      )}
 
       {/* ── Content ── */}
       {loadingExam ? (

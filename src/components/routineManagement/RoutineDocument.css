@@ -1,0 +1,69 @@
+/* ── Official class-routine document (matches the DU published format) ── */
+
+.rd-doc {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 26px 28px 30px;
+  max-width: 1000px;
+  margin: 0 auto;
+  color: #111827;
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+.rd-letterhead { text-align: center; margin-bottom: 14px; }
+.rd-letterhead-name { font-size: 15px; font-weight: 700; }
+.rd-letterhead-uni  { font-size: 13.5px; }
+.rd-title    { font-size: 14px; font-weight: 700; margin-top: 8px; }
+.rd-subtitle { font-size: 13px; font-weight: 700; }
+
+/* grid */
+.rd-grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+  margin-bottom: 16px;
+}
+.rd-grid th, .rd-grid td {
+  border: 1.4px solid #111827;
+  padding: 5px 6px;
+  text-align: center;
+  vertical-align: middle;
+}
+.rd-grid th { font-weight: 700; background: #fff; }
+.rd-corner { min-width: 84px; }
+.rd-info-line {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 11.5px; font-weight: 700; margin-bottom: 3px;
+}
+.rd-room-no { white-space: nowrap; }
+.rd-col-time { display: block; font-weight: 700; white-space: nowrap; }
+.rd-break-head { width: 46px; }
+.rd-break-title { display: block; font-weight: 700; }
+.rd-break-cell { background: #fff; position: relative; }
+
+.rd-day { font-weight: 700; white-space: nowrap; }
+.rd-cell { min-width: 118px; }
+.rd-entry { line-height: 1.35; }
+.rd-entry + .rd-entry { margin-top: 3px; border-top: 1px dashed #9ca3af; padding-top: 3px; }
+.rd-entry.lab { font-style: normal; }
+.rd-alt { font-size: 10px; color: #374151; }
+
+/* course tables */
+.rd-course-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+.rd-course-table th, .rd-course-table td {
+  border: 1.4px solid #111827;
+  padding: 5px 8px;
+  text-align: left;
+}
+.rd-course-table th { text-align: center; font-weight: 700; }
+
+/* signature */
+.rd-signature { margin-top: 26px; font-size: 12.5px; line-height: 1.5; }
+.rd-sign-line { margin-bottom: 2px; }
+.rd-sign-name { font-weight: 700; }

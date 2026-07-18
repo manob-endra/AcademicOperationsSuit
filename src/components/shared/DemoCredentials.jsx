@@ -6,7 +6,7 @@ import '../../styles/DemoCredentials.css';
 const DEMO_ACCOUNTS = [
   { role: 'Admin Portal',   icon: '🛠️', email: 'tst@cse.du.ac.bd',                    password: '12345678' },
   { role: 'Teacher Portal', icon: '👩‍🏫', email: 'teacher@cse.du.ac.bd',                password: '12345678' },
-  { role: 'Student Portal', icon: '🎓', email: 'manobendra2021911211@cs.du.ac.bd',    password: '12345678' },
+  { role: 'Student Portal', icon: '🎓', email: 'manobendra-2021911211@cs.du.ac.bd',    password: '12345678' },
 ];
 
 /**

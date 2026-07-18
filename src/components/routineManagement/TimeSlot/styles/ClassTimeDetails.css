@@ -441,9 +441,18 @@
   padding: 12px 16px;
   border-bottom: 1px solid #e0e6ed;
   display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
   background: #f9fafd;
+}
+
+.avoid-hint {
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.5;
+  max-width: 560px;
 }
 
 .save-all-btn {
@@ -573,6 +582,34 @@
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border-radius: 4px;
   opacity: 0.3;
+}
+
+/* Avoidable / avoided period cells */
+.grid-cell.avoidable-cell {
+  cursor: pointer;
+}
+.grid-cell.avoided-cell {
+  background: repeating-linear-gradient(
+    45deg,
+    #fee2e2,
+    #fee2e2 6px,
+    #fecaca 6px,
+    #fecaca 12px
+  );
+}
+.grid-cell.avoided-cell:hover {
+  background: repeating-linear-gradient(
+    45deg,
+    #fecaca,
+    #fecaca 6px,
+    #fca5a5 6px,
+    #fca5a5 12px
+  );
+}
+.avoided-mark {
+  color: #b91c1c;
+  font-weight: 800;
+  font-size: 18px;
 }
 
 .slot-time {

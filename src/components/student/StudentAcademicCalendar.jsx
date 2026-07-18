@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { academicCalendarAPI } from '../../services/academicCalendarAPI';
 import { academicSemesterAPI  } from '../../services/academicSemesterAPI';
-import PublishedCalendarView from '../shared/PublishedCalendarView';
+import CalendarDocument from '../academicCalendar/CalendarDocument';
+import { printCalendarNode } from '../academicCalendar/printCalendar';
 
 const S = {
   wrap: { padding: '24px 20px 40px', maxWidth: 900, margin: '0 auto' },
@@ -33,6 +34,7 @@ export default function StudentAcademicCalendar() {
   const [calendarData,    setCalendarData]     = useState(null);
   const [loading,         setLoading]          = useState(true);
   const [calLoading,      setCalLoading]       = useState(false);
+  const printRef = useRef(null);
 
   // Load all semesters + all published calendars on mount
   useEffect(() => {
@@ -82,6 +84,10 @@ export default function StudentAcademicCalendar() {
   const selectedSem = semesters.find(s => s.id === selectedId);
   const semLabel    = selectedSem ? `${selectedSem.name} ${selectedSem.year}` : '';
   const hasPublished = Object.keys(publishedMap).length > 0;
+
+  const handleDownload = () => {
+    if (printRef.current) printCalendarNode(printRef.current, `Academic Calendar - ${semLabel}`);
+  };
 
   if (loading) {
     return (
@@ -139,7 +145,27 @@ export default function StudentAcademicCalendar() {
           )}
 
           {!calLoading && calendarData && (
-            <PublishedCalendarView calendarData={calendarData} semesterLabel={semLabel} />
+            <>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+                <button
+                  onClick={handleDownload}
+                  style={{
+                    padding: '8px 16px', border: '1.5px solid #1a3a52', background: '#1a3a52',
+                    color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                  }}
+                >
+                  ⬇ Download PDF
+                </button>
+              </div>
+              <div ref={printRef}>
+                <CalendarDocument
+                  config={calendarData.config}
+                  entries={calendarData.entries}
+                  semesterLabel={semLabel}
+                  publishedAt={calendarData.published_at}
+                />
+              </div>
+            </>
           )}
 
           {!calLoading && !selectedId && (

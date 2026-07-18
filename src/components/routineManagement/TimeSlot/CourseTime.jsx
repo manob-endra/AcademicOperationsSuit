@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { courseTimeAPI } from '../../../services/courseTimeAPI';
+import { courseAPI } from '../../../services/courseAPI';
+import { syllabusAPI } from '../../../services/syllabusAPI';
+import { makeRoutineEligibility } from '../Courses/routineEligibility';
 import './styles/CourseTime.css';
 
 /* ─── helpers ───────────────────────────────────────────────────────────── */
@@ -7,6 +10,22 @@ import './styles/CourseTime.css';
 const normalizePosInt = (value) => {
   const parsed = Number.parseInt(value, 10);
   return Number.isNaN(parsed) || parsed < 1 ? null : parsed;
+};
+
+// Weekly-frequency options for the "Apply by Credit" control. Each maps to a
+// weekly_classes count plus an `alternating` flag.
+const FREQUENCY_OPTIONS = [
+  { value: '1',   label: '1 class per week',            weekly: 1, alternating: false },
+  { value: '2',   label: '2 classes per week',          weekly: 2, alternating: false },
+  { value: '3',   label: '3 classes per week',          weekly: 3, alternating: false },
+  { value: '4',   label: '4 classes per week',          weekly: 4, alternating: false },
+  { value: 'alt', label: '1 class every other week',    weekly: 1, alternating: true  },
+];
+
+// Neatly format a credit number (3, 1.5, 0.75) without trailing zeros.
+const fmtCredit = (n) => {
+  const v = Number(n);
+  return Number.isFinite(v) ? String(v) : '—';
 };
 
 /* ─── Inline Weekly-Classes cell ─────────────────────────────────────────── */
@@ -56,10 +75,12 @@ function CourseDurationSection({
   courses,
   durations,
   weeklyClasses,
+  alternatingMap = {},
   onSaveDuration,
   onSaveBulk,
   onSaveWeeklyClasses,
   onSaveBulkWeeklyClasses,
+  onApplyByCredit,
 }) {
   const [allDuration,      setAllDuration]      = useState('');
   const [allWeekly,        setAllWeekly]         = useState('');
@@ -70,6 +91,29 @@ function CourseDurationSection({
   const [saving,           setSaving]           = useState(false);
   const [message,          setMessage]          = useState({ text: '', type: 'success' });
   const msgTimerRef = useRef(null);
+
+  // Apply-by-credit controls
+  const [credit,        setCredit]        = useState('');
+  const [creditPeriods, setCreditPeriods] = useState('1');
+  const [creditFreq,    setCreditFreq]    = useState('1');
+
+  // Distinct credits present among this section's courses, with course counts.
+  const creditOptions = useMemo(() => {
+    const counts = new Map();
+    courses.forEach((c) => {
+      const v = Number(c.credit_hours);
+      if (Number.isFinite(v)) counts.set(v, (counts.get(v) || 0) + 1);
+    });
+    return [...counts.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([value, count]) => ({ value, count }));
+  }, [courses]);
+
+  useEffect(() => {
+    if (creditOptions.length > 0 && credit === '') {
+      setCredit(String(creditOptions[0].value));
+    }
+  }, [creditOptions, credit]);
 
   useEffect(() => {
     if (courses.length > 0 && !selectedCourseId) {
@@ -178,6 +222,34 @@ function CourseDurationSection({
     }
   };
 
+  /* apply by credit -------------------------------------------------------- */
+  const handleApplyByCredit = async () => {
+    const creditVal = Number(credit);
+    const periods   = normalizePosInt(creditPeriods);
+    const freq      = FREQUENCY_OPTIONS.find((f) => f.value === creditFreq);
+
+    if (!Number.isFinite(creditVal)) { showMessage('Select a credit value.', 'error'); return; }
+    if (!periods) { showMessage('Enter periods per class (>= 1).', 'error'); return; }
+    if (!freq)    { showMessage('Select a weekly frequency.', 'error'); return; }
+
+    const ids = courses.filter((c) => Number(c.credit_hours) === creditVal).map((c) => c.id);
+    if (ids.length === 0) { showMessage(`No ${title.toLowerCase()} courses with ${fmtCredit(creditVal)} credit.`, 'error'); return; }
+
+    setSaving(true);
+    const result = await onApplyByCredit(ids, {
+      durationPeriods: periods,
+      weeklyClasses: freq.weekly,
+      alternating: freq.alternating,
+    });
+    setSaving(false);
+
+    if (result?.success) {
+      showMessage(`Applied ${periods} period/class · ${freq.label} to ${ids.length} ${fmtCredit(creditVal)}-credit ${title.toLowerCase()} course${ids.length !== 1 ? 's' : ''}.`);
+    } else {
+      showMessage(`Save failed: ${result?.error || 'unknown error'}`, 'error');
+    }
+  };
+
   if (courses.length === 0) {
     return (
       <section className="ct-section-card" aria-label={`${title} section`}>
@@ -200,6 +272,62 @@ function CourseDurationSection({
         <div className="ct-assigned-counts">
           <span className="ct-course-count">Duration: {assignedDurCount} / {courses.length}</span>
           <span className="ct-course-count">Weekly Classes: {assignedWklyCount} / {courses.length}</span>
+        </div>
+      </div>
+
+      {/* ── apply by credit ── */}
+      <div className="ct-block">
+        <h4 className="ct-block-title">Apply By Credit</h4>
+        <p className="ct-block-hint">
+          Set periods per class and how often it meets, for every {title.toLowerCase()} course
+          of a given credit.
+        </p>
+        <div className="ct-inline-controls ct-inline-controls--wide">
+          <div className="ct-input-group">
+            <label htmlFor={`${sectionKey}-credit`}>Credit</label>
+            <select
+              id={`${sectionKey}-credit`}
+              value={credit}
+              onChange={(e) => setCredit(e.target.value)}
+            >
+              {creditOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {fmtCredit(o.value)} credit ({o.count} course{o.count !== 1 ? 's' : ''})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="ct-input-group">
+            <label htmlFor={`${sectionKey}-credit-periods`}>Periods / Class</label>
+            <input
+              id={`${sectionKey}-credit-periods`}
+              type="number"
+              min="1"
+              value={creditPeriods}
+              onChange={(e) => setCreditPeriods(e.target.value)}
+              placeholder="e.g. 1"
+            />
+          </div>
+          <div className="ct-input-group">
+            <label htmlFor={`${sectionKey}-credit-freq`}>Classes / Week</label>
+            <select
+              id={`${sectionKey}-credit-freq`}
+              value={creditFreq}
+              onChange={(e) => setCreditFreq(e.target.value)}
+            >
+              {FREQUENCY_OPTIONS.map((f) => (
+                <option key={f.value} value={f.value}>{f.label}</option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            className="ct-btn ct-btn-primary"
+            onClick={handleApplyByCredit}
+            disabled={saving || creditOptions.length === 0}
+          >
+            {saving ? 'Saving…' : 'Apply By Credit'}
+          </button>
         </div>
       </div>
 
@@ -327,8 +455,9 @@ function CourseDurationSection({
             <tr>
               <th>Course Code</th>
               <th>Course Title</th>
+              <th>Credit</th>
               <th>Year / Semester</th>
-              <th>Duration (Periods)</th>
+              <th>Periods / Class</th>
               <th>Weekly Classes</th>
             </tr>
           </thead>
@@ -336,12 +465,14 @@ function CourseDurationSection({
             {courses.map((course) => {
               const periods = durations[course.id];
               const weekly  = weeklyClasses[course.id];
+              const alt     = alternatingMap[course.id];
               return (
                 <tr key={course.id} className={periods != null || weekly != null ? 'ct-row-assigned' : ''}>
                   <td>
                     <span className="ct-course-code">{course.code}</span>
                   </td>
                   <td>{course.title}</td>
+                  <td className="ct-meta">{fmtCredit(course.credit_hours)}</td>
                   <td className="ct-meta">
                     {[course.year, course.semester].filter(Boolean).join(' / ') || '—'}
                   </td>
@@ -353,11 +484,14 @@ function CourseDurationSection({
                     )}
                   </td>
                   <td>
-                    <WeeklyClassesCell
-                      courseId={course.id}
-                      value={weekly ?? null}
-                      onSave={onSaveWeeklyClasses}
-                    />
+                    <div className="ct-weekly-cell-wrap">
+                      <WeeklyClassesCell
+                        courseId={course.id}
+                        value={weekly ?? null}
+                        onSave={onSaveWeeklyClasses}
+                      />
+                      {alt && <span className="ct-alt-badge" title="One class every other week">every other week</span>}
+                    </div>
                   </td>
                 </tr>
               );
@@ -371,12 +505,15 @@ function CourseDurationSection({
 
 /* ─── Main page component ───────────────────────────────────────────────── */
 
-function CourseTime({ semesterId }) {
-  const [courses,      setCourses]      = useState([]);
+function CourseTime({ semesterId, selectedSemesters = [] }) {
+  const [allCourses,   setAllCourses]   = useState([]);
   const [durations,    setDurations]    = useState({});      // { courseId: durationPeriods }
   const [weeklyClasses, setWeeklyClasses] = useState({});    // { courseId: weeklyClasses }
+  const [alternatingMap, setAlternatingMap] = useState({});  // { courseId: bool }
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState(null);
+  const [offeredSet,  setOfferedSet]  = useState(new Set()); // offered course ids
+  const [assignments, setAssignments] = useState({});        // batchCode → syllabusId
 
   useEffect(() => { if (semesterId) loadData(); }, [semesterId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -384,13 +521,15 @@ function CourseTime({ semesterId }) {
     setLoading(true);
     setError(null);
 
-    const [coursesResult, durationsResult] = await Promise.all([
-      courseTimeAPI.getCourses(),
+    const [coursesResult, durationsResult, offRes, asgRes] = await Promise.all([
+      courseAPI.getAllCourses(),
       courseTimeAPI.getDurations(semesterId),
+      syllabusAPI.getOfferings(semesterId),
+      syllabusAPI.getAssignments(semesterId),
     ]);
 
     if (coursesResult.success) {
-      setCourses(coursesResult.data || []);
+      setAllCourses(coursesResult.courses || []);
     } else {
       setError(
         coursesResult.offline
@@ -404,16 +543,33 @@ function CourseTime({ semesterId }) {
     if (durationsResult.success) {
       const durObj  = {};
       const wklyObj = {};
+      const altObj  = {};
       (durationsResult.data || []).forEach((d) => {
         durObj[d.course_id]  = d.duration_periods;
         if (d.weekly_classes != null) wklyObj[d.course_id] = d.weekly_classes;
+        altObj[d.course_id] = !!d.alternating;
       });
       setDurations(durObj);
       setWeeklyClasses(wklyObj);
+      setAlternatingMap(altObj);
+    }
+
+    if (offRes.success) setOfferedSet(new Set(offRes.data || []));
+    if (asgRes.success) {
+      const map = {};
+      (asgRes.data || []).forEach(a => { map[a.batch_code] = a.syllabus_id; });
+      setAssignments(map);
     }
 
     setLoading(false);
   };
+
+  // Only the routine courses (same rule as Courses → Routine Courses) get
+  // durations set — those are the ones the admin builds the routine for.
+  const courses = useMemo(() => {
+    const eligible = makeRoutineEligibility(selectedSemesters, assignments, offeredSet);
+    return allCourses.filter(c => c.is_active !== false && c.in_routine === true && eligible(c));
+  }, [allCourses, selectedSemesters, assignments, offeredSet]);
 
   /* ── callbacks ── */
 
@@ -462,6 +618,30 @@ function CourseTime({ semesterId }) {
     return { success: false, error: result.error };
   };
 
+  // Apply periods-per-class + weekly frequency (+ alternating) to a credit's courses.
+  const applyByCredit = async (courseIds, values) => {
+    const result = await courseTimeAPI.applyByCredit(semesterId, courseIds, values);
+    if (result.success) {
+      setDurations((prev) => {
+        const u = { ...prev };
+        courseIds.forEach((id) => { u[id] = values.durationPeriods; });
+        return u;
+      });
+      setWeeklyClasses((prev) => {
+        const u = { ...prev };
+        courseIds.forEach((id) => { u[id] = values.weeklyClasses; });
+        return u;
+      });
+      setAlternatingMap((prev) => {
+        const u = { ...prev };
+        courseIds.forEach((id) => { u[id] = !!values.alternating; });
+        return u;
+      });
+      return { success: true };
+    }
+    return { success: false, error: result.error };
+  };
+
   /* ── split courses by type ── */
   const theoryCourses = courses.filter(
     (c) => c.course_type === 'theory' || c.course_type === 'mixed'
@@ -495,8 +675,8 @@ function CourseTime({ semesterId }) {
     return (
       <div className="course-time-container">
         <div className="ct-status-box">
-          <p>No courses found in the database.</p>
-          <p className="ct-hint">Add courses from the <strong>Courses</strong> management page first.</p>
+          <p>No routine courses for the selected semesters.</p>
+          <p className="ct-hint">Check the courses in <strong>Courses → Routine Courses</strong> first — only those appear here for duration setup.</p>
         </div>
       </div>
     );
@@ -511,10 +691,12 @@ function CourseTime({ semesterId }) {
           courses={theoryCourses}
           durations={durations}
           weeklyClasses={weeklyClasses}
+          alternatingMap={alternatingMap}
           onSaveDuration={saveDuration}
           onSaveBulk={saveBulkDurations}
           onSaveWeeklyClasses={saveWeeklyClasses}
           onSaveBulkWeeklyClasses={saveBulkWeeklyClasses}
+          onApplyByCredit={applyByCredit}
         />
         <CourseDurationSection
           sectionKey="lab"
@@ -522,10 +704,12 @@ function CourseTime({ semesterId }) {
           courses={labCourses}
           durations={durations}
           weeklyClasses={weeklyClasses}
+          alternatingMap={alternatingMap}
           onSaveDuration={saveDuration}
           onSaveBulk={saveBulkDurations}
           onSaveWeeklyClasses={saveWeeklyClasses}
           onSaveBulkWeeklyClasses={saveBulkWeeklyClasses}
+          onApplyByCredit={applyByCredit}
         />
       </div>
     </div>

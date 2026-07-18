@@ -37,14 +37,14 @@ function makeData(overrides = {}) {
 
 function theoryCourse(id, code, teacherIds) {
   return {
-    course: { id, code, title: code, course_type: 'theory', credit_hours: 3, year: '2nd Year', semester: '1st Semester' },
+    course: { id, code, title: code, course_type: 'theory', credit_hours: 3, year: '2nd Year', semester: '1st Semester', in_routine: true },
     choice: { course_id: id, teacher_assignments: teacherIds },
   };
 }
 
 function labCourse(id, code, teacherIds, credit = 1) {
   return {
-    course: { id, code, title: code, course_type: 'lab', credit_hours: credit, year: '2nd Year', semester: '1st Semester' },
+    course: { id, code, title: code, course_type: 'lab', credit_hours: credit, year: '2nd Year', semester: '1st Semester', in_routine: true },
     choice: { course_id: id, teacher_assignments: teacherIds },
   };
 }
@@ -245,6 +245,37 @@ test('GA finds a conflict-free routine for a small feasible instance', () => {
   const cfg = { ...GA_CONFIG, populationSize: 30, generations: 120 };
   const { best } = runGA(ctx, cfg, 42);
   assert.equal(best.hardCount, 0, `expected feasible, got: ${best.hard.map(h => h.message).join(' | ')}`);
+});
+
+test('avoided periods are never scheduled and raise no hard violation', () => {
+  const defs = [
+    theoryCourse('c1', 'CSE-101', ['t1']),
+    theoryCourse('c2', 'CSE-102', ['t2']),
+  ];
+  // Block every Monday period and Sunday period 1.
+  const avoid = ['Monday-s1', 'Monday-s2', 'Monday-s3', 'Monday-s4', 'Monday-s5', 'Sunday-s1'];
+  const { ctx } = buildCtx(defs, {
+    teachers: [teacher('t1', 'Alice'), teacher('t2', 'Bob')],
+    settings: {
+      classes_before_lunch: 3,
+      classes_after_lunch: 2,
+      class_day: 'Sunday-Thursday',
+      avoid_periods: avoid,
+    },
+  });
+  const cfg = { ...GA_CONFIG, populationSize: 30, generations: 120 };
+  const { best, genes } = runGA(ctx, cfg, 7);
+
+  assert.equal(best.hardCount, 0, `expected feasible, got: ${best.hard.map(h => h.message).join(' | ')}`);
+  const avoidedSet = new Set(avoid);
+  ctx.events.forEach(ev => {
+    const g = genes[ev.idx];
+    const day = ctx.days[g.day];
+    for (let p = 0; p < ev.periods; p++) {
+      assert.ok(!avoidedSet.has(`${day}-s${g.start + p}`),
+        `event ${ev.code} landed on avoided ${day}-s${g.start + p}`);
+    }
+  });
 });
 
 test('GA is deterministic for a fixed seed', () => {

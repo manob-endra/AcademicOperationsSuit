@@ -201,6 +201,7 @@ function Courses({ semesterId, selectedSemesters = [] }) {
   const [syllabi, setSyllabi] = useState([]);
   const [optionGroups, setOptionGroups] = useState([]);
   const [syllabusFilter, setSyllabusFilter] = useState('all'); // 'all' | syllabus id | 'none'
+  const [assignments, setAssignments] = useState({});          // batchCode → syllabusId
 
   // Selection state for group actions (Set of course IDs)
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -213,7 +214,9 @@ function Courses({ semesterId, selectedSemesters = [] }) {
   const [creditFilter, setCreditFilter] = useState('All credits');
   const [typeFilter, setTypeFilter] = useState('All types');
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState('all');
+  // Land on the selected semesters' courses; "All Courses" is opt-in.
+  // Falls back to 'all' when nothing is selected on the Home page.
+  const [viewMode, setViewMode] = useState(selectedSemesters.length > 0 ? 'selected' : 'all');
 
   // State for modals
   const [showAddModal, setShowAddModal] = useState(false);
@@ -234,12 +237,18 @@ function Courses({ semesterId, selectedSemesters = [] }) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadSyllabusData = async () => {
-    const [sRes, gRes] = await Promise.all([
+    const [sRes, gRes, aRes] = await Promise.all([
       syllabusAPI.getAllSyllabi(),
       syllabusAPI.getOptionGroups(),
+      semesterId ? syllabusAPI.getAssignments(semesterId) : Promise.resolve({ success: false }),
     ]);
     if (sRes.success) setSyllabi(sRes.data || []);
     if (gRes.success) setOptionGroups(gRes.data || []);
+    if (aRes.success) {
+      const map = {};
+      (aRes.data || []).forEach(a => { map[a.batch_code] = a.syllabus_id; });
+      setAssignments(map);
+    }
   };
 
   // After syllabus/group edits, refresh both the catalog and the courses
@@ -320,7 +329,10 @@ function Courses({ semesterId, selectedSemesters = [] }) {
       filtered = filtered.filter(c => c.syllabusId === syllabusFilter);
     }
 
-    // Apply view mode filter - match both year and semester
+    // Apply view mode filter — match year + semester, then narrow to the
+    // syllabus assigned to that batch (Semester Syllabus tab). When a batch
+    // has no syllabus assigned yet, every syllabus's courses for that
+    // year/semester are shown.
     if (viewMode === 'selected' && selectedCourseSemesters.length > 0) {
       filtered = filtered.filter(course => {
         return selectedCourseSemesters.some(selected => {
@@ -328,11 +340,18 @@ function Courses({ semesterId, selectedSemesters = [] }) {
           const courseYearId = getYearIdentifier(course.year);
           const selectedYearId = getYearIdentifier(selected.year);
           const courseYearMatches = courseYearId !== null && courseYearId === selectedYearId;
-          
+
           // Compare semester (case-insensitive)
           const courseSemesterMatches = course.semester.toLowerCase() === selected.semester.toLowerCase();
-          
-          return courseYearMatches && courseSemesterMatches;
+
+          if (!courseYearMatches || !courseSemesterMatches) return false;
+
+          // Syllabus scoping for this batch, when one has been assigned.
+          const assignedSyllabus = assignments[selected.rawId];
+          if (assignedSyllabus && course.syllabusId && course.syllabusId !== assignedSyllabus) {
+            return false;
+          }
+          return true;
         });
       });
     }
@@ -390,7 +409,7 @@ function Courses({ semesterId, selectedSemesters = [] }) {
     });
 
     return filtered;
-  }, [courses, yearFilter, semesterFilter, creditFilter, typeFilter, searchTerm, viewMode, selectedCourseSemesters, syllabusFilter]);
+  }, [courses, yearFilter, semesterFilter, creditFilter, typeFilter, searchTerm, viewMode, selectedCourseSemesters, syllabusFilter, assignments]);
 
   // Handle Add Course
   const handleAddCourse = async (newCourse) => {
@@ -539,7 +558,7 @@ function Courses({ semesterId, selectedSemesters = [] }) {
     setTypeFilter('All types');
     setSyllabusFilter('all');
     setSearchTerm('');
-    setViewMode('all');
+    // Clears the filters only — the All / Selected Semester view stays as-is.
   };
 
   // Small helpers for rendering catalog metadata in the table
@@ -700,7 +719,11 @@ function Courses({ semesterId, selectedSemesters = [] }) {
 
       {pageTab === 'routine' && (
         <RoutineCoursesPanel
+          semesterId={semesterId}
           courses={courses}
+          optionGroups={optionGroups}
+          selectedSemesters={selectedSemesters}
+          syllabi={syllabi}
           onCoursesChanged={setCourses}
         />
       )}
@@ -1003,7 +1026,11 @@ function Courses({ semesterId, selectedSemesters = [] }) {
                 Showing {filteredCourses.length} of {courses.length} courses
                 {viewMode === 'selected' && selectedCourseSemesters.length > 0 && (
                   <span className="view-mode-info">
-                    {' '}(Viewing: {selectedCourseSemesters.map(s => `Year ${s.year}, ${s.semester}`).join(' | ')})
+                    {' '}(Viewing: {selectedCourseSemesters.map(s => {
+                      const sylId = assignments[s.rawId];
+                      const sylName = sylId ? syllabusTitle(sylId) : null;
+                      return `${s.year} ${s.semester}${sylName ? ` — ${sylName}` : ' — all syllabi'}`;
+                    }).join(' | ')})
                   </span>
                 )}
               </div>

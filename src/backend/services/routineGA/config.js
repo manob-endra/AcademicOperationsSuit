@@ -6,6 +6,10 @@ export const GA_CONFIG = {
   // ── Genetic algorithm parameters ──
   populationSize: 70,
   generations: 350,
+  // Wall-clock threshold. If no feasible routine is found inside this budget
+  // the GA stops and returns the BEST FOUND SO FAR, with the remaining hard
+  // violations listed in the report so the admin knows what couldn't be met.
+  timeBudgetMs: 60000,
   tournamentK: 3,
   crossoverRate: 0.9,
   mutationRate: 0.12,            // per-gene base probability

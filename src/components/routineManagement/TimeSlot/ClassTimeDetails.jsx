@@ -11,6 +11,7 @@ const initialClassTimeDetails = {
   classesAfterLunch: 2,
   classDay: 'Sunday-Thursday',
   skipTime: '5 mins',
+  avoidPeriods: [], // ["Monday-s4", …] periods blocked from the routine
 };
 
 const weekDays = ['Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
@@ -484,6 +485,7 @@ function ClassTimeDetails({ semesterId }) {
             classesAfterLunch: result.data.classesAfterLunch ?? initialClassTimeDetails.classesAfterLunch,
             classDay: result.data.classDay ?? initialClassTimeDetails.classDay,
             skipTime: result.data.skipTime ?? initialClassTimeDetails.skipTime,
+            avoidPeriods: result.data.avoidPeriods ?? [],
           };
 
           setClassTimeDetails(transformedData);
@@ -559,6 +561,22 @@ function ClassTimeDetails({ semesterId }) {
     setOpenDropdown(null);
   };
 
+  // Toggle a (day, class-period) cell as avoided / not avoided.
+  const toggleAvoidPeriod = (day, slotId) => {
+    const key = `${day}-s${slotId}`;
+    setClassTimeDetails(prev => {
+      const set = new Set(prev.avoidPeriods || []);
+      set.has(key) ? set.delete(key) : set.add(key);
+      return { ...prev, avoidPeriods: [...set] };
+    });
+    setSaveStatus('pending');
+  };
+
+  const avoidedSet = useMemo(
+    () => new Set(classTimeDetails.avoidPeriods || []),
+    [classTimeDetails.avoidPeriods]
+  );
+
   const handleSaveAll = async () => {
     try {
       setSaveStatus('saving');
@@ -584,12 +602,13 @@ function ClassTimeDetails({ semesterId }) {
         classesAfterLunch: classTimeDetails.classesAfterLunch,
         classDay: classTimeDetails.classDay,
         skipTime: skipTimeValue,
+        avoidPeriods: classTimeDetails.avoidPeriods || [],
       };
 
       let result;
       if (settingsId) {
         // Update existing settings for this semester
-        result = await classTimeSettingsAPI.updateSettings(settingsId, settingsData);
+        result = await classTimeSettingsAPI.updateSettings(semesterId, settingsId, settingsData);
       } else {
         // Create new settings for this semester
         result = await classTimeSettingsAPI.saveSettings(semesterId, settingsData);
@@ -732,7 +751,12 @@ function ClassTimeDetails({ semesterId }) {
         {/* Right Side - Grid View */}
         <div className="timeslot-grid-container">
           <div className="grid-save-section">
-            <button 
+            <span className="avoid-hint">
+              Tip: click a class period below to <strong>avoid</strong> it (e.g. Monday after lunch).
+              Avoided periods are skipped during routine generation.
+              {avoidedSet.size > 0 && ` · ${avoidedSet.size} avoided`}
+            </span>
+            <button
               className={`save-all-btn ${saveStatus}`}
               onClick={handleSaveAll}
               disabled={saveStatus === 'saved' || saveStatus === 'saving'}
@@ -773,16 +797,32 @@ function ClassTimeDetails({ semesterId }) {
             {workingDays.map((day) => (
               <Fragment key={day}>
                 <div className="grid-day-label">{day}</div>
-                {timeSlots.map((slot) => (
-                  <div
-                    key={`${day}-${slot.id}`}
-                    className={`grid-cell ${slot.type} ${
-                      slot.type === 'lunch' ? 'lunch-cell' : ''
-                    }`}
-                  >
-                    {slot.type === 'class' && <div className="class-indicator"></div>}
-                  </div>
-                ))}
+                {timeSlots.map((slot) => {
+                  const avoidable = slot.type === 'class';
+                  const isAvoided = avoidable && avoidedSet.has(`${day}-s${slot.id}`);
+                  return (
+                    <div
+                      key={`${day}-${slot.id}`}
+                      className={[
+                        'grid-cell',
+                        slot.type,
+                        slot.type === 'lunch' ? 'lunch-cell' : '',
+                        avoidable ? 'avoidable-cell' : '',
+                        isAvoided ? 'avoided-cell' : '',
+                      ].filter(Boolean).join(' ')}
+                      onClick={avoidable ? () => toggleAvoidPeriod(day, slot.id) : undefined}
+                      title={avoidable
+                        ? (isAvoided ? 'Avoided — click to allow' : 'Click to avoid this period')
+                        : undefined}
+                    >
+                      {slot.type === 'class' && (
+                        isAvoided
+                          ? <span className="avoided-mark">✕</span>
+                          : <div className="class-indicator"></div>
+                      )}
+                    </div>
+                  );
+                })}
               </Fragment>
             ))}
             </div>

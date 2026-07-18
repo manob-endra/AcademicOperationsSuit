@@ -66,11 +66,11 @@ function RoutineManagement() {
           />
         );
       case 'teacher':
-        return <Teachers semesterId={semesterId} />;
+        return <Teachers semesterId={semesterId} selectedSemesters={selectedSemesters} />;
       case 'allocation':
         return <Allocation semesterId={semesterId} selectedSemesters={selectedSemesters} />;
       case 'timeslot':
-        return <TimeSlot semesterId={semesterId} />;
+        return <TimeSlot semesterId={semesterId} selectedSemesters={selectedSemesters} />;
       case 'routine':
         return (
           <RoutineSection
