@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { routineAPI } from '../../services/routineAPI';
 import { courseAPI } from '../../services/courseAPI';
 import { classTimeSettingsAPI } from '../../services/classTimeSettingsAPI';
+import { printCalendarNode } from '../academicCalendar/printCalendar';
 
 const WEEK_DAYS = ['Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
@@ -99,12 +100,18 @@ function MyRoutine({ teacherRecord }) {
       setCourseMap(cm);
     }
     if (routineRes.success) {
-      setEntries((routineRes.entries || []).filter(e => e.teacher_id === teacherRecord.id));
+      // A course may have several teachers — match either the legacy single
+      // teacher_id or the full teacher_ids list.
+      setEntries((routineRes.entries || []).filter(e =>
+        e.teacher_id === teacherRecord.id ||
+        (Array.isArray(e.teacher_ids) && e.teacher_ids.includes(teacherRecord.id))
+      ));
     } else {
       setError(routineRes.offline ? 'Cannot reach server.' : routineRes.error || 'Failed to load routine.');
     }
     setLoading(false);
   };
+  const printRef = useRef(null);
 
   const columns    = useMemo(() => buildColumns(settings), [settings]);
   const activeDays = useMemo(() => parseWorkingDays(settings?.classDay), [settings]);
@@ -135,7 +142,21 @@ function MyRoutine({ teacherRecord }) {
       )}
 
       {!error && entries.length > 0 && (
-        <div className="td-routine-wrap">
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+          <button
+            onClick={() => printRef.current && printCalendarNode(printRef.current, `My Routine - ${teacherRecord?.name || ''}`)}
+            style={{
+              padding: '7px 16px', border: '1.5px solid #1a3a52', background: '#1a3a52',
+              color: '#fff', borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
+            }}
+          >
+            ⬇ Download PDF
+          </button>
+        </div>
+      )}
+
+      {!error && entries.length > 0 && (
+        <div className="td-routine-wrap" ref={printRef}>
           <table className="td-routine-table">
             <thead>
               <tr>

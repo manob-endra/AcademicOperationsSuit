@@ -3,6 +3,8 @@ import { teacherAPI } from '../../../services/teacherAPI';
 import { courseAPI } from '../../../services/courseAPI';
 import { teacherPrefAPI } from '../../../services/teacherPrefAPI';
 import { courseTeacherAPI } from '../../../services/courseTeacherAPI';
+import { syllabusAPI } from '../../../services/syllabusAPI';
+import { makeRoutineEligibility } from '../Courses/routineEligibility';
 import './styles/TeacherPreferences.css';
 
 // Which DB course_type values belong to each preference category
@@ -31,12 +33,14 @@ const FIELD_TO_DB = {
   assignedCourses:  'assigned_courses',
 };
 
-function TeacherPreferences({ semesterId }) {
+function TeacherPreferences({ semesterId, selectedSemesters = [] }) {
   const [teachers,       setTeachers]       = useState([]);
   const [allCourses,     setAllCourses]     = useState([]);
   const [preferencesMap, setPreferencesMap] = useState({}); // teacherId → DB row
   const [courseAssignMap, setCourseAssignMap] = useState({}); // teacherId → courseId[] from course_teacher_choices
   const [loading,        setLoading]        = useState(true);
+  const [offeredSet,  setOfferedSet]  = useState(new Set()); // offered course ids
+  const [assignments, setAssignments] = useState({});        // batchCode → syllabusId
 
   const [activeRowId, setActiveRowId] = useState(null);
 
@@ -53,7 +57,9 @@ function TeacherPreferences({ semesterId }) {
       courseAPI.getAllCourses(),
       teacherPrefAPI.getAllPreferences(semesterId),
       courseTeacherAPI.getAllAssignments(semesterId),
-    ]).then(([tRes, cRes, pRes, aRes]) => {
+      syllabusAPI.getOfferings(semesterId),
+      syllabusAPI.getAssignments(semesterId),
+    ]).then(([tRes, cRes, pRes, aRes, offRes, asgRes]) => {
       if (tRes.success) setTeachers(tRes.data || []);
       if (cRes.success) setAllCourses(cRes.courses || []);
       if (pRes.success) {
@@ -71,9 +77,22 @@ function TeacherPreferences({ semesterId }) {
         });
         setCourseAssignMap(reverseMap);
       }
+      if (offRes.success) setOfferedSet(new Set(offRes.data || []));
+      if (asgRes.success) {
+        const map = {};
+        (asgRes.data || []).forEach(a => { map[a.batch_code] = a.syllabus_id; });
+        setAssignments(map);
+      }
       setLoading(false);
     });
   }, [semesterId]);
+
+  // Only courses selected for the routine (assigned syllabus + offered options
+  // + checked in Routine Courses) can be assigned as preferences.
+  const isRoutineCourse = useMemo(() => {
+    const eligible = makeRoutineEligibility(selectedSemesters, assignments, offeredSet);
+    return (c) => c.is_active !== false && c.in_routine === true && eligible(c);
+  }, [selectedSemesters, assignments, offeredSet]);
 
   const courseMap = useMemo(() => {
     const map = {};
@@ -123,17 +142,19 @@ function TeacherPreferences({ semesterId }) {
     };
   }, [teacherRows]);
 
-  // Courses shown in the editor filtered by field type + search text
+  // Courses shown in the editor: routine courses only, then by field type +
+  // search text.
   const availableCoursesForEditor = useMemo(() => {
     const config = FIELD_CONFIG[editorState.field];
     if (!config) return [];
     const query = editorState.searchText.trim().toLowerCase();
     return allCourses.filter(c => {
+      if (!isRoutineCourse(c)) return false;
       if (!config.typeFilter(c.course_type)) return false;
       if (!query) return true;
       return `${c.code} ${c.title}`.toLowerCase().includes(query);
     });
-  }, [allCourses, editorState.field, editorState.searchText]);
+  }, [allCourses, editorState.field, editorState.searchText, isRoutineCourse]);
 
   const getCourseLabel = (courseId) => {
     if (!courseId) return '';

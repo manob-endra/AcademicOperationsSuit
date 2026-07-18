@@ -33,7 +33,7 @@ const filterOptions = [
   'without preference',
 ];
 
-function Teachers({ semesterId }) {
+function Teachers({ semesterId, selectedSemesters = [] }) {
   const [activeTab, setActiveTab] = useState('details');
 
   // Teachers state
@@ -517,7 +517,7 @@ function Teachers({ semesterId }) {
       )}
 
       {/* Teacher's Preference tab */}
-      {activeTab === 'teacherPreference' && <TeacherPreferences semesterId={semesterId} />}
+      {activeTab === 'teacherPreference' && <TeacherPreferences semesterId={semesterId} selectedSemesters={selectedSemesters} />}
     </div>
   );
 }

@@ -31,6 +31,17 @@ export const examRoutineAPI = {
   setWeight: (type, sessionId, teacher_id, weight) =>
     req(`${BASE}/${type}/session/${sessionId}/weight`, { method: 'PATCH', body: JSON.stringify({ teacher_id, weight }) }),
 
+  /**
+   * Generate a full incourse routine for one batch (preview — nothing saved).
+   * opts: { academicSemesterId, batchId, startDate, shiftTimes:{1,2}, rooms,
+   *         durationMins, perExam, weightMap, allowedDays }
+   */
+  generateIncourse: (sessionId, opts) =>
+    req(`${BASE}/incourse/session/${sessionId}/generate`, {
+      method: 'POST',
+      body: JSON.stringify(opts),
+    }),
+
   autoAssign: (type, sessionId, semesterId, weightMap, teachersPerExam) =>
     req(`${BASE}/${type}/session/${sessionId}/auto-assign`, {
       method: 'POST',

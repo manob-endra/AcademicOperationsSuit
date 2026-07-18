@@ -80,6 +80,35 @@ router.post('/durations/bulk', async (req, res) => {
 });
 
 /**
+ * POST /api/course-time/durations/apply
+ * Body: { courseIds: string[], durationPeriods, weeklyClasses, alternating? }
+ * Apply duration + weekly frequency (+ alternating flag) to many courses at
+ * once — used by the "Apply by Credit" control. Must precede /:courseId.
+ */
+router.post('/durations/apply', async (req, res) => {
+  try {
+    const { courseIds, durationPeriods, weeklyClasses, alternating } = req.body;
+    if (!Array.isArray(courseIds) || courseIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'courseIds array is required' });
+    }
+    if (!durationPeriods || Number(durationPeriods) < 1) {
+      return res.status(400).json({ success: false, error: 'durationPeriods must be >= 1' });
+    }
+    if (!weeklyClasses || Number(weeklyClasses) < 1) {
+      return res.status(400).json({ success: false, error: 'weeklyClasses must be >= 1' });
+    }
+    const result = await courseTimeService.applyToCourses(req.semesterId, courseIds, {
+      durationPeriods, weeklyClasses, alternating,
+    });
+    if (result.success) return res.json({ success: true, data: result.durations });
+    res.status(400).json({ success: false, error: result.error });
+  } catch (error) {
+    console.error('POST /course-time/durations/apply error:', error);
+    res.status(500).json({ success: false, error: 'Failed to apply durations' });
+  }
+});
+
+/**
  * POST /api/course-time/weekly-classes/bulk
  * Body: { courseIds: string[], weeklyClasses: number }
  * Bulk-set weekly_classes for many courses at once.

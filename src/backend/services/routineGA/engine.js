@@ -5,12 +5,33 @@
  */
 import { createRng } from './rng.js';
 import { evaluate } from './fitness.js';
-import { validStarts } from './events.js';
+import { validStarts, touchesAvoided } from './events.js';
+
+// (day, start) pairs that don't hit an avoided period, for one event.
+function allowedDayStarts(ev, ctx) {
+  const starts = validStarts(ev, ctx);
+  const out = [];
+  for (let d = 0; d < ctx.days.length; d++) {
+    for (const start of starts) {
+      if (!touchesAvoided(ev, ctx.days[d], start, ctx)) out.push({ day: d, start });
+    }
+  }
+  // If avoidance blocked everything (misconfiguration), fall back to all
+  // placements so the GA still returns something rather than nothing.
+  if (out.length === 0) {
+    for (let d = 0; d < ctx.days.length; d++) {
+      for (const start of starts) out.push({ day: d, start });
+    }
+  }
+  return out;
+}
 
 function randomGene(ev, ctx, rng) {
+  const pairs = allowedDayStarts(ev, ctx);
+  const { day, start } = pairs[rng.int(pairs.length)];
   return {
-    day: rng.int(ctx.days.length),
-    start: rng.pick(validStarts(ev, ctx)),
+    day,
+    start,
     roomIdx: ev.type === 'lab' ? rng.int(ctx.labRooms.length) : null,
   };
 }
@@ -18,14 +39,11 @@ function randomGene(ev, ctx, rng) {
 // All candidate placements for one event (used by seeding + local search)
 function allPlacements(ev, ctx) {
   const out = [];
-  const starts = validStarts(ev, ctx);
   const roomIdxs = ev.type === 'lab'
     ? ctx.labRooms.map((_, i) => i)
     : [null];
-  for (let d = 0; d < ctx.days.length; d++) {
-    for (const start of starts) {
-      for (const roomIdx of roomIdxs) out.push({ day: d, start, roomIdx });
-    }
+  for (const { day, start } of allowedDayStarts(ev, ctx)) {
+    for (const roomIdx of roomIdxs) out.push({ day, start, roomIdx });
   }
   return out;
 }
@@ -40,6 +58,8 @@ function placementConflicts(ev, gene, busy, ctx) {
 
   for (let p = 0; p < ev.periods; p++) {
     const slot = gene.start + p;
+    // H9: department-blocked (avoided) period
+    if (ctx.avoidedSet && ctx.avoidedSet.has(`${day}-s${slot}`)) conflicts++;
     for (const tid of ev.teacherIds) {
       if (busy.teacher.has(`${tid}|${day}|${slot}`)) conflicts++;
       const t = ctx.teacherById[tid];
@@ -198,10 +218,18 @@ export function runGA(ctx, cfg, seed) {
 
   let plateau = 0;
   let gen = 0;
+  let timedOut = false;
 
   for (gen = 0; gen < cfg.generations; gen++) {
     // Early stop: feasible and no improvement for a while
     if (bestEval.hardCount === 0 && plateau >= cfg.earlyStopPlateau) break;
+
+    // Wall-clock threshold: return the best found so far rather than running
+    // forever on an infeasible instance.
+    if (cfg.timeBudgetMs && Date.now() - t0 > cfg.timeBudgetMs) {
+      timedOut = true;
+      break;
+    }
 
     // Elitism: carry the best chromosomes over unchanged
     const ranked = pop
@@ -244,6 +272,6 @@ export function runGA(ctx, cfg, seed) {
   return {
     genes: bestGenes,
     best: bestEval,
-    stats: { generations: gen, elapsedMs: Date.now() - t0, seed: usedSeed },
+    stats: { generations: gen, elapsedMs: Date.now() - t0, seed: usedSeed, timedOut },
   };
 }

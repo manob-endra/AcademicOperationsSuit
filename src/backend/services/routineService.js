@@ -36,6 +36,23 @@ function courseToSemId(course) {
 }
 
 /**
+ * Recover a batch code from a published_label like "4th Year • 1st Sem".
+ * Fallback only, for databases without the published_batches column.
+ */
+function matchBatchByLabel(label, entries) {
+  const batches = [...new Set((entries || []).map(e => e.semester))];
+  const norm = String(label || '').toLowerCase();
+  const yearDigit = norm.match(/([1-4])(?:st|nd|rd|th)\s*year/)?.[1];
+  const yearHit = yearDigit ? `Y${yearDigit}` : (/ms|master/.test(norm) ? 'MS' : null);
+  const semHit  = /2nd\s*sem/.test(norm) ? 'S2' : (/1st\s*sem/.test(norm) ? 'S1' : null);
+  if (yearHit && semHit) {
+    const guess = `${yearHit}-${semHit}`;
+    if (batches.includes(guess)) return guess;
+  }
+  return null;
+}
+
+/**
  * Filter courses that belong to the given selected semester IDs, honouring
  * routine participation and the syllabus catalog:
  *   • only courses explicitly opted into the routine (in_routine = true) take
@@ -181,7 +198,13 @@ export const routineService = {
       // class_day is stored as "Sunday-Thursday" — derive the actual day list
       const activeDays = getWorkingDays(classDay);
       const slotCount  = classesBeforeLunch + classesAfterLunch;
-      const totalAvailableSlots = activeDays.length * slotCount;
+      // Department-blocked (avoided) periods reduce the real weekly capacity.
+      const avoidedPeriods = Array.isArray(d.settings.avoid_periods) ? d.settings.avoid_periods : [];
+      const avoidedInActive = avoidedPeriods.filter(key => {
+        const dash = key.indexOf('-');
+        return dash > 0 && activeDays.includes(key.slice(0, dash));
+      }).length;
+      const totalAvailableSlots = activeDays.length * slotCount - avoidedInActive;
 
       if (activeDays.length === 0) {
         conflicts.push({
@@ -496,24 +519,81 @@ export const routineService = {
 
   async getRoutine(semesterId) {
     try {
-      if (!semesterId) return { success: true, entries: [], generatedAt: null };
+      if (!semesterId) return { success: true, entries: [], generatedAt: null, publishedBatches: {} };
 
-      const { data, error } = await supabase
+      // published_batches only exists once routine_published_batches.sql has
+      // run. Select it optionally — a missing column must never blank out a
+      // saved routine, so fall back to the core columns on that error.
+      let { data, error } = await supabase
         .from(ROUTINE_TABLE)
-        .select('entries,generated_at')
+        .select('entries,generated_at,published_batches')
         .eq('semester_id', semesterId)
         .maybeSingle();
 
+      if (error && /published_batches/.test(error.message || '')) {
+        ({ data, error } = await supabase
+          .from(ROUTINE_TABLE)
+          .select('entries,generated_at,published_at,published_label')
+          .eq('semester_id', semesterId)
+          .maybeSingle());
+      }
+
       if (error) throw error;
+
+      // Without the published_batches column we can still recover the LAST
+      // published batch from published_label, so its button correctly reads
+      // "Republish" instead of pretending nothing was ever published.
+      let publishedBatches = data?.published_batches || {};
+      if (!data?.published_batches && data?.published_at && data?.published_label) {
+        const batch = matchBatchByLabel(data.published_label, data.entries || []);
+        if (batch) publishedBatches = { [batch]: { publishedAt: data.published_at, fingerprint: null } };
+      }
+
       return {
         success: true,
         entries:     data?.entries     || [],
         generatedAt: data?.generated_at || null,
+        // { batchCode: { publishedAt, fingerprint } } — drives the
+        // Publish / Republish / Publish Edited button states.
+        publishedBatches,
       };
     } catch (err) {
       // 42P01 = table does not exist yet (routine_storage not created) — treat as empty
       if (err?.code !== '42P01') console.error('routineService.getRoutine:', err);
-      return { success: true, entries: [], generatedAt: null };
+      return { success: true, entries: [], generatedAt: null, publishedBatches: {} };
+    }
+  },
+
+  /**
+   * Record that `batchId` was published, storing a fingerprint of its entries
+   * so later edits can be detected. Merges into the existing map.
+   */
+  async markBatchPublished(semesterId, batchId, fingerprint, publishedAt) {
+    try {
+      const { data, error: readErr } = await supabase
+        .from(ROUTINE_TABLE)
+        .select('published_batches')
+        .eq('semester_id', semesterId)
+        .maybeSingle();
+      // Migration not applied yet — publishing still succeeds, we just can't
+      // remember the per-batch state (button stays "Publish & Notify").
+      if (readErr && /published_batches/.test(readErr.message || '')) {
+        return { success: false, error: 'published_batches column missing (run migrations/routine_published_batches.sql)' };
+      }
+      if (readErr) throw readErr;
+
+      const map = { ...(data?.published_batches || {}) };
+      map[batchId] = { publishedAt, fingerprint };
+
+      const { error } = await supabase
+        .from(ROUTINE_TABLE)
+        .update({ published_batches: map })
+        .eq('semester_id', semesterId);
+      if (error) throw error;
+      return { success: true, publishedBatches: map };
+    } catch (err) {
+      console.error('routineService.markBatchPublished:', err);
+      return { success: false, error: err.message };
     }
   },
 

@@ -32,7 +32,7 @@ export default function RoutineSection({ semesterId, selectedSemesters = [], onN
       </div>
 
       {tab === 'class'    && <Routine semesterId={semesterId} onNavigate={onNavigate} />}
-      {tab === 'incourse' && <IncourseExamRoutine selectedSemesters={selectedSemesters} />}
+      {tab === 'incourse' && <IncourseExamRoutine semesterId={semesterId} selectedSemesters={selectedSemesters} />}
       {tab === 'final'    && <FinalExamRoutine selectedSemesters={selectedSemesters} />}
     </div>
   );

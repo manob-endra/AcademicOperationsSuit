@@ -1,23 +1,55 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { routineAPI } from '../../services/routineAPI';
 import { classTimeSettingsAPI } from '../../services/classTimeSettingsAPI';
 import { courseAPI } from '../../services/courseAPI';
 import { teacherAPI } from '../../services/teacherAPI';
+import RoutineDocument from './RoutineDocument';
+import { printCalendarNode } from '../academicCalendar/printCalendar';
+import { buildBlocks, blocksToEntries, checkMove } from './routineEdit';
+import { academicSemesterAPI } from '../../services/academicSemesterAPI';
+import { batchFingerprint } from '../../utils/routineFingerprint';
 import './Routine.css';
 
 // ── Publish Confirmation Modal ─────────────────────────────────────────────────
 // semesterId = academic semester UUID (routine scope); batchId = student batch
 // short code (e.g. 'Y4-S1') identifying which entries within it to publish.
-function PublishModal({ semesterId, batchId, semLabel, onConfirm, onCancel }) {
+function PublishModal({ semesterId, batchId, semLabel, state = 'unpublished', onPublished, onCancel }) {
   const [publishing, setPublishing] = useState(false);
   const [done, setDone]             = useState(null); // null | { ok, msg }
+
+  const COPY = {
+    unpublished: {
+      icon: '📢', title: 'Publish Routine',
+      body: 'This will send the routine to all students of this batch (to their institutional email) and to all teachers assigned to courses in this semester.',
+      cta: 'Confirm & Send Emails', busy: 'Sending…',
+    },
+    published: {
+      icon: '🔁', title: 'Republish Routine?',
+      body: 'This routine is already published. Republishing sends it again to all students of this batch and the teachers taking its classes.',
+      cta: 'Confirm & Republish', busy: 'Republishing…',
+    },
+    edited: {
+      icon: '📤', title: 'Publish Edited Routine?',
+      body: 'This routine has changed since it was last published. Publishing sends the updated version to all students of this batch and the teachers taking its classes.',
+      cta: 'Confirm & Send Update', busy: 'Publishing…',
+    },
+  };
+  const copy = COPY[state] || COPY.unpublished;
 
   const handleConfirm = async () => {
     setPublishing(true);
     const r = await routineAPI.publishRoutine(semesterId, batchId, semLabel);
     setPublishing(false);
     if (r.success) {
-      setDone({ ok: true, msg: r.duplicate ? 'Already published recently (no duplicate job created).' : 'Routine published! Emails are being sent.' });
+      if (r.publishedBatches) onPublished?.(r.publishedBatches);
+      setDone({
+        ok: true,
+        msg: r.duplicate
+          ? 'Already published in the last minute (no duplicate email job created).'
+          : state === 'unpublished'
+            ? 'Routine published! Emails are being sent.'
+            : 'Routine republished! Updated emails are being sent.',
+      });
     } else {
       setDone({ ok: false, msg: r.error || 'Publish failed.' });
     }
@@ -35,16 +67,15 @@ function PublishModal({ semesterId, batchId, semLabel, onConfirm, onCancel }) {
       }}>
         {!done ? (
           <>
-            <div style={{ fontSize: 36, textAlign: 'center', marginBottom: 10 }}>📢</div>
+            <div style={{ fontSize: 36, textAlign: 'center', marginBottom: 10 }}>{copy.icon}</div>
             <h2 style={{ margin: '0 0 8px', fontSize: 18, color: '#1a3a52', textAlign: 'center' }}>
-              Publish Routine
+              {copy.title}
             </h2>
             <p style={{ margin: '0 0 6px', fontSize: 14, color: '#374151', textAlign: 'center' }}>
               Semester: <strong>{semLabel}</strong>
             </p>
             <p style={{ margin: '0 0 24px', fontSize: 13, color: '#6b7280', textAlign: 'center', lineHeight: 1.6 }}>
-              This will send the routine to all students of this batch (to their institutional email)
-              and to all teachers assigned to courses in this semester.
+              {copy.body}
             </p>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
               <button
@@ -58,7 +89,7 @@ function PublishModal({ semesterId, batchId, semLabel, onConfirm, onCancel }) {
                 disabled={publishing}
                 style={{ padding: '9px 24px', border: 'none', borderRadius: 8, background: 'linear-gradient(135deg,#1a3a52,#2c5f8a)', color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer', opacity: publishing ? .6 : 1 }}
               >
-                {publishing ? 'Sending…' : 'Confirm & Send Emails'}
+                {publishing ? copy.busy : copy.cta}
               </button>
             </div>
           </>
@@ -233,7 +264,25 @@ function Routine({ semesterId, onNavigate }) {
 
   const [selectedSemester, setSelectedSemester] = useState(null);
   const [selectedTeacher,  setSelectedTeacher]  = useState(null);
-  const [publishModal,     setPublishModal]      = useState(null); // null | { batchId, semLabel }
+  const [publishModal,     setPublishModal]      = useState(null); // null | { batchId, semLabel, all }
+
+  // Manual editing (batch-wise view): pick a class block, then click a target
+  // cell. Violating placements raise a confirm dialog instead of a hard stop.
+  const [editMode,     setEditMode]     = useState(false);
+  const [pickedBlock,  setPickedBlock]  = useState(null); // block object being moved
+  const [moveWarning,  setMoveWarning]  = useState(null); // { violations, apply }
+  const [dirty,        setDirty]        = useState(false); // unsaved manual edits
+
+  // Preview modal (official document) + print source
+  const [previewBatch, setPreviewBatch] = useState(null); // batchId | null
+  const printRef = useRef(null);
+  const [publishingAll, setPublishingAll] = useState(false);
+  const [publishAllResult, setPublishAllResult] = useState(null); // { ok: [], failed: [{sem,error}] }
+  // { batchCode: { publishedAt, fingerprint } } — drives Publish / Republish /
+  // Publish Edited button states.
+  const [publishedBatches, setPublishedBatches] = useState({});
+  const [availability, setAvailability] = useState([]);   // teacher availability (for H8 checks)
+  const [semesterMeta, setSemesterMeta] = useState(null); // academic semester row (label)
 
   // -------------------------------------------------------------------------
   useEffect(() => {
@@ -243,15 +292,20 @@ function Routine({ semesterId, onNavigate }) {
 
   const loadAll = async () => {
     setLoading(true);
-    const [settingsRes, coursesRes, teachersRes, routineRes] = await Promise.all([
+    const [settingsRes, coursesRes, teachersRes, routineRes, availRes, semRes] = await Promise.all([
       classTimeSettingsAPI.getSettings(semesterId),
       courseAPI.getAllCourses(),
       teacherAPI.getTeachers(semesterId),
       routineAPI.getRoutine(semesterId),
+      teacherAPI.getAllAvailability(semesterId),
+      academicSemesterAPI.getSemesterById(semesterId),
     ]);
     if (settingsRes.success) setSettings(settingsRes.data);
     if (coursesRes.success)  setCourses(coursesRes.courses || []);
     if (teachersRes.success) setTeachers(teachersRes.data  || []);
+    if (availRes.success)    setAvailability(availRes.data || []);
+    if (semRes.success)      setSemesterMeta(semRes.data);
+    if (routineRes.success) setPublishedBatches(routineRes.publishedBatches || {});
     if (routineRes.success && (routineRes.entries?.length || 0) > 0) {
       setRoutine({ entries: routineRes.entries, generatedAt: routineRes.generatedAt, saved: true });
       setView('batchwise'); // show saved routine immediately on revisit
@@ -331,6 +385,130 @@ function Routine({ semesterId, onNavigate }) {
       .filter(Boolean)
       .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }, [entriesByTeacherDaySlot, teacherMap]);
+
+  // ── Manual-edit derived data ──
+  const blocks = useMemo(
+    () => (routine ? buildBlocks(routine.entries) : []),
+    [routine]
+  );
+
+  const availMap = useMemo(() => {
+    const m = {};
+    for (const a of availability) {
+      if (!m[a.teacher_id]) m[a.teacher_id] = new Set();
+      m[a.teacher_id].add(`${a.day_of_week}-${a.slot_id}`);
+    }
+    return m;
+  }, [availability]);
+
+  const editCtx = useMemo(() => ({
+    slotCount: (parseInt(settings?.classesBeforeLunch) || 0) + (parseInt(settings?.classesAfterLunch) || 0),
+    before: parseInt(settings?.classesBeforeLunch) || 0,
+    days: activeDays,
+    avoidedSet: new Set(settings?.avoidPeriods || []),
+    courseMap,
+    teacherMap,
+    hardAvailabilityRanks: ['Professor', 'Associate Professor'],
+    availMap,
+  }), [settings, activeDays, courseMap, teacherMap, availMap]);
+
+  // Move `pickedBlock` to (day, startSlotNum); confirm through the violation
+  // dialog when the placement breaks hard constraints.
+  const applyMove = (day, start) => {
+    if (!pickedBlock) return;
+    const doApply = () => {
+      const next = blocks.map(b =>
+        b.id === pickedBlock.id ? { ...b, day, start } : b
+      );
+      setRoutine(prev => ({ ...prev, entries: blocksToEntries(next), saved: false }));
+      setDirty(true);
+      setPickedBlock(null);
+      setMoveWarning(null);
+    };
+    const violations = checkMove(pickedBlock, day, start, blocks, editCtx);
+    if (violations.length > 0) {
+      setMoveWarning({ violations, apply: doApply });
+    } else {
+      doApply();
+    }
+  };
+
+  const handleCellClick = (day, slotNumTarget, cellBlocks) => {
+    if (!editMode) return;
+    if (!pickedBlock) {
+      // Pick up the (first) block in this cell
+      if (cellBlocks.length > 0) setPickedBlock(cellBlocks[0]);
+      return;
+    }
+    // Clicking the picked block again cancels the pick
+    if (cellBlocks.some(b => b.id === pickedBlock.id)) {
+      setPickedBlock(null);
+      return;
+    }
+    applyMove(day, slotNumTarget);
+  };
+
+  // Blocks by cell for the batch-wise editor
+  const blocksBySemDaySlot = useMemo(() => {
+    const m = {};
+    for (const b of blocks) {
+      if (!m[b.semester]) m[b.semester] = {};
+      for (let p = 0; p < b.periods; p++) {
+        const k = `${b.day}-s${b.start + p}`;
+        if (!m[b.semester][k]) m[b.semester][k] = [];
+        m[b.semester][k].push(b);
+      }
+    }
+    return m;
+  }, [blocks]);
+
+  // Publish state per batch: 'unpublished' | 'published' | 'edited'
+  // ('edited' = published before, but its entries changed since.)
+  const publishStateOf = (batchId) => {
+    const rec = publishedBatches[batchId];
+    if (!rec) return 'unpublished';
+    // No stored fingerprint (published before per-batch tracking existed, or
+    // the migration hasn't run) — we know it was published but can't detect
+    // edits, so report plain "published" rather than a false "edited".
+    if (!rec.fingerprint) return 'published';
+    const current = batchFingerprint((routine?.entries || []).filter(e => e.semester === batchId));
+    return current === rec.fingerprint ? 'published' : 'edited';
+  };
+
+  const PUBLISH_BTN = {
+    unpublished: { label: '📢 Publish & Notify',      cls: 'rt-pub-btn--new' },
+    published:   { label: '🔁 Republish',             cls: 'rt-pub-btn--republish' },
+    edited:      { label: '📤 Publish Edited Routine', cls: 'rt-pub-btn--edited' },
+  };
+
+  // ── Download / preview helpers ──
+  const semLabelFull = semesterMeta ? `${semesterMeta.name} ${semesterMeta.year}` : '';
+  const handleDownloadBatch = () => {
+    if (printRef.current) {
+      printCalendarNode(printRef.current, `Class Routine - ${previewBatch || ''}`);
+    }
+  };
+
+  // Publish every batch that has entries, sequentially (email jobs are queued
+  // per batch on the backend). Re-running republishes.
+  const handlePublishAll = async () => {
+    if (!routine?.saved || publishingAll) return;
+    const anyPublished = semesters.some(s => publishStateOf(s) !== 'unpublished');
+    const verb = anyPublished ? 'Publish / republish' : 'Publish';
+    if (!window.confirm(`${verb} ${semesters.length} batch routine${semesters.length !== 1 ? 's' : ''} and notify all students & teachers?`)) return;
+    setPublishingAll(true);
+    setPublishAllResult(null);
+    const ok = [], failed = [];
+    let latestMap = null;
+    for (const sem of semesters) {
+      const r = await routineAPI.publishRoutine(semesterId, sem, semLabel(sem));
+      if (r.success) { ok.push(sem); if (r.publishedBatches) latestMap = r.publishedBatches; }
+      else failed.push({ sem, error: r.error || 'failed' });
+    }
+    if (latestMap) setPublishedBatches(latestMap);
+    setPublishingAll(false);
+    setPublishAllResult({ ok, failed });
+  };
 
   // -------------------------------------------------------------------------
   // Actions
@@ -476,6 +654,13 @@ function Routine({ semesterId, onNavigate }) {
       {view === 'generation' && (
         <div className="routine-generation">
 
+          {(generating || checking) && (
+            <div className="routine-wait-banner">
+              <span className="routine-wait-spinner" />
+              Please wait, finding the best possible routine…
+            </div>
+          )}
+
           {routine && (
             <div className="routine-generated-notice">
               Routine generated on {new Date(routine.generatedAt).toLocaleString()}.{' '}
@@ -498,8 +683,11 @@ function Routine({ semesterId, onNavigate }) {
               className="routine-btn routine-btn--generate"
               onClick={handleGenerate}
               disabled={generating}
+              title={routine ? 'Discard the current layout and search for a new one' : undefined}
             >
-              {generating ? 'Generating (memetic GA)…' : 'Generate Routine'}
+              {generating
+                ? 'Please wait, finding the best possible routine…'
+                : routine ? '🔄 Regenerate Routine' : 'Generate Routine'}
             </button>
 
             <input
@@ -518,7 +706,9 @@ function Routine({ semesterId, onNavigate }) {
               <div className="ga-report-head">
                 {gaReport.feasible
                   ? '✓ Conflict-free routine generated (all hard constraints satisfied).'
-                  : `✕ ${gaReport.hardCount} hard violation${gaReport.hardCount !== 1 ? 's' : ''} could not be resolved — the input may be infeasible.`}
+                  : gaReport.timedOut
+                    ? `⏱ Time limit reached — showing the best routine found. ${gaReport.hardCount} hard constraint${gaReport.hardCount !== 1 ? 's' : ''} could not be fulfilled (listed below).`
+                    : `✕ ${gaReport.hardCount} hard violation${gaReport.hardCount !== 1 ? 's' : ''} could not be resolved — the input may be infeasible.`}
               </div>
               <div className="ga-report-stats">
                 {gaReport.stats.events} events · {gaReport.stats.entries} routine slots ·{' '}
@@ -777,9 +967,57 @@ function Routine({ semesterId, onNavigate }) {
           semesterId={semesterId}
           batchId={publishModal.batchId}
           semLabel={publishModal.semLabel}
-          onConfirm={() => {}}
+          state={publishModal.state}
+          onPublished={(map) => setPublishedBatches(map)}
           onCancel={() => setPublishModal(null)}
         />
+      )}
+
+      {/* Hard-constraint warning for manual edits */}
+      {moveWarning && (
+        <div className="rt-overlay">
+          <div className="rt-warn-modal">
+            <h4 className="rt-warn-title">⚠ This change breaks hard constraints</h4>
+            <ul className="rt-warn-list">
+              {moveWarning.violations.map((v, i) => <li key={i}>{v}</li>)}
+            </ul>
+            <p className="rt-warn-note">
+              You can apply it anyway — the routine will contain these conflicts until you fix them.
+            </p>
+            <div className="rt-warn-actions">
+              <button className="rt-warn-btn cancel" onClick={() => setMoveWarning(null)}>Cancel</button>
+              <button className="rt-warn-btn apply" onClick={moveWarning.apply}>Apply Anyway</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Official-format preview modal + download */}
+      {previewBatch && (
+        <div className="rt-overlay" onClick={e => e.target === e.currentTarget && setPreviewBatch(null)}>
+          <div className="rt-preview-modal">
+            <div className="rt-preview-head">
+              <span className="rt-preview-title">Preview — {semLabel(previewBatch)} routine</span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="rt-tool-btn" onClick={handleDownloadBatch}>⬇ Download PDF</button>
+                <button className="rt-tool-btn" onClick={() => setPreviewBatch(null)}>✕ Close</button>
+              </div>
+            </div>
+            <div className="rt-preview-body">
+              <div ref={printRef}>
+                <RoutineDocument
+                  batchId={previewBatch}
+                  entries={(routine?.entries || []).filter(e => e.semester === previewBatch)}
+                  columns={columns}
+                  days={activeDays}
+                  courseMap={courseMap}
+                  teacherMap={teacherMap}
+                  semesterLabel={semLabelFull}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ════════════════════════════════════════
@@ -794,45 +1032,111 @@ function Routine({ semesterId, onNavigate }) {
               </div>
 
               <div className="semester-list">
-                {semesters.map(sem => (
-                  <button
-                    key={sem}
-                    className={`semester-btn${selectedSemester === sem ? ' active' : ''}`}
-                    onClick={() => setSelectedSemester(sem === selectedSemester ? null : sem)}
-                  >
-                    {semLabel(sem)}
-                  </button>
-                ))}
+                {semesters.map(sem => {
+                  const st = publishStateOf(sem);
+                  return (
+                    <button
+                      key={sem}
+                      className={`semester-btn${selectedSemester === sem ? ' active' : ''}`}
+                      onClick={() => setSelectedSemester(sem === selectedSemester ? null : sem)}
+                    >
+                      {semLabel(sem)}
+                      {st !== 'unpublished' && (
+                        <span className={`rt-pub-dot rt-pub-dot--${st}`} title={st === 'edited' ? 'Published, then edited' : 'Published'}>
+                          {st === 'edited' ? '✎' : '✓'}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+                {semesters.length > 1 && (() => {
+                  const allPublished = semesters.every(s => publishStateOf(s) === 'published');
+                  const anyEdited    = semesters.some(s => publishStateOf(s) === 'edited');
+                  const label = publishingAll
+                    ? 'Publishing…'
+                    : anyEdited    ? '📤 Publish All Edited'
+                    : allPublished ? '🔁 Republish All'
+                    :                '📢 Publish All';
+                  return (
+                    <button
+                      className="semester-btn rt-publish-all-btn"
+                      disabled={!routine?.saved || publishingAll}
+                      title={routine?.saved
+                        ? 'Publish every batch routine and notify everyone'
+                        : 'Save the routine first'}
+                      onClick={handlePublishAll}
+                    >
+                      {label}
+                    </button>
+                  );
+                })()}
               </div>
+              {publishAllResult && (
+                <div className={`rt-publish-all-result${publishAllResult.failed.length ? ' has-fail' : ''}`}>
+                  {publishAllResult.ok.length > 0 && (
+                    <span>✓ Published: {publishAllResult.ok.map(semLabel).join(', ')}.</span>
+                  )}
+                  {publishAllResult.failed.length > 0 && (
+                    <span> ✕ Failed: {publishAllResult.failed.map(f => `${semLabel(f.sem)} (${f.error})`).join('; ')}</span>
+                  )}
+                </div>
+              )}
 
               {selectedSemester ? (
                 <div className="batch-grid-wrapper">
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 8 }}>
                     <h4 className="batch-title" style={{ margin: 0 }}>{semLabel(selectedSemester)}</h4>
-                    <button
-                      onClick={() => setPublishModal({ batchId: selectedSemester, semLabel: semLabel(selectedSemester) })}
-                      disabled={!routine?.saved}
-                      style={{
-                        padding: '8px 20px',
-                        background: 'linear-gradient(135deg,#1a3a52,#2c5f8a)',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: 8,
-                        fontSize: 13,
-                        fontWeight: 700,
-                        cursor: routine?.saved ? 'pointer' : 'not-allowed',
-                        opacity: routine?.saved ? 1 : 0.55,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                      }}
-                      title={routine?.saved
-                        ? `Publish ${semLabel(selectedSemester)} routine and notify students & teachers`
-                        : 'Save the routine first — publishing sends the saved routine'}
-                    >
-                      📢 Publish &amp; Notify
-                    </button>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button
+                        className={`rt-tool-btn${editMode ? ' rt-tool-btn--active' : ''}`}
+                        onClick={() => { setEditMode(m => !m); setPickedBlock(null); }}
+                        title="Manually move classes: click a class, then click its new cell. Hard-constraint breaks are warned."
+                      >
+                        {editMode ? '✓ Done Editing' : '✎ Edit Routine'}
+                      </button>
+                      <button
+                        className="rt-tool-btn"
+                        onClick={() => setPreviewBatch(selectedSemester)}
+                        title="Preview the official routine document"
+                      >
+                        👁 Preview
+                      </button>
+                      {(() => {
+                        const st  = publishStateOf(selectedSemester);
+                        const btn = PUBLISH_BTN[st];
+                        return (
+                          <button
+                            className={`rt-pub-btn ${btn.cls}`}
+                            onClick={() => setPublishModal({
+                              batchId: selectedSemester,
+                              semLabel: semLabel(selectedSemester),
+                              state: st,
+                            })}
+                            disabled={!routine?.saved}
+                            title={routine?.saved
+                              ? (st === 'unpublished'
+                                  ? `Publish ${semLabel(selectedSemester)} and notify students & teachers`
+                                  : st === 'edited'
+                                    ? 'This routine changed after it was published — send the updated version'
+                                    : 'Already published — send it again')
+                              : 'Save the routine first — publishing sends the saved routine'}
+                          >
+                            {btn.label}
+                          </button>
+                        );
+                      })()}
+                    </div>
                   </div>
+
+                  {editMode && (
+                    <div className="rt-edit-hint">
+                      {pickedBlock
+                        ? <>Moving <strong>{courseMap[pickedBlock.courseId]?.code || 'class'}</strong>{pickedBlock.group ? ` (Group ${pickedBlock.group})` : ''} — click a target cell, or click it again to cancel.</>
+                        : 'Click a class to pick it up, then click the cell to move it to. Violating moves ask for confirmation.'}
+                      {dirty && <span className="rt-edit-dirty"> · Unsaved manual changes — use 💾 Save Routine above.</span>}
+                    </div>
+                  )}
+
                   <div className="routine-table-wrapper">
                     <table className="routine-table routine-table--batch">
                       <thead>
@@ -863,9 +1167,21 @@ function Routine({ semesterId, onNavigate }) {
                               if (col.type === 'break') {
                                 return <td key="lunch" className="routine-td routine-td--break" />;
                               }
+                              const slotN = parseInt(col.slotId.replace('s', ''), 10);
+                              const cellBlocks = blocksBySemDaySlot[selectedSemester]?.[`${day}-${col.slotId}`] || [];
                               const es = entriesBySemDaySlot[selectedSemester]?.[`${day}-${col.slotId}`] || [];
+                              const isPickedHere = pickedBlock && cellBlocks.some(b => b.id === pickedBlock.id);
                               return (
-                                <td key={col.slotId} className="routine-td">
+                                <td
+                                  key={col.slotId}
+                                  className={[
+                                    'routine-td',
+                                    editMode ? 'rt-cell--editable' : '',
+                                    isPickedHere ? 'rt-cell--picked' : '',
+                                    editMode && pickedBlock && !isPickedHere ? 'rt-cell--target' : '',
+                                  ].filter(Boolean).join(' ')}
+                                  onClick={() => handleCellClick(day, slotN, cellBlocks)}
+                                >
                                   {es.length === 0 ? (
                                     <span className="routine-empty">—</span>
                                   ) : (

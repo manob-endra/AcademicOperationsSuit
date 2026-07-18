@@ -149,4 +149,21 @@ export const courseTimeAPI = {
     if (result.success) return { success: true };
     return result;
   },
+
+  /**
+   * Apply periods-per-class + weekly frequency (+ alternating) to many courses
+   * at once — the "Apply by Credit" control resolves the ids for a credit.
+   * @param {string} semesterId
+   * @param {string[]} courseIds
+   * @param {{durationPeriods:number, weeklyClasses:number, alternating?:boolean}} values
+   */
+  async applyByCredit(semesterId, courseIds, values) {
+    const result = await makeRequest(`${API_BASE_URL}/durations/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ semesterId, courseIds, ...values }),
+    });
+    if (result.success) return { success: true, data: result.data };
+    return result;
+  },
 };

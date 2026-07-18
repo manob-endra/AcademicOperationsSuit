@@ -44,6 +44,7 @@ export const classTimeSettingsService = {
         classesAfterLunch: data.classes_after_lunch,
         classDay: data.class_day,
         skipTime: `${data.skip_time} mins`,
+        avoidPeriods: data.avoid_periods || [],
         id: data.id
       };
 
@@ -88,6 +89,7 @@ export const classTimeSettingsService = {
         classes_after_lunch: settingsData.classesAfterLunch,
         class_day: settingsData.classDay,
         skip_time: skipTimeValue,
+        avoid_periods: Array.isArray(settingsData.avoidPeriods) ? settingsData.avoidPeriods : [],
         is_active: true
       };
 
@@ -109,6 +111,7 @@ export const classTimeSettingsService = {
         classesAfterLunch: data.classes_after_lunch,
         classDay: data.class_day,
         skipTime: `${data.skip_time} mins`,
+        avoidPeriods: data.avoid_periods || [],
         id: data.id
       };
 
@@ -139,16 +142,14 @@ export const classTimeSettingsService = {
       
       // Handle skipTime - save as-is
       if (updates.skipTime !== undefined && updates.skipTime !== null) {
-        dbUpdates.skip_time = typeof updates.skipTime === 'string' 
-          ? parseInt(updates.skipTime) 
+        dbUpdates.skip_time = typeof updates.skipTime === 'string'
+          ? parseInt(updates.skipTime)
           : updates.skipTime;
       }
 
-      console.log('Service: updateSettings received skipTime:', {
-        input: updates.skipTime,
-        saving: dbUpdates.skip_time
-      });
-      console.log('Service: Updating class time settings:', dbUpdates);
+      if (updates.avoidPeriods !== undefined) {
+        dbUpdates.avoid_periods = Array.isArray(updates.avoidPeriods) ? updates.avoidPeriods : [];
+      }
 
       const { data, error } = await supabase
         .from('class_time_settings')
@@ -159,8 +160,6 @@ export const classTimeSettingsService = {
 
       if (error) throw error;
 
-      console.log('Service: Settings updated successfully:', data);
-
       // Transform back to frontend format
       const settings = {
         startTime: data.start_time,
@@ -170,10 +169,10 @@ export const classTimeSettingsService = {
         classesAfterLunch: data.classes_after_lunch,
         classDay: data.class_day,
         skipTime: `${data.skip_time} mins`,
+        avoidPeriods: data.avoid_periods || [],
         id: data.id
       };
 
-      console.log('Service: Returning updated settings:', settings);
       return { success: true, settings };
     } catch (error) {
       console.error('Update class time settings error:', error);

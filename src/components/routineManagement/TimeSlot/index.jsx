@@ -5,7 +5,7 @@ import CourseTime from './CourseTime';
 import TeachersTime from './TeachersTime';
 import './styles/TimeSlot.css';
 
-function TimeSlot({ semesterId }) {
+function TimeSlot({ semesterId, selectedSemesters = [] }) {
   const [activeTab, setActiveTab] = useState('classTimeDetails');
 
   const tabs = [
@@ -22,7 +22,7 @@ function TimeSlot({ semesterId }) {
       case 'classroomClusters':
         return <ClassroomClusters />;
       case 'courseTime':
-        return <CourseTime semesterId={semesterId} />;
+        return <CourseTime semesterId={semesterId} selectedSemesters={selectedSemesters} />;
       case 'teachersTime':
         return <TeachersTime semesterId={semesterId} />;
       default:

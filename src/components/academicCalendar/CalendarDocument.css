@@ -1,0 +1,92 @@
+/* ── Publishable / print-ready academic calendar document ── */
+
+.ac-doc {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 22px 24px 26px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.ac-doc-empty { color: #9ca3af; font-size: 13px; padding: 20px; text-align: center; }
+
+.ac-doc-titlebar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-bottom: 2px solid #1e3a5f;
+  padding-bottom: 10px;
+  margin-bottom: 16px;
+}
+.ac-doc-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: #1a2a4a;
+  text-align: center;
+  flex: 1;
+}
+.ac-doc-published { font-size: 12px; color: #6b7280; white-space: nowrap; }
+
+.ac-doc-grid { margin-bottom: 16px; }
+
+.ac-doc-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: #374151;
+}
+.ac-doc-summary strong { color: #1e3a5f; font-size: 15px; }
+
+.ac-doc-legend { margin-bottom: 18px; }
+.ac-doc-legend-title {
+  display: block;
+  font-weight: 700;
+  font-size: 13px;
+  color: #1a2a4a;
+  margin-bottom: 6px;
+}
+.ac-doc-legend-items { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.ac-doc-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: #374151;
+}
+.ac-doc-legend-swatch {
+  width: 15px;
+  height: 15px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.ac-doc-signature {
+  margin-top: 22px;
+  padding-top: 8px;
+  font-size: 12.5px;
+  color: #374151;
+  line-height: 1.5;
+}
+.ac-doc-sign-line { margin-bottom: 2px; }
+.ac-doc-sign-name { font-weight: 700; color: #1a2a4a; }
+.ac-doc-sign-dept { color: #4b5563; }
+
+/* When rendered for the print window, drop the card chrome */
+.ac-doc--print {
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  max-width: none;
+  padding: 0;
+}

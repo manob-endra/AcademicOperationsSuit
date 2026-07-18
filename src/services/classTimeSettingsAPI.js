@@ -145,25 +145,27 @@ export const classTimeSettingsAPI = {
   /**
    * Update class time settings
    */
-  async updateSettings(settingsId, updates) {
+  async updateSettings(semesterId, settingsId, updates) {
     try {
       if (!backendAvailable) {
         backendAvailable = await checkBackendConnection();
       }
 
       if (!backendAvailable) {
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: 'Backend server is not running.',
-          offline: true 
+          offline: true
         };
       }
 
-      // Ensure skipTime is included and is a number
+      // Ensure skipTime is included and is a number; semesterId satisfies the
+      // route's requireSemester guard (the row is still identified by settingsId).
       const dataToSend = {
         ...updates,
-        skipTime: typeof updates.skipTime === 'string' 
-          ? parseInt(updates.skipTime) 
+        semesterId,
+        skipTime: typeof updates.skipTime === 'string'
+          ? parseInt(updates.skipTime)
           : updates.skipTime
       };
 

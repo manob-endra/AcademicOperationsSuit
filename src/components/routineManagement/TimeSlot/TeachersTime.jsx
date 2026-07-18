@@ -1,23 +1,12 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { teacherAPI } from '../../../services/teacherAPI';
+import { courseAPI } from '../../../services/courseAPI';
+import { courseTimeAPI } from '../../../services/courseTimeAPI';
+import { courseTeacherAPI } from '../../../services/courseTeacherAPI';
+import { classTimeSettingsAPI } from '../../../services/classTimeSettingsAPI';
 import { compareTeachersByRank } from '../../../utils/teacherRank';
+import { generateSlots, getWorkingDays } from './timeSlotUtils';
 import './styles/TeachersTime.css';
-
-/* ─── constants ─────────────────────────────────────────────────────────── */
-
-const workingDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
-
-const timeSlots = [
-  { id: 's1', label: '8:30-9:20',   isBreak: false },
-  { id: 's2', label: '9:25-10:15',  isBreak: false },
-  { id: 's3', label: '10:20-11:10', isBreak: false },
-  { id: 'break', label: 'Break',    isBreak: true  },
-  { id: 's4', label: '11:40-12:30', isBreak: false },
-  { id: 's5', label: '12:35-1:25',  isBreak: false },
-];
-
-const totalSelectableSlots =
-  workingDays.length * timeSlots.filter((s) => !s.isBreak).length;
 
 /* ─── helpers ───────────────────────────────────────────────────────────── */
 
@@ -233,6 +222,9 @@ function AddTeacherModal({ open, onClose, onAdd }) {
 function TeachersTime({ semesterId }) {
   const [teachers, setTeachers]         = useState([]);
   const [availability, setAvailability] = useState({});  // { [teacherId]: string[] }
+  const [requiredPeriods, setRequiredPeriods] = useState({}); // { [teacherId]: periods needed/week }
+  const [avoidedSet, setAvoidedSet] = useState(new Set()); // "Day-sN" blocked by Class Time Details
+  const [settings, setSettings] = useState(null);          // class time settings (drives the grid)
   const [editingTeacherId, setEditing]  = useState(null);
   const [draftSlots, setDraftSlots]     = useState([]);
   const [loading, setLoading]           = useState(true);
@@ -284,10 +276,24 @@ function TeachersTime({ semesterId }) {
     setLoading(true);
     setError(null);
 
-    const [teachersResult, availResult] = await Promise.all([
+    const [teachersResult, availResult, assignResult, durationsResult, coursesResult, settingsResult] = await Promise.all([
       teacherAPI.getTeachers(semesterId),
       teacherAPI.getAllAvailability(semesterId),
+      courseTeacherAPI.getAllAssignments(semesterId),
+      courseTimeAPI.getDurations(semesterId),
+      courseAPI.getAllCourses(),
+      classTimeSettingsAPI.getSettings(semesterId),
     ]);
+
+    // Class time settings drive the grid columns/days and the avoided periods,
+    // so the Teacher's Time grid always matches Class Time Details.
+    if (settingsResult.success && settingsResult.data) {
+      setSettings(settingsResult.data);
+      setAvoidedSet(new Set(settingsResult.data.avoidPeriods || []));
+    } else {
+      setSettings(null);
+      setAvoidedSet(new Set());
+    }
 
     if (!teachersResult.success) {
       setError(
@@ -308,6 +314,34 @@ function TeachersTime({ semesterId }) {
         map[teacher_id].push(`${day_of_week}-${slot_id}`);
       });
       setAvailability(map);
+    }
+
+    // ── Required weekly periods per teacher ──
+    // For each course a teacher is assigned, count the periods it occupies in a
+    // week = periods-per-class × classes-per-week. Lab courses run twice (two
+    // sections taught separately), so their periods are doubled.
+    if (assignResult.success && durationsResult.success && coursesResult.success) {
+      const durMap = {}; // courseId → { periods, weekly }
+      (durationsResult.data || []).forEach((d) => {
+        durMap[d.course_id] = {
+          periods: Number(d.duration_periods) || 1,
+          weekly:  Number(d.weekly_classes)   || 1,
+        };
+      });
+      const typeMap = {}; // courseId → course_type
+      (coursesResult.courses || []).forEach((c) => { typeMap[c.id] = c.course_type; });
+
+      const req = {};
+      (assignResult.data || []).forEach(({ course_id, teacher_assignments }) => {
+        const dur = durMap[course_id];
+        if (!dur) return; // no Course Time set → contributes nothing yet
+        const isLab = typeMap[course_id] === 'lab';
+        const perWeek = dur.periods * dur.weekly * (isLab ? 2 : 1);
+        (teacher_assignments || []).forEach((tid) => {
+          req[tid] = (req[tid] || 0) + perWeek;
+        });
+      });
+      setRequiredPeriods(req);
     }
 
     setLoading(false);
@@ -360,6 +394,18 @@ function TeachersTime({ semesterId }) {
       prev.includes(key) ? prev.filter((s) => s !== key) : [...prev, key]
     );
   };
+
+  // Grid columns + working days come from Class Time Details, so the Teacher's
+  // Time grid stays in sync with the configured periods and start times.
+  const timeSlots = useMemo(() => generateSlots(settings || undefined), [settings]);
+  const workingDays = useMemo(
+    () => getWorkingDays(settings?.classDay || 'Sunday-Thursday'),
+    [settings]
+  );
+  const totalSelectableSlots = useMemo(
+    () => workingDays.length * timeSlots.filter((s) => !s.isBreak).length,
+    [workingDays, timeSlots]
+  );
 
   const handleAddTeacher = async (formData) => {
     const result = await teacherAPI.createTeacher(formData);
@@ -535,8 +581,18 @@ function TeachersTime({ semesterId }) {
           {filteredTeachers.map((teacher) => {
             const isEditing      = editingTeacherId === teacher.id;
             const currentSlots   = isEditing ? draftSlots : (availability[teacher.id] || []);
-            const selectedCount  = currentSlots.length;
-            const percentage     = Math.round((selectedCount / totalSelectableSlots) * 100);
+            // Avoided slots never count as usable availability (even if saved
+            // before the period was blocked). Capacity excludes them too.
+            const usableSlots    = currentSlots.filter((k) => !avoidedSet.has(k));
+            const selectedCount  = usableSlots.length;
+            const capacity       = Math.max(0, totalSelectableSlots - avoidedSet.size);
+            const percentage     = capacity > 0 ? Math.round((selectedCount / capacity) * 100) : 0;
+
+            // Weekly periods this teacher must teach, computed from their
+            // assigned courses × Course Time settings (labs counted twice for
+            // their two sections). They must mark at least this many slots.
+            const needed = requiredPeriods[teacher.id] || 0;
+            const shortBy = Math.max(0, needed - selectedCount);
 
             return (
               <article key={teacher.id} className="teacher-card">
@@ -560,12 +616,30 @@ function TeachersTime({ semesterId }) {
                   </div>
                 </div>
 
+                {/* Required weekly periods (from assigned courses × Course
+                    Time; labs doubled) vs the slots marked available. */}
+                <div className="teacher-load-row">
+                  <span className="teacher-load-chip" title="Weekly periods needed = assigned courses' periods × classes/week (labs counted twice for two sections)">
+                    Needs <strong>{needed}</strong> period{needed !== 1 ? 's' : ''}/week
+                  </span>
+                  <span
+                    className={`teacher-need-chip ${shortBy > 0 ? 'short' : 'ok'}`}
+                    title="Minimum available slots the teacher must mark to fit the assigned classes"
+                  >
+                    {needed === 0
+                      ? 'No classes assigned'
+                      : shortBy > 0
+                        ? `Need ${shortBy} more slot${shortBy !== 1 ? 's' : ''}`
+                        : 'Enough slots ✓'}
+                  </span>
+                </div>
+
                 <div className="teacher-grid-scroll">
                   <div
                     className="teacher-time-grid"
                     style={{
-                      gridTemplateColumns: `58px repeat(${timeSlots.length}, minmax(48px, 1fr))`,
-                      gridTemplateRows: `30px repeat(${workingDays.length}, 30px)`,
+                      gridTemplateColumns: `58px repeat(${timeSlots.length}, minmax(52px, 1fr))`,
+                      gridTemplateRows: `40px repeat(${workingDays.length}, 30px)`,
                     }}
                   >
                     <div className="teacher-grid-head day-head">Day</div>
@@ -574,7 +648,14 @@ function TeachersTime({ semesterId }) {
                         key={`head-${teacher.id}-${slot.id}`}
                         className={`teacher-grid-head ${slot.isBreak ? 'break-head' : ''}`}
                       >
-                        {slot.label}
+                        {slot.isBreak ? (
+                          <span className="slot-break-label">Break</span>
+                        ) : (
+                          <span className="slot-time-range">
+                            <span>{slot.startPeriod}</span>
+                            <span>{slot.endPeriod}</span>
+                          </span>
+                        )}
                       </div>
                     ))}
 
@@ -583,17 +664,19 @@ function TeachersTime({ semesterId }) {
                         <div className="teacher-day-cell">{day.slice(0, 3)}</div>
                         {timeSlots.map((slot) => {
                           const slotKey    = `${day}-${slot.id}`;
-                          const isSelected = currentSlots.includes(slotKey);
-                          const isClickable = isEditing && !slot.isBreak;
+                          const isAvoided  = !slot.isBreak && avoidedSet.has(slotKey);
+                          const isSelected = !isAvoided && currentSlots.includes(slotKey);
+                          const isClickable = isEditing && !slot.isBreak && !isAvoided;
 
                           return (
                             <button
                               key={`${teacher.id}-${slotKey}`}
                               type="button"
-                              className={`teacher-slot-cell${slot.isBreak ? ' break-cell' : ''}${isSelected ? ' selected' : ''}`}
-                              onClick={() => isEditing && handleSlotToggle(day, slot)}
+                              className={`teacher-slot-cell${slot.isBreak ? ' break-cell' : ''}${isAvoided ? ' avoided-cell' : ''}${isSelected ? ' selected' : ''}`}
+                              onClick={() => isClickable && handleSlotToggle(day, slot)}
                               disabled={!isClickable}
-                              aria-label={`${teacher.name} ${day} ${slot.label}`}
+                              title={isAvoided ? 'Blocked in Class Time Details — not available' : undefined}
+                              aria-label={`${teacher.name} ${day} ${slot.label}${isAvoided ? ' (blocked)' : ''}`}
                             />
                           );
                         })}
@@ -603,13 +686,13 @@ function TeachersTime({ semesterId }) {
                 </div>
 
                 <div className="teacher-progress-head">
-                  <span>Available Slots</span>
-                  <span>{selectedCount}/{totalSelectableSlots}</span>
+                  <span>Available Slots {needed > 0 && <em className="teacher-min-note">(min {needed})</em>}</span>
+                  <span className={shortBy > 0 ? 'teacher-count-short' : ''}>{selectedCount}/{capacity}</span>
                 </div>
                 <div className="teacher-progress-track">
                   <div
-                    className="teacher-progress-fill"
-                    style={{ width: `${(selectedCount / totalSelectableSlots) * 100}%` }}
+                    className={`teacher-progress-fill${shortBy > 0 ? ' short' : ''}`}
+                    style={{ width: `${capacity > 0 ? (selectedCount / capacity) * 100 : 0}%` }}
                   />
                 </div>
 

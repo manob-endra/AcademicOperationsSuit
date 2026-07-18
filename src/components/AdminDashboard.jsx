@@ -22,20 +22,9 @@ const moduleOptions = [
     icon: '📚',
     color: 'gradient-green'
   },
-  {
-    key: 'exam-routine',
-    title: 'Exam Routine',
-    description: 'Schedule examinations and coordinate hall-wise planning.',
-    icon: '📝',
-    color: 'gradient-purple'
-  },
-  {
-    key: 'invigilation-assignment',
-    title: 'Invigilation Assignment',
-    description: 'Assign invigilators by date, slot, and examination hall.',
-    icon: '👥',
-    color: 'gradient-orange'
-  },
+  // Exam Routine and Invigilation Assignment are no longer separate modules —
+  // in-course/final exam scheduling and invigilator assignment now live inside
+  // Routine Management.
   {
     key: 'notice-management',
     title: 'Notice Management',

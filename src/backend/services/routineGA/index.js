@@ -40,6 +40,7 @@ export function generateWithGA(data, options = {}) {
         teacher_ids: ev.teacherIds,             // full list — a course may have many
         room,
         group: ev.group,                        // null | 'A' | 'B' | 'alt'
+        alternating: !!ev.alternating,          // theory class every other week
         session_id: sessionId,
       });
     }
@@ -47,6 +48,9 @@ export function generateWithGA(data, options = {}) {
 
   const report = {
     feasible: best.hardCount === 0,
+    // Time budget hit before a feasible routine was found: this result is the
+    // best attempt, with the unmet hard constraints listed for the admin.
+    timedOut: !!stats.timedOut,
     hardViolations: best.hard.map(h => ({ type: h.type, message: h.message })),
     hardCount: best.hardCount,
     softCost: Math.round(best.softCost * 100) / 100,

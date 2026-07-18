@@ -1,8 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { routineAPI } from '../../services/routineAPI';
 import { classTimeSettingsAPI } from '../../services/classTimeSettingsAPI';
 import { courseAPI } from '../../services/courseAPI';
 import { teacherAPI } from '../../services/teacherAPI';
+import RoutineDocument from '../routineManagement/RoutineDocument';
+import { printCalendarNode } from '../academicCalendar/printCalendar';
 
 const WEEK_DAYS = ['Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
@@ -80,6 +82,7 @@ function BatchWiseRoutine() {
   const [courseMap, setCourseMap]   = useState({});
   const [teacherMap, setTeacherMap] = useState({});
   const [selectedSem, setSelectedSem] = useState('');
+  const printRef = useRef(null);
 
   useEffect(() => { load(); }, []);
 
@@ -173,7 +176,7 @@ function BatchWiseRoutine() {
 
       {semesters.length > 0 && (
         <>
-          <div className="td-filter-bar">
+          <div className="td-filter-bar" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <span className="td-filter-label">Select Batch:</span>
             <select
               className="td-filter-select"
@@ -184,6 +187,30 @@ function BatchWiseRoutine() {
                 <option key={s} value={s}>{SEMESTER_LABELS[s] || s}</option>
               ))}
             </select>
+            <button
+              onClick={() => printRef.current && printCalendarNode(printRef.current, `Class Routine - ${SEMESTER_LABELS[selectedSem] || selectedSem}`)}
+              style={{
+                marginLeft: 'auto', padding: '7px 16px', border: '1.5px solid #1a3a52',
+                background: '#1a3a52', color: '#fff', borderRadius: 8,
+                fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              ⬇ Download PDF
+            </button>
+          </div>
+
+          {/* Hidden official-format document used for the PDF download */}
+          <div style={{ position: 'absolute', left: -99999, top: 0, width: 1000 }} aria-hidden="true">
+            <div ref={printRef}>
+              <RoutineDocument
+                batchId={selectedSem}
+                entries={semEntries}
+                columns={columns}
+                days={activeDays}
+                courseMap={courseMap}
+                teacherMap={teacherMap}
+              />
+            </div>
           </div>
 
           <div className="td-routine-wrap">

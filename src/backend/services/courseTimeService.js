@@ -24,7 +24,7 @@ export const courseTimeService = {
 
   /**
    * Get the durations set within one semester.
-   * Returns { course_id, duration_periods, weekly_classes } per course.
+   * Returns { course_id, duration_periods, weekly_classes, alternating } per course.
    */
   async getDurations(semesterId) {
     try {
@@ -32,7 +32,7 @@ export const courseTimeService = {
 
       const { data, error } = await supabase
         .from('course_durations')
-        .select('course_id, duration_periods, weekly_classes')
+        .select('course_id, duration_periods, weekly_classes, alternating')
         .eq('semester_id', semesterId);
 
       if (error) throw error;
@@ -127,6 +127,46 @@ export const courseTimeService = {
       return { success: true, durations: data || [] };
     } catch (error) {
       console.error('courseTimeService.upsertBulkDurations error:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Apply duration + weekly frequency (with optional alternating) to a set of
+   * courses at once — used by the "Apply by Credit" control. The frontend
+   * resolves which course ids share the chosen credit and passes them in.
+   * @param {string[]} courseIds
+   * @param {{durationPeriods:number, weeklyClasses:number, alternating?:boolean}} values
+   */
+  async applyToCourses(semesterId, courseIds, values) {
+    try {
+      if (!semesterId) return { success: false, error: 'semesterId is required.' };
+      if (!Array.isArray(courseIds) || courseIds.length === 0) {
+        return { success: false, error: 'courseIds array is required.' };
+      }
+      const durationPeriods = Number(values.durationPeriods);
+      const weeklyClasses   = Number(values.weeklyClasses);
+      const alternating     = !!values.alternating;
+      if (!(durationPeriods >= 1)) return { success: false, error: 'durationPeriods must be >= 1.' };
+      if (!(weeklyClasses >= 1))   return { success: false, error: 'weeklyClasses must be >= 1.' };
+
+      const rows = courseIds.map((id) => ({
+        semester_id:      semesterId,
+        course_id:        id,
+        duration_periods: durationPeriods,
+        weekly_classes:   weeklyClasses,
+        alternating,
+      }));
+
+      const { data, error } = await supabase
+        .from('course_durations')
+        .upsert(rows, { onConflict: 'semester_id,course_id' })
+        .select();
+
+      if (error) throw error;
+      return { success: true, durations: data || [] };
+    } catch (error) {
+      console.error('courseTimeService.applyToCourses error:', error);
       return { success: false, error: error.message };
     }
   },

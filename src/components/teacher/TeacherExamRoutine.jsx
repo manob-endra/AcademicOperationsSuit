@@ -1,6 +1,8 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useRef } from 'react';
 import { AuthContext }    from '../../contexts/AuthContext';
 import { examRoutineAPI } from '../../services/examRoutineAPI';
+import IncourseDocument   from '../routineManagement/IncourseDocument';
+import { printCalendarNode } from '../academicCalendar/printCalendar';
 
 const SEMESTERS_API = `${import.meta.env.VITE_API_URL}/academic-semesters`;
 
@@ -52,6 +54,11 @@ export default function TeacherExamRoutine({ teacherRecord }) {
 
   const teacherId = teacherRecord?.id;
   const slots = sessionData?.slots || [];
+  const printRef = useRef(null);
+
+  // Teacher names for the invigilator column (returned with the published session)
+  const teacherMap = {};
+  for (const t of (sessionData?.teachers || [])) teacherMap[t.id] = t;
 
   // Teacher sees all slots but their duties are highlighted
   const mySlotIds = new Set(
@@ -98,7 +105,31 @@ export default function TeacherExamRoutine({ teacherRecord }) {
           <option value=''>— Select semester —</option>
           {semesters.map(s => <option key={s.id} value={s.id}>{s.name} {s.year}</option>)}
         </select>
+
+        {slots.length > 0 && (
+          <button
+            onClick={() => printRef.current && printCalendarNode(printRef.current, `${examType === 'final' ? 'Final' : 'Incourse'} Exam Routine`)}
+            style={{ marginLeft: 'auto', padding: '7px 16px', border: '1.5px solid #1a3a52', background: '#1a3a52', color: '#fff', borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}
+          >
+            ⬇ Download PDF
+          </button>
+        )}
       </div>
+
+      {/* Hidden official-format notice used for the PDF download */}
+      {slots.length > 0 && (
+        <div style={{ position: 'absolute', left: -99999, top: 0, width: 760 }} aria-hidden="true">
+          <div ref={printRef}>
+            <IncourseDocument
+              batchLabel={sessionData?.title || 'In-course Examination'}
+              slots={slots}
+              courseMap={courses}
+              teacherMap={teacherMap}
+              noticeDate={sessionData?.published_at?.slice(0, 10)}
+            />
+          </div>
+        </div>
+      )}
 
       {loadingExam ? (
         <div style={{ padding: 32, textAlign: 'center', color: '#9ca3af', fontSize: 14 }}>Loading schedule…</div>

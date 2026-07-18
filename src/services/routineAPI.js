@@ -72,7 +72,13 @@ export const routineAPI = {
   async getRoutine(semesterId) {
     const result = await makeRequest(`${API_BASE_URL}?semesterId=${semesterId}`);
     if (result.success) {
-      return { success: true, entries: result.entries || [], generatedAt: result.generatedAt };
+      return {
+        success: true,
+        entries: result.entries || [],
+        generatedAt: result.generatedAt,
+        // { batchCode: { publishedAt, fingerprint } }
+        publishedBatches: result.publishedBatches || {},
+      };
     }
     return result;
   },

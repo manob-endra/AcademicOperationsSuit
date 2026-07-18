@@ -1,9 +1,11 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { academicCalendarAPI } from '../services/academicCalendarAPI';
 import { academicSemesterAPI }  from '../services/academicSemesterAPI';
 import CalendarGrid  from './academicCalendar/CalendarGrid';
+import CalendarDocument from './academicCalendar/CalendarDocument';
 import PublishModal  from './academicCalendar/PublishModal';
+import { printCalendarNode } from './academicCalendar/printCalendar';
 import {
   CELL_TYPES, TOOLBAR_TYPES,
   generateWeeks, getAllDates, calculateSummary, toDateStr,
@@ -51,6 +53,13 @@ export default function AcademicCalendar() {
   const [saving,      setSaving]      = useState(false);
   const [saveMsg,     setSaveMsg]     = useState('');
 
+  // ── Publish state / page mode ────────────────────────────────────────────
+  const [isPublished, setIsPublished] = useState(false); // calendar already published
+  const [publishedAt, setPublishedAt] = useState(null);
+  const [mode,        setMode]        = useState('editor'); // 'published' | 'editor'
+  const [showPreview, setShowPreview] = useState(false);    // preview modal
+  const printRef = useRef(null); // hidden node used for print-to-PDF
+
   // ── Load existing calendar + semester meta ───────────────────────────────
   useEffect(() => {
     let active = true;
@@ -68,6 +77,12 @@ export default function AcademicCalendar() {
           setTotalWeeks(String(Math.min(MAX_WEEKS, Math.max(MIN_WEEKS, cfg.totalWeeks || DEFAULT_WEEKS))));
           setEntries(cal.entries || {});
           setConfigReady(true);
+        }
+        // A published calendar opens on its read-only landing page.
+        if (cal.published) {
+          setIsPublished(true);
+          setPublishedAt(cal.published_at || null);
+          if (cfg.startDate) setMode('published');
         }
       } else if (!calRes.success && !calRes.offline) {
         // non-offline error — still allow creating fresh
@@ -175,8 +190,11 @@ export default function AcademicCalendar() {
 
   const handleSaveDraft = async () => {
     setSaving(true);
+    // Preserve published state — saving a draft on a published calendar keeps
+    // it published (students/teachers keep seeing the last published version
+    // until you Republish).
     const res = await academicCalendarAPI.saveCalendar(
-      semesterId, { startDate, totalWeeks: totalWeeksNum }, entries, false
+      semesterId, { startDate, totalWeeks: totalWeeksNum }, entries, isPublished
     );
     setSaving(false);
     setSaveMsg(res.success ? 'Draft saved!' : `Error: ${res.error}`);
@@ -191,9 +209,23 @@ export default function AcademicCalendar() {
     setSaving(false);
     if (res.success) {
       setShowPublish(false);
-      navigate(`/admin-dashboard/routine-management/${semesterId}`);
+      setIsPublished(true);
+      setPublishedAt(res.data?.published_at || new Date().toISOString());
+      setSaveMsg(''); // clear any draft msg
+      // Land on the read-only published view (matches the flow the admin sees
+      // next time they open the calendar).
+      setMode('published');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
       alert('Failed to publish: ' + res.error);
+    }
+  };
+
+  // Download / print the publishable document as PDF (browser print dialog).
+  const handleDownload = () => {
+    const label = semester ? `${semester.name} ${semester.year}` : 'Academic Calendar';
+    if (printRef.current) {
+      printCalendarNode(printRef.current, `Academic Calendar - ${label}`);
     }
   };
 
@@ -238,10 +270,56 @@ export default function AcademicCalendar() {
       <header className="ac-header">
         <div className="ac-header-info">
           <h1 className="ac-header-title">Academic Calendar</h1>
-          <span className="ac-header-sem">{semTitle}</span>
+          <span className="ac-header-sem">
+            {semTitle}
+            {isPublished && <span className="ac-published-pill">Published</span>}
+          </span>
         </div>
       </header>
 
+      {/* ══ Published landing view (read-only) ══ */}
+      {mode === 'published' && (
+        <div className="ac-body">
+          <div className="ac-published-actions">
+            <div className="ac-published-note">
+              This academic calendar is <strong>published</strong> and visible to all students
+              and teachers.
+            </div>
+            <div className="ac-published-btns">
+              <button className="ac-btn ac-pub-btn ac-pub-btn--download" onClick={handleDownload}>
+                ⬇ Download PDF
+              </button>
+              <button className="ac-btn ac-pub-btn ac-pub-btn--edit" onClick={() => setMode('editor')}>
+                ✎ Edit
+              </button>
+            </div>
+          </div>
+
+          <CalendarDocument
+            config={{ startDate, totalWeeks: totalWeeksNum }}
+            entries={entries}
+            semesterLabel={semTitle}
+            publishedAt={publishedAt}
+          />
+        </div>
+      )}
+
+      {/* Hidden node used as the source for print-to-PDF */}
+      <div style={{ position: 'absolute', left: -99999, top: 0, width: 1100 }} aria-hidden="true">
+        <div ref={printRef}>
+          {configReady && (
+            <CalendarDocument
+              config={{ startDate, totalWeeks: totalWeeksNum }}
+              entries={entries}
+              semesterLabel={semTitle}
+              publishedAt={publishedAt}
+              forPrint
+            />
+          )}
+        </div>
+      </div>
+
+      {mode !== 'published' && (
       <div className="ac-body">
         {/* ── Setup Panel ── */}
         {(!configReady || configEdit) && (
@@ -471,16 +549,56 @@ export default function AcademicCalendar() {
             {/* ── Bottom action bar ── */}
             <div className="ac-bottom-bar">
               {saveMsg && <span className="ac-save-msg-bottom">{saveMsg}</span>}
+              {isPublished && (
+                <button
+                  className="ac-btn-bottom ac-btn-bottom--view"
+                  onClick={() => { setMode('published'); window.scrollTo({ top: 0 }); }}
+                  disabled={saving}
+                  title="Back to the published view"
+                >
+                  ← Published View
+                </button>
+              )}
+              <button className="ac-btn-bottom ac-btn-bottom--preview" onClick={() => setShowPreview(true)} disabled={saving}>
+                👁 Preview
+              </button>
+              <button className="ac-btn-bottom ac-btn-bottom--download" onClick={handleDownload} disabled={saving}>
+                ⬇ Download PDF
+              </button>
               <button className="ac-btn-bottom ac-btn-bottom--draft" onClick={handleSaveDraft} disabled={saving}>
                 {saving ? 'Saving…' : 'Save Draft'}
               </button>
               <button className="ac-btn-bottom ac-btn-bottom--publish" onClick={() => setShowPublish(true)} disabled={saving}>
-                Publish
+                {isPublished ? 'Republish' : 'Publish'}
               </button>
             </div>
           </>
         )}
       </div>
+      )}
+
+      {/* ── Preview Modal (publishable document, read-only) ── */}
+      {showPreview && (
+        <div className="ac-overlay" onClick={e => e.target === e.currentTarget && setShowPreview(false)}>
+          <div className="ac-preview-modal">
+            <div className="ac-preview-head">
+              <span className="ac-preview-title">Preview — publishable version</span>
+              <div className="ac-preview-actions">
+                <button className="ac-btn ac-btn--ghost" onClick={handleDownload}>⬇ Download PDF</button>
+                <button className="ac-btn ac-btn--ghost-dark" onClick={() => setShowPreview(false)}>Close</button>
+              </div>
+            </div>
+            <div className="ac-preview-body">
+              <CalendarDocument
+                config={{ startDate, totalWeeks: totalWeeksNum }}
+                entries={entries}
+                semesterLabel={semTitle}
+                publishedAt={isPublished ? publishedAt : null}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Label Prompt Modal ── */}
       {showLabelPrompt && (
@@ -531,6 +649,7 @@ export default function AcademicCalendar() {
           entries={entries}
           semester={semester}
           saving={saving}
+          alreadyPublished={isPublished}
           onConfirm={handlePublishConfirm}
           onCancel={() => setShowPublish(false)}
         />
